@@ -51,7 +51,9 @@ reports only keys that are required for the role or malformed.
 
 CI's `release-manifest` job publishes `images.env` carrying `RELEASE_TAG`,
 `WEB_DIGEST`, `WORKER_DIGEST` and `OPS_DIGEST`. Append that file to `.env` so
-compose can resolve the pins.
+compose can resolve the pins. The digest values are the bare 64-character hex
+digest; `compose.yaml` supplies the `sha256:` prefix itself, so never paste
+`sha256:` into these variables.
 
 `compose.yaml` references those values with `:?` guards, so a missing pin fails
 loudly instead of pulling `latest`. Never edit digests by hand: they are the
@@ -107,13 +109,13 @@ the store answers again (R-018-1/2).
 
 Persistent state lives in named volumes plus two host bind mounts:
 
-| Data | Location | Survives a normal stop | Survives the volume flag |
-| --- | --- | --- | --- |
-| Postgres | `pgdata` volume | yes | no |
-| Redis AOF | `redisdata` volume | yes | no |
-| MinIO bucket | `miniodata` volume | yes | no |
-| Backups | `./backups` bind mount | yes | yes |
-| Non-secret config | `./config` bind mount, read-only | yes | yes |
+| Data              | Location                         | Survives a normal stop | Survives the volume flag |
+| ----------------- | -------------------------------- | ---------------------- | ------------------------ |
+| Postgres          | `pgdata` volume                  | yes                    | no                       |
+| Redis AOF         | `redisdata` volume               | yes                    | no                       |
+| MinIO bucket      | `miniodata` volume               | yes                    | no                       |
+| Backups           | `./backups` bind mount           | yes                    | yes                      |
+| Non-secret config | `./config` bind mount, read-only | yes                    | yes                      |
 
 The Compose `down` command stops and removes containers but keeps every volume;
 it is the normal stop command.
@@ -136,12 +138,12 @@ It reports every missing or malformed key in one message and exits non-zero
 before starting work. Values are never printed: a secret that is wrong is still a
 secret.
 
-| Role | Also requires |
-| --- | --- |
-| `web` | app/session keys and stores |
-| `worker` | stores, all three provider credentials, the voice id |
-| `ops` | stores (plus the backup tooling delivered by US-002) |
-| `migrate` | stores only |
+| Role      | Also requires                                        |
+| --------- | ---------------------------------------------------- |
+| `web`     | app/session keys and stores                          |
+| `worker`  | stores, all three provider credentials, the voice id |
+| `ops`     | stores (plus the backup tooling delivered by US-002) |
+| `migrate` | stores only                                          |
 
 Example failure shape:
 
@@ -198,11 +200,11 @@ The B-01 signal is a manual, on-hardware check:
 
 ## 9. Troubleshooting
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `RELEASE_TAG must be the release tag …` | pins not appended to `.env` | §2.3 |
-| `MINIO_IMAGE must be a digest-pinned …` | object-store image not set | §2.5 |
-| `manifest unknown` or `denied` on pull | wrong digest or missing GHCR login | re-check `images.env`; `docker login ghcr.io` |
-| `web` exits listing keys | environment incomplete | fill the named keys (§2.2) |
-| `/readyz` 503 after start | a store is still booting or unhealthy | `docker compose ps`, `docker compose logs <service>` |
-| `migrate` exits non-zero | schema or migration failure | previous version keeps running; read the log, fix forward or restore (§7) |
+| Symptom                                 | Cause                                 | Fix                                                                       |
+| --------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
+| `RELEASE_TAG must be the release tag …` | pins not appended to `.env`           | §2.3                                                                      |
+| `MINIO_IMAGE must be a digest-pinned …` | object-store image not set            | §2.5                                                                      |
+| `manifest unknown` or `denied` on pull  | wrong digest or missing GHCR login    | re-check `images.env`; `docker login ghcr.io`                             |
+| `web` exits listing keys                | environment incomplete                | fill the named keys (§2.2)                                                |
+| `/readyz` 503 after start               | a store is still booting or unhealthy | `docker compose ps`, `docker compose logs <service>`                      |
+| `migrate` exits non-zero                | schema or migration failure           | previous version keeps running; read the log, fix forward or restore (§7) |
