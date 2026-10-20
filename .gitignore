@@ -1,0 +1,45 @@
+# ── Secrets: never committed (R-015-5; the .env file is gitignored from commit 1) ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+deploy/secrets/
+
+# ── Build output, dependencies, caches ──
+node_modules/
+dist/
+coverage/
+.vitest/
+*.tsbuildinfo
+npm-debug.log*
+
+# ── Runtime data created by compose volumes / bind mounts ──
+backups/
+data/
+
+# ── Authoring artifacts of the design phase ──
+# The approved specs (PRD, TECH_DESIGN, LEAD_PLAN, …) live in the project
+# workspace that surrounds this repository; they are not application code and are
+# deliberately kept out of the app repo (see evidence/t_401214c5.md §repo scope).
+/PRD.md
+/BACKLOG.md
+/UX_SPEC.md
+/UI_SPEC.md
+/TECH_DESIGN.md
+/LEAD_PLAN.md
+/RULINGS.md
+/QUALIFICATION_RESULTS.md
+/APPROVAL.md
+/PRD_REVIEW_v1.md
+/GATE_*.md
+/PRD_HASHES.md
+/*.sha256
+/mockups/
+/tools/
+
+# ── Editor / OS noise ──
+.DS_Store
+*.swp
+.idea/
+.vscode/

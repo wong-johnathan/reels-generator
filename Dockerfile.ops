@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1.7
+# ops image — profile-gated one-shots (migrate + backup).
+#
+# Base is postgres:16-bookworm so the image ships a pg_dump that matches the
+# server major (bookworm's own client is 15 and cannot dump a 16 server, R-017-5).
+# Node is copied in from the pinned node image — same Debian release, so the
+# binary's glibc/libstdc++ are already present.
+ARG NODE_IMAGE=node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+ARG POSTGRES_IMAGE=postgres:16-bookworm@sha256:0ea6700a3b4f0ae6ce746519073558aed4d88a79d8d07622a9a644946c7319c4
+
+FROM ${NODE_IMAGE} AS deps
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM deps AS build
+COPY tsconfig.json tsconfig.build.json ./
+COPY src ./src
+COPY contract ./contract
+RUN npm run build && npm prune --omit=dev
+
+FROM ${POSTGRES_IMAGE} AS runtime
+ENV NODE_ENV=production \
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    PATH=/usr/local/bin:$PATH
+WORKDIR /app
+COPY --from=${NODE_IMAGE} /usr/local/bin/node /usr/local/bin/node
+COPY --from=${NODE_IMAGE} /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app \
+ && mkdir -p /backups \
+ && chown -R app:app /app /backups
+COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+RUN chown -R app:app /app
+USER 10001:10001
+ENTRYPOINT ["node", "dist/src/boot/validate-env.js", "--role", "ops", "--exec"]
+CMD ["node", "dist/src/ops/main.js"]

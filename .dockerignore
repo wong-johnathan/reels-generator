@@ -1,0 +1,16 @@
+# Keep the build context minimal and secret-free: `.env` must never enter an image.
+.env
+.env.*
+!.env.example
+.git
+.github
+node_modules
+dist
+coverage
+.vitest
+evidence
+backups
+config/local*
+*.log
+*.tsbuildinfo
+.DS_Store

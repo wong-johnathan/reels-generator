@@ -1,0 +1,38 @@
+{
+  "name": "reels-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private, single-operator, self-hosted faceless video factory (Milestone A).",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11 <21"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "contract:openapi": "tsx scripts/generate-openapi.ts",
+    "contract:mock": "tsx contract/mock/server.ts",
+    "env:validate": "tsx src/boot/validate-env.ts",
+    "start:web": "node dist/src/api/server.js"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^20.11.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.2.0",
+    "yaml": "^2.5.0"
+  }
+}
