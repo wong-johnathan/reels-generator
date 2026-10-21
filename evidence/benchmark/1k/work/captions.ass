@@ -1,0 +1,37 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: ReelsCaption,DejaVu Sans,48,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,4,2,2,60,60,102,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.50,0:00:04.01,ReelsCaption,,0,0,0,,{\fad(120,120)}the quiet machine that runs\Nyour morning decides what you
+Dialogue: 0,0:00:03.74,0:00:06.93,ReelsCaption,,0,0,0,,{\fad(120,120)}see first and what never\Narrives at all because
+Dialogue: 0,0:00:06.66,0:00:10.17,ReelsCaption,,0,0,0,,{\fad(120,120)}attention is the only currency\Nthat compounds while you sleep
+Dialogue: 0,0:00:09.91,0:00:13.09,ReelsCaption,,0,0,0,,{\fad(120,120)}through another ordinary day\Nof small choices made without
+Dialogue: 0,0:00:12.83,0:00:16.34,ReelsCaption,,0,0,0,,{\fad(120,120)}you the quiet machine that\Nruns your morning decides what
+Dialogue: 0,0:00:16.07,0:00:19.59,ReelsCaption,,0,0,0,,{\fad(120,120)}you see first and what never\Narrives at all because
+Dialogue: 0,0:00:19.32,0:00:22.83,ReelsCaption,,0,0,0,,{\fad(120,120)}attention is the only currency\Nthat compounds while you sleep
+Dialogue: 0,0:00:22.57,0:00:25.75,ReelsCaption,,0,0,0,,{\fad(120,120)}through another ordinary day\Nof small choices made without
+Dialogue: 0,0:00:25.49,0:00:29.00,ReelsCaption,,0,0,0,,{\fad(120,120)}you the quiet machine that\Nruns your morning decides what
+Dialogue: 0,0:00:28.73,0:00:32.24,ReelsCaption,,0,0,0,,{\fad(120,120)}you see first and what never\Narrives at all because
+Dialogue: 0,0:00:31.98,0:00:35.49,ReelsCaption,,0,0,0,,{\fad(120,120)}attention is the only currency\Nthat compounds while you sleep
+Dialogue: 0,0:00:35.22,0:00:38.41,ReelsCaption,,0,0,0,,{\fad(120,120)}through another ordinary day\Nof small choices made without
+Dialogue: 0,0:00:38.14,0:00:41.66,ReelsCaption,,0,0,0,,{\fad(120,120)}you the quiet machine that\Nruns your morning decides what
+Dialogue: 0,0:00:41.39,0:00:44.90,ReelsCaption,,0,0,0,,{\fad(120,120)}you see first and what never\Narrives at all because
+Dialogue: 0,0:00:44.64,0:00:48.15,ReelsCaption,,0,0,0,,{\fad(120,120)}attention is the only currency\Nthat compounds while you sleep
+Dialogue: 0,0:00:47.88,0:00:51.07,ReelsCaption,,0,0,0,,{\fad(120,120)}through another ordinary day\Nof small choices made without
+Dialogue: 0,0:00:50.80,0:00:54.31,ReelsCaption,,0,0,0,,{\fad(120,120)}you the quiet machine that\Nruns your morning decides what
+Dialogue: 0,0:00:54.05,0:00:57.56,ReelsCaption,,0,0,0,,{\fad(120,120)}you see first and what never\Narrives at all because
+Dialogue: 0,0:00:57.29,0:01:00.81,ReelsCaption,,0,0,0,,{\fad(120,120)}attention is the only currency\Nthat compounds while you sleep
+Dialogue: 0,0:01:00.54,0:01:03.73,ReelsCaption,,0,0,0,,{\fad(120,120)}through another ordinary day\Nof small choices made without
+Dialogue: 0,0:01:03.46,0:01:06.97,ReelsCaption,,0,0,0,,{\fad(120,120)}you the quiet machine that\Nruns your morning decides what
+Dialogue: 0,0:01:06.71,0:01:10.22,ReelsCaption,,0,0,0,,{\fad(120,120)}you see first and what never\Narrives at all because
+Dialogue: 0,0:01:09.95,0:01:13.46,ReelsCaption,,0,0,0,,{\fad(120,120)}attention is the only currency\Nthat compounds while you sleep
+Dialogue: 0,0:01:13.20,0:01:14.44,ReelsCaption,,0,0,0,,{\fad(120,120)}through another ordinary day

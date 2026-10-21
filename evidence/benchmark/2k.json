@@ -1,0 +1,120 @@
+{
+  "benchmark": {
+    "schema_version": "render-benchmark.v1",
+    "recorded_at": "2026-10-21T04:08:43.313Z",
+    "host_label": "dev host (Linux container, not DS923+)",
+    "host": {
+      "node": "v26.5.1",
+      "platform": "linux",
+      "arch": "x64",
+      "cpu_model": "AMD Ryzen Embedded R1600",
+      "cpu_cores": 4,
+      "total_memory_mb": 19976
+    },
+    "video": {
+      "duration_s": 74.767,
+      "scene_count": 17,
+      "frame_count": 2243,
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "source_resolution": "2K"
+    },
+    "wall_time_s": 206.3,
+    "realtime_factor": 2.76,
+    "peak_ram_mb": 1257,
+    "encoder": {
+      "video": "libx264",
+      "preset": "medium",
+      "crf": 20,
+      "audio": "aac"
+    },
+    "notes": [
+      "synthetic fixture: testsrc2 stills at the series image resolution, sine narration, 228 words",
+      "QC ran on the delivered MP4 in the same invocation",
+      "the DS923+ exit criterion is only met by a run whose --label says DS923+"
+    ]
+  },
+  "qc": {
+    "status": "pass",
+    "checks": [
+      {
+        "id": "geometry",
+        "label": "Geometry & codecs",
+        "requirement": "R-010-2",
+        "pass": true,
+        "measured": "1080×1920, h264 + aac, 30 fps",
+        "expected": "1080×1920 H.264 + AAC at 30 fps (±1)"
+      },
+      {
+        "id": "audio",
+        "label": "Audio track",
+        "requirement": "R-010-3",
+        "pass": true,
+        "measured": "audio 74.77 s vs video 74.77 s (Δ 0 s)",
+        "expected": "audio present, within ±0.5 s of the video duration"
+      },
+      {
+        "id": "blank_white",
+        "label": "Blank / white frames",
+        "requirement": "R-010-4",
+        "pass": true,
+        "measured": "2243 frames, mean luma 123.85–129.61, 0 flagged",
+        "expected": "0 frames with mean luminance <16 or >240"
+      },
+      {
+        "id": "scene_presence",
+        "label": "Scene presence",
+        "requirement": "R-010-5",
+        "pass": true,
+        "measured": "17/17 chapters",
+        "expected": "every scene has a chapter lasting ≥ its narration span − 0.2 s"
+      },
+      {
+        "id": "caption_safe_area",
+        "label": "Caption safe area",
+        "requirement": "R-010-6",
+        "pass": true,
+        "measured": "max ink outside 0, max ink inside 255 (24 cues)",
+        "expected": "0 ink outside [54,1026]×[96,1824]; ink present inside"
+      },
+      {
+        "id": "duration",
+        "label": "Rendered duration",
+        "requirement": "R-010-7",
+        "pass": true,
+        "measured": "74.77 s vs plan 74.77 s, band 71.25–78.75 s (target 75 s)",
+        "expected": "rendered length within 0.1 s of the plan and inside R-009-3's band"
+      }
+    ],
+    "metrics": {
+      "width": 1080,
+      "height": 1920,
+      "frame_rate": 30,
+      "video_duration_s": 74.77,
+      "audio_duration_s": 74.77,
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "frame_count": 2243,
+      "flagged_frames": [],
+      "min_luminance": 123.85,
+      "max_luminance": 129.61,
+      "chapter_count": 17,
+      "caption_outside_max": 0,
+      "caption_inside_max": 255,
+      "target_s": 75,
+      "band_min_s": 71.25,
+      "band_max_s": 78.75
+    },
+    "checked_at": "2026-10-21T04:08:43.312Z"
+  },
+  "artefacts": {
+    "work_dir": "/opt/data/engineering-team/projects/reels-generator/.worktrees/t_663d5894/evidence/benchmark/2k/work",
+    "video": "/opt/data/engineering-team/projects/reels-generator/.worktrees/t_663d5894/evidence/benchmark/2k/work/output.mp4",
+    "captions": {
+      "assPath": "/opt/data/engineering-team/projects/reels-generator/.worktrees/t_663d5894/evidence/benchmark/2k/work/captions.ass",
+      "srtPath": "/opt/data/engineering-team/projects/reels-generator/.worktrees/t_663d5894/evidence/benchmark/2k/work/captions.srt",
+      "vttPath": "/opt/data/engineering-team/projects/reels-generator/.worktrees/t_663d5894/evidence/benchmark/2k/work/captions.vtt"
+    }
+  }
+}
