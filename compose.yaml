@@ -101,8 +101,11 @@ services:
     mem_limit: 2g
 
   postgres:
-    # Major-version tag on purpose: the ops image ships pg_dump 16 and cannot dump 17 (R-017-5).
-    image: postgres:16-alpine
+    # Two constraints, both load-bearing:
+    #   - pgvector must be present, or m001 refuses to run (R-020, TECH_DESIGN §3);
+    #     upstream `postgres:16-alpine` does not ship the extension.
+    #   - the major version must match the ops image's pg_dump 16 (R-017-5).
+    image: pgvector/pgvector:pg16
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env

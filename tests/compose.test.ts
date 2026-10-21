@@ -143,6 +143,25 @@ describe('compose.yaml (R-016 deployment contract)', () => {
     );
   });
 
+  it('runs the database on an image that ships pgvector (R-020)', () => {
+    // m001 hard-fails without the extension, and upstream postgres:16-alpine does
+    // not ship it — so this line decides whether a fresh install can migrate at
+    // all. Cross-check against the image CI actually tests against, so the two
+    // cannot drift apart again.
+    const ciImage = String(
+      (
+        workflow.jobs['verify'] as
+          { readonly services?: Readonly<Record<string, { readonly image?: string }>> } | undefined
+      )?.services?.['postgres']?.image ?? '',
+    );
+    expect(ciImage, 'CI postgres service').toContain('pgvector');
+    const ciTag = ciImage.split('@')[0];
+
+    const image = compose.services.postgres?.image ?? '';
+    expect(image, 'compose postgres image').toBe(ciTag);
+    expect(image).toMatch(/^pgvector\/pgvector:pg16$/);
+  });
+
   it('ships the object store with a concrete reference', () => {
     const image = compose.services.minio?.image ?? '';
     expect(image).toMatch(/^[a-z0-9.-]+\/minio\/minio:RELEASE\.[0-9TZ.-]+$/);
