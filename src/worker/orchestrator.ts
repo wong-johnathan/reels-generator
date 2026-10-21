@@ -35,6 +35,7 @@ import { runImageStage } from '../workers/image-stage.js';
 import { runNarrationStage, type NarrationVoiceConfig } from '../workers/narration-stage.js';
 import { runTimingStage, type TimingSceneInput } from '../workers/timing-stage.js';
 import { runRenderStage } from '../render/stage.js';
+import { resolveVoiceId } from './providers.js';
 
 /** Stages the content worker claims. */
 export const CONTENT_STAGES: readonly StageCode[] = ['T', 'RS', 'SC', 'SB', 'IM', 'NA', 'TC'];
@@ -73,6 +74,15 @@ export interface OrchestratorDeps {
   readonly renderBlobs: ContentAddressedStore;
   readonly runner: FfmpegRunner;
   readonly workerId?: string | null;
+  /** `ELEVENLABS_VOICE_ID` fallback when a series has no voice configured. */
+  readonly defaultVoiceId?: string;
+  /**
+   * The voice model when a series does not configure one. Without it the loader
+   * fell back to FAKE_VOICE.model_id ('fake-tts-model'), which ElevenLabs
+   * rejects — so the first real narration would have failed on a model name that
+   * only ever existed for the fixture.
+   */
+  readonly defaultModelId?: string;
 }
 
 export type StageRunStatus = 'succeeded' | 'retryable' | 'failed';
@@ -113,17 +123,37 @@ async function loadApprovedScript(pool: Pool, projectId: string): Promise<Script
   return row.content as ScriptDocument;
 }
 
-async function loadVoice(pool: Pool, projectId: string): Promise<NarrationVoiceConfig> {
+async function loadVoice(
+  pool: Pool,
+  projectId: string,
+  fallbackVoiceId: string | undefined,
+  fallbackModelId: string | undefined,
+): Promise<NarrationVoiceConfig> {
   const result = await pool.query<{ voice_config: unknown }>(
     `SELECT s.voice_config FROM project p JOIN series s ON s.id = p.series_id WHERE p.id = $1`,
     [projectId],
   );
   const config = result.rows[0]?.voice_config as
     { voice_id?: unknown; model_id?: unknown; licence_kind?: unknown } | null | undefined;
-  if (config === null || config === undefined) return FAKE_VOICE;
+
+  if (config === null || config === undefined) {
+    return {
+      ...FAKE_VOICE,
+      voice_id: resolveVoiceId(undefined, fallbackVoiceId) ?? FAKE_VOICE.voice_id,
+      model_id: resolveVoiceId(undefined, fallbackModelId) ?? FAKE_VOICE.model_id,
+    };
+  }
+
+  // `voice_config.voice_id` may be `''` (the "not set" sentinel). A non-empty
+  // check, not `??`, so blank/whitespace falls back to ELEVENLABS_VOICE_ID.
+  const seriesVoiceId = typeof config.voice_id === 'string' ? config.voice_id : undefined;
   return {
-    voice_id: typeof config.voice_id === 'string' ? config.voice_id : FAKE_VOICE.voice_id,
-    model_id: typeof config.model_id === 'string' ? config.model_id : FAKE_VOICE.model_id,
+    voice_id: resolveVoiceId(seriesVoiceId, fallbackVoiceId) ?? FAKE_VOICE.voice_id,
+    model_id:
+      resolveVoiceId(
+        typeof config.model_id === 'string' ? config.model_id : undefined,
+        fallbackModelId,
+      ) ?? FAKE_VOICE.model_id,
     licence_kind:
       typeof config.licence_kind === 'string' ? config.licence_kind : FAKE_VOICE.licence_kind,
   };
@@ -306,7 +336,12 @@ export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise
 
     case 'NA': {
       const script = await loadApprovedScript(deps.pool, job.projectId);
-      const voice = await loadVoice(deps.pool, job.projectId);
+      const voice = await loadVoice(
+        deps.pool,
+        job.projectId,
+        deps.defaultVoiceId,
+        deps.defaultModelId,
+      );
       const result = await runNarrationStage(
         { pool: deps.pool, tts: deps.tts, blobs: deps.contentBlobs },
         {

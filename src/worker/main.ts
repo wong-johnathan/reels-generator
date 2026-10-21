@@ -6,9 +6,10 @@
  * in `orchestrator.ts`, and advances the pipeline. On SIGTERM it stops
  * *between* jobs (finishing the in-flight one) within the 30 s grace period.
  *
- * Provider adapters are the **fake** ones for this milestone (no credentials):
- * the real DeepSeek/Gemini/ElevenLabs adapters land with their provider cards
- * (B-06/B-08) and are a config change, not an orchestration change.
+ * Provider adapters are selected by configuration (`src/worker/providers.ts`):
+ * `PROVIDERS=fake` opts into the deterministic fixtures; otherwise the real
+ * DeepSeek/Gemini/ElevenLabs adapters are wired and all three credentials are
+ * required, so a half-configured stack refuses to start (like the MINIO binding).
  */
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -17,10 +18,17 @@ import { createDependencyProbe } from '../api/server.js';
 import { createPool } from '../db/client.js';
 import { ensureBucket, type ContentAddressedStore } from '../storage/object-store.js';
 import { createS3Stores, s3ConfigFromEnv } from '../storage/s3-store.js';
-import { FakeTextAdapter } from '../adapters/fake-text.js';
-import { FakeTtsAdapter } from '../adapters/tts.js';
-import { FakeImageAdapter } from '../adapters/fake-image.js';
-import { InMemoryImageQualificationStore } from '../adapters/image-qualification.js';
+import {
+  InMemoryImageQualificationStore,
+  PgImageQualificationStore,
+} from '../adapters/image-qualification.js';
+import {
+  isFakeProviderMode,
+  resolveVoiceId,
+  selectImageAdapter,
+  selectTextAdapter,
+  selectTtsAdapter,
+} from './providers.js';
 import { BlobNotFoundError, type AssetBlobStore } from '../workers/asset-store.js';
 import { ProcessFfmpegRunner } from '../render/ffmpeg.js';
 import { runWorkerLoop } from './loop.js';
@@ -70,21 +78,48 @@ export async function ensureWorkerBucket(env: NodeJS.ProcessEnv): Promise<{ crea
   return ensureBucket(stores.bucket, stores.bucketName);
 }
 
-/** The production dependency graph: fake providers, real S3-backed blobs. */
+/** The production dependency graph: providers selected by configuration. */
 export async function buildWorkerDeps(env: NodeJS.ProcessEnv): Promise<OrchestratorDeps> {
   const stores = createS3Stores(s3ConfigFromEnv(env));
-  const qualification = new InMemoryImageQualificationStore();
-  await seedFakeImageQualification(qualification);
+  const pool = createPool(env);
+  const fakeMode = isFakeProviderMode(env);
+
+  // Fake mode pre-qualifies the fixture image adapter by construction (the only
+  // case where that is honest). Real mode reads `provider_qualification` from
+  // Postgres, so nothing is qualified until a real qualification run is recorded.
+  const qualification = fakeMode
+    ? new InMemoryImageQualificationStore()
+    : new PgImageQualificationStore(pool);
+
+  if (fakeMode) {
+    await seedFakeImageQualification(qualification);
+  } else {
+    // R-008-3: the image gate is closed by default. Say so, and say what opens
+    // it — never seed a fake pass, and never bypass the gate.
+    console.log(
+      'image qualification gate is unqualified: no provider_qualification row exists for ' +
+        'gemini/GeminiImageAdapter, so the image stage will refuse to render. Run the image ' +
+        'qualification flow (runImageQualification) to open the gate.',
+    );
+  }
+
+  const defaultVoiceId = fakeMode ? undefined : resolveVoiceId(undefined, env.ELEVENLABS_VOICE_ID);
+  // The series snapshot does not carry voice_config.model_id, so without this the
+  // loader falls back to the fixture's model name and ElevenLabs rejects it.
+  const defaultModelId = fakeMode ? undefined : env.ELEVENLABS_MODEL_ID;
+
   return {
-    pool: createPool(env),
-    text: new FakeTextAdapter(),
-    tts: new FakeTtsAdapter(),
-    image: new FakeImageAdapter(),
+    pool,
+    text: selectTextAdapter(env),
+    tts: selectTtsAdapter(env),
+    image: selectImageAdapter(env),
     qualification,
     contentBlobs: assetBlobStore(stores.content),
     renderBlobs: stores.content,
     runner: new ProcessFfmpegRunner(),
     workerId: env.HOSTNAME ?? 'worker',
+    defaultVoiceId,
+    defaultModelId,
   };
 }
 
