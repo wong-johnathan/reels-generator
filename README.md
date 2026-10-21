@@ -82,6 +82,13 @@ previously published `<sha>` tag by hand. CI publishes both `latest` and a
 is in [`DEVIATIONS.md`](DEVIATIONS.md) D-E. Third-party images (Postgres, Redis,
 MinIO) keep explicit version tags.
 
+**This build serves the HTTP API only.** `src/api/server.ts` mounts `/api/*`
+plus the probes; the dashboard pages in `src/web/app.ts` are not mounted (they
+need a DB-backed session store on the `reels_session` cookie and storage
+adapters that do not exist yet). A page request answers `503` with an
+explanation instead of redirecting, because the old behaviour redirected to an
+unrouted `/login` and looped. Tracked as the UI integration card.
+
 CI publishes each image to **both** Docker Hub (`wongjohnathanwh741/reels-generator-<service>`)
 and GHCR from one build, and needs two repository secrets: `DOCKERHUB_USERNAME`
 and `DOCKERHUB_TOKEN`.

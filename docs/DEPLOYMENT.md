@@ -215,11 +215,12 @@ The B-01 signal is a manual, on-hardware check:
 
 ## 9. Troubleshooting
 
-| Symptom                                      | Cause                                                   | Fix                                                                       |
-| -------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `pull access denied` for `reels-generator-*` | image never published, or wrong org in `DOCKERHUB_USER` | check the Actions run; §2.4                                               |
-| `unauthorized` pulling `quay.io/minio/...`   | object store needs a login                              | `docker login quay.io` (§2.4)                                             |
-| redeploy still runs old code                 | cached `:latest`                                        | `docker compose pull` first; `pull_policy` covers it                      |
-| `web` exits listing keys                     | environment incomplete                                  | fill the named keys (§2.2)                                                |
-| `/readyz` 503 after start                    | a store is still booting or unhealthy                   | `docker compose ps`, `docker compose logs <service>`                      |
-| `migrate` exits non-zero                     | schema or migration failure                             | previous version keeps running; read the log, fix forward or restore (§7) |
+| Symptom                                              | Cause                                                   | Fix                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `pull access denied` for `reels-generator-*`         | image never published, or wrong org in `DOCKERHUB_USER` | check the Actions run; §2.4                                               |
+| `unauthorized` pulling `quay.io/minio/...`           | object store needs a login                              | `docker login quay.io` (§2.4)                                             |
+| dashboard shows “Web UI not available in this build” | this build mounts the API only                          | expected; the UI integration card adds the pages                          |
+| redeploy still runs old code                         | cached `:latest`                                        | `docker compose pull` first; `pull_policy` covers it                      |
+| `web` exits listing keys                             | environment incomplete                                  | fill the named keys (§2.2)                                                |
+| `/readyz` 503 after start                            | a store is still booting or unhealthy                   | `docker compose ps`, `docker compose logs <service>`                      |
+| `migrate` exits non-zero                             | schema or migration failure                             | previous version keeps running; read the log, fix forward or restore (§7) |

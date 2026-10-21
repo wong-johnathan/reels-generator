@@ -82,6 +82,37 @@ export interface AuthRuntime {
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' } as const;
+
+/**
+ * The page layer (`src/web/app.ts`) is not mounted in this build: it expects a
+ * sync in-memory session store and the `session` cookie, while this server uses
+ * the DB-backed `AuthService` and `reels_session`/`reels_csrf`. Until the
+ * integration lands, an unmatched page path must say so. It must never fall
+ * through to the auth gate: that gate answers `302 /login?next=…`, `/login` is
+ * not routed here either, and the pair redirects forever with the `next` value
+ * URL-encoded on each hop until the URL stops parsing.
+ */
+const NOT_MOUNTED_PAGE = [
+  '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+  '<meta name="viewport" content="width=device-width,initial-scale=1">',
+  '<title>Web UI not available in this build</title></head>',
+  '<body style="font:16px/1.5 system-ui,sans-serif;max-width:38rem;margin:12vh auto;padding:0 1.5rem;color:#111">',
+  '<h1 style="font-size:1.25rem">Web UI not available in this build</h1>',
+  '<p>The HTTP API is running and reachable under <code>/api</code>',
+  ' (<code>/api/session</code>, <code>/api/login</code>).</p>',
+  '<p>The dashboard pages are intentionally not mounted here: they require the',
+  ' session-store and storage adapters that are not part of this build.</p>',
+  '<p>Health probes: <code>/healthz</code>, <code>/readyz</code>.</p>',
+  '</body></html>',
+].join('');
+
+function notMountedPage(): HandlerResponse {
+  return {
+    status: 503,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    body: NOT_MOUNTED_PAGE,
+  };
+}
 const MAX_BODY_BYTES = 64 * 1024;
 
 function envelope(code: string, message: string, status: number): HandlerResponse {
@@ -298,6 +329,11 @@ export function createRequestHandler(
         }),
       };
     }
+
+    // Page paths are not mounted in this build. Answer honestly rather than
+    // letting them fall through to the auth gate, which redirects to `/login` —
+    // itself unrouted here — and loops (see NOT_MOUNTED_PAGE).
+    if (!path.startsWith('/api/')) return notMountedPage();
 
     if (auth === undefined) {
       // Probe-only embedding: no protected routes are mounted, so there is
