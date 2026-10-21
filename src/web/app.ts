@@ -24,12 +24,13 @@ import type {
 import type { Authenticate, AuthOutcome } from './auth/login.js';
 import { guardRequest, LOGIN_PATH, safeNextPath } from './auth/guard.js';
 import { readSessionToken, serializeSessionCookie, type SessionStore } from './auth/session.js';
-import { escapeHtml } from './render/html.js';
 import { LOGIN_COPY, renderLoginPage } from './render/login.js';
 import { renderNotFoundPage } from './render/notFound.js';
+import { renderOverview } from './render/overview.js';
 import { renderSeriesEditor } from './render/seriesEditor.js';
 import { renderSeriesList } from './render/seriesList.js';
 import { buildShellModel, renderShell, type BreadcrumbItem, type NavKey } from './render/shell.js';
+import { renderWorkspace } from './render/workspace.js';
 import { savedAnnouncement } from './series/commit.js';
 import {
   changedFields,
@@ -46,6 +47,8 @@ import {
 } from './series/gateway.js';
 import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
+import type { VideoGateway } from './workspace/gateway.js';
+import { isTabKey, tabKeyForStage, type TabKey } from './workspace/model.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
 type HealthReport = z.infer<typeof HealthReportSchema>;
@@ -62,6 +65,8 @@ export interface WebAppDependencies {
   readonly csrfToken?: () => string;
   /** S-03/S-04 storage. Absent builds answer 503 rather than inventing data. */
   readonly series?: SeriesGateway;
+  /** S-09…S-16 storage. Absent builds answer 503 rather than inventing data. */
+  readonly video?: VideoGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
@@ -90,7 +95,7 @@ export interface WebResponse {
 
 const CSP =
   "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; " +
-  "base-uri 'none'; form-action 'self'";
+  "connect-src 'self'; base-uri 'none'; form-action 'self'";
 
 const HTML_HEADERS: Readonly<Record<string, string>> = {
   'content-type': 'text/html; charset=utf-8',
@@ -131,6 +136,14 @@ const SERIES_SCRIPTS: readonly string[] = ['/assets/client/series-editor.js'];
 /** Client module names are identifiers we ship, never a path from the wire. */
 const CLIENT_MODULE_NAME = /^[a-z0-9-]+$/;
 const SHARED_MODULE_NAME = /^[a-z0-9-]+$/;
+
+/** Browser-safe modules the enhancers import, served from the same sources. */
+const SHARED_MODULE_ROOTS: readonly string[] = [
+  '/assets/format.js',
+  '/assets/series/',
+  '/assets/workspace/',
+  '/assets/shared/',
+];
 
 function headerValue(
   headers: Readonly<Record<string, string | undefined>> | undefined,
@@ -185,19 +198,6 @@ export function parseFormEncoded(body: string): Record<string, string> {
     if (!(key in fields)) fields[key] = value;
   }
   return fields;
-}
-
-/** The Overview surface is F-04's; this is its named slot, not invented data. */
-function overviewPlaceholder(operator: string): string {
-  return (
-    '<section aria-labelledby="overview-region">' +
-    '<h2 id="overview-region">Attention</h2>' +
-    '<p>Signed in as <span class="mono">' +
-    escapeHtml(operator) +
-    '</span>. The attention list and batch views arrive with F-04; this region is the ' +
-    'post-sign-in landing slot.</p>' +
-    '</section>'
-  );
 }
 
 export function createWebApp(
@@ -264,18 +264,19 @@ export function createWebApp(
         ? json(404, 'not_found', 'No client module ' + name)
         : { status: 200, headers: { ...JS_HEADERS }, body: source };
     }
-    // The S-04 enhancer imports the shared rules it must not fork (F-03). The
-    // name is an identifier from a fixed set, never a path from the wire.
-    if (pathname === '/assets/format.js' || pathname.startsWith('/assets/series/')) {
+    // The client enhancers import the shared rules they must not fork (F-03,
+    // F-04). The name is an identifier from a fixed set, never a path from the
+    // wire: one or two segments, lower-case and hyphens only.
+    if (SHARED_MODULE_ROOTS.some((root) => pathname === root || pathname.startsWith(root))) {
       if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
-      const requested =
-        pathname === '/assets/format.js' ? 'format.js' : pathname.slice('/assets/series/'.length);
-      if (!requested.endsWith('.js'))
-        return json(404, 'not_found', 'No shared module ' + requested);
-      const shared = pathname === '/assets/format.js' ? 'format.js' : 'series/' + requested;
-      const bare = shared.endsWith('.js') ? shared.slice(0, -'.js'.length) : shared;
-      const leaf = bare.startsWith('series/') ? bare.slice('series/'.length) : bare;
-      if (!SHARED_MODULE_NAME.test(leaf)) {
+      const shared =
+        pathname === '/assets/format.js' ? 'format.js' : pathname.slice('/assets/'.length);
+      if (!shared.endsWith('.js')) return json(404, 'not_found', 'No shared module ' + shared);
+      const segments = shared.slice(0, -'.js'.length).split('/');
+      if (segments.length === 0 || segments.length > 2) {
+        return json(404, 'not_found', 'No shared module ' + shared);
+      }
+      if (!segments.every((segment) => SHARED_MODULE_NAME.test(segment))) {
         return json(404, 'not_found', 'No shared module ' + shared);
       }
       const source = readSharedModule(shared);
@@ -322,25 +323,14 @@ export function createWebApp(
       });
     }
 
+    if (pathname === '/videos' || pathname.startsWith('/videos/')) {
+      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
+      return videoRoutes({ pathname, session: sessionInfo(record) });
+    }
+
     if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
 
-    if (pathname === '/') {
-      const session = sessionInfo(record);
-      return html(
-        renderShell(
-          buildShellModel({
-            title: 'Overview',
-            nav: 'overview',
-            overview: deps.overview,
-            ...(deps.health === undefined ? {} : { health: deps.health }),
-            session,
-            breadcrumbs: [{ label: 'Overview' }],
-            content: overviewPlaceholder(record?.operator ?? ''),
-            now: now(),
-          }),
-        ),
-      );
-    }
+    if (pathname === '/') return overviewPage(sessionInfo(record));
 
     // Any route this card does not own: an authenticated 404, still inside the
     // app's own chrome-free system surface (SY-3). Unauthenticated requests
@@ -350,11 +340,108 @@ export function createWebApp(
 
   // ── S-03 / S-04 (US-008, US-010, R-001, R-002) ───────────────────────────
 
+  // ── S-02 Overview (W-01, IP-05) ──────────────────────────────────────────
+
+  async function overviewPage(session: SessionInfo): Promise<WebResponse> {
+    const overview = deps.overview;
+    const empty =
+      overview.attention.length === 0 &&
+      overview.batches.length === 0 &&
+      overview.counts.running === 0 &&
+      overview.counts.complete === 0;
+    // The first-run copy names "no series" only when that is what the series
+    // store says — otherwise the honest line is "no batches yet".
+    let seriesCount: number | null = null;
+    if (empty && deps.series !== undefined) {
+      try {
+        seriesCount = (await deps.series.list()).length;
+      } catch {
+        seriesCount = null;
+      }
+    }
+    const content = renderOverview({
+      state: empty ? 'empty' : 'ready',
+      overview,
+      now: now(),
+      seriesCount,
+    });
+    return html(
+      page({
+        title: 'Overview',
+        nav: 'overview',
+        breadcrumbs: [{ label: 'Overview' }],
+        content,
+        session,
+        scripts: ['/assets/client/workspace.js'],
+      }),
+    );
+  }
+
+  // ── S-09…S-16 video workspace shell (W-04, IP-03) ───────────────────────
+
+  async function videoRoutes(input: {
+    readonly pathname: string;
+    readonly session: SessionInfo;
+  }): Promise<WebResponse> {
+    const gateway = deps.video;
+    if (gateway === undefined) return json(503, 'not_ready', 'Video workspace is not mounted');
+
+    const rest = input.pathname.slice('/videos/'.length);
+    const segments = rest.split('/');
+    const rawId = segments[0];
+    const rawTab = segments[1];
+    if (rawId === undefined || rawId.length === 0 || segments.length > 2) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    if (rawTab !== undefined && !isTabKey(rawTab)) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+
+    let videoId: string;
+    try {
+      videoId = decodeURIComponent(rawId);
+    } catch {
+      return json(400, 'validation_failed', 'Malformed video id');
+    }
+
+    let detail;
+    try {
+      detail = await gateway.get(videoId);
+    } catch {
+      return json(503, 'not_ready', 'The video workspace is unavailable');
+    }
+    if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+
+    // No tab in the URL: open the tab that holds the stage needing attention.
+    const tab: TabKey = rawTab === undefined ? tabKeyForStage(detail.current_stage) : rawTab;
+    const parts = renderWorkspace(detail, tab);
+    return html(
+      page({
+        title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
+        nav: null,
+        breadcrumbs: [
+          { label: 'Overview', href: '/' },
+          { label: detail.series_name, href: '/series/' + encodeURIComponent(detail.series_id) },
+          { label: 'Video ' + (detail.position_in_batch + 1) },
+        ],
+        content: parts.content,
+        titleAside: parts.titleAside,
+        footer: parts.footer,
+        session: input.session,
+        scripts: parts.scripts,
+      }),
+    );
+  }
+
   function page(input: {
     readonly title: string;
-    readonly nav: NavKey;
+    readonly nav: NavKey | null;
     readonly breadcrumbs: readonly BreadcrumbItem[];
     readonly content: string;
+    /** Trusted HTML rendered on the right of the `<h1>` row (the workspace chip). */
+    readonly titleAside?: string;
+    /** Trusted HTML for the sticky workspace footer (pins, target, scenes). */
+    readonly footer?: string;
     readonly aside?: { readonly label: string; readonly content: string };
     readonly session: SessionInfo;
     readonly scripts?: readonly string[];
@@ -373,6 +460,8 @@ export function createWebApp(
         session: input.session,
         breadcrumbs: input.breadcrumbs,
         content: input.content,
+        ...(input.titleAside === undefined ? {} : { titleAside: input.titleAside }),
+        ...(input.footer === undefined ? {} : { footer: input.footer }),
         ...(input.aside === undefined ? {} : { aside: input.aside }),
         ...(assets === undefined ? {} : { assets }),
         ...(input.liveStatus === undefined ? {} : { liveStatus: input.liveStatus }),

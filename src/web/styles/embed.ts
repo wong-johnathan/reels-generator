@@ -17,8 +17,9 @@ export interface StyleSource {
 const HEADER = [
   '// GENERATED FILE — do not edit by hand.',
   '//',
-  '// Source of truth: src/web/styles/tokens.css, base.css, shell.css and auth.css',
-  '// (UI_SPEC §2, §4, §6.1, §7). Regenerate with renderEmbeddedModule() in embed.ts;',
+  '// Source of truth: src/web/styles/tokens.css, base.css, shell.css, auth.css,',
+  '// series.css and workspace.css (UI_SPEC §2, §4, §6.1, §6.2, §6.5, §7).',
+  '// Regenerate with `npx tsx scripts/generate-embedded-css.ts`;',
   '// tests/web/embedded.test.ts fails the build if this file and the',
   '// stylesheets disagree.',
   '//',

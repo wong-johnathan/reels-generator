@@ -1,7 +1,8 @@
 // GENERATED FILE — do not edit by hand.
 //
-// Source of truth: src/web/styles/tokens.css, base.css, shell.css and auth.css
-// (UI_SPEC §2, §4, §6.1, §7). Regenerate with renderEmbeddedModule() in embed.ts;
+// Source of truth: src/web/styles/tokens.css, base.css, shell.css, auth.css,
+// series.css and workspace.css (UI_SPEC §2, §4, §6.1, §6.2, §6.5, §7).
+// Regenerate with `npx tsx scripts/generate-embedded-css.ts`;
 // tests/web/embedded.test.ts fails the build if this file and the
 // stylesheets disagree.
 //
@@ -1811,4 +1812,908 @@ textarea.series-control {
   }
 }
 `;
-export const APP_CSS = [tokensCss, baseCss, shellCss, authCss, seriesCss].join('\n');
+
+/** workspace.css */
+export const workspaceCss = String.raw`/*
+ * F-04 workspace surfaces — UI_SPEC §3 (state palette), §5 UC-02/UC-03/UC-04/
+ * UC-05, §6.2 W-01 and §6.5 W-04; §7 responsive bands.
+ *
+ * Every state carries four channels: colour, glyph, word and the border
+ * structure that gives it a distinct silhouette (UI_SPEC §3.2). Nothing below
+ * relies on hue alone, and no value is invented — colour, spacing, radii,
+ * motion and geometry all come from tokens.css.
+ */
+
+/* ── page head with the workspace chip (W-04 title row) ──────────────────── */
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin: 0 0 var(--s-6);
+}
+
+.page-head .page-title {
+  margin: 0;
+}
+
+.workspace-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.workspace-reason {
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-secondary);
+}
+
+/* ── UC-04 video state chip ──────────────────────────────────────────────── */
+
+.vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 20px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-1);
+  color: var(--text-tertiary);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--t-10);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-10);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--dur-1) var(--ease-standard);
+}
+
+.vchip[data-size='md'] {
+  height: 24px;
+  padding: 0 var(--s-4);
+  font-size: var(--t-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.vchip[data-size='lg'] {
+  height: 28px;
+  padding: 0 var(--s-5);
+  font-size: var(--t-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.vchip-glyph {
+  display: inline-flex;
+  align-items: center;
+}
+
+.vchip .glyph {
+  display: block;
+}
+
+.vchip[data-state='running'] {
+  color: var(--running);
+  background: rgba(79, 209, 224, 0.08);
+  border-color: var(--running);
+}
+
+.vchip[data-state='done'] {
+  color: var(--success);
+  background: rgba(76, 194, 106, 0.1);
+  border-color: var(--success);
+}
+
+.vchip[data-state='awaiting_approval'] {
+  color: var(--accent);
+  background: rgba(126, 166, 248, 0.1);
+  border-color: var(--accent);
+  border-right-width: 3px; /* the gate notch (§3.2) */
+}
+
+.vchip[data-state='stale'] {
+  color: var(--stale);
+  border: 1px dashed var(--stale);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(187, 161, 255, 0.14) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+.vchip[data-state='failed'] {
+  color: var(--danger);
+  background: var(--surface-danger-tint);
+  border-color: var(--danger);
+  border-left-width: 4px;
+}
+
+.vchip[data-state='blocked'] {
+  color: var(--warning);
+  background: var(--surface-warning-tint);
+  border: 3px double var(--warning);
+}
+
+.vchip[data-state='cancelled'] {
+  color: var(--cancelled);
+  border-color: var(--border-default);
+}
+
+.vchip[data-state='cancelled'] .vchip-label {
+  text-decoration: line-through;
+}
+
+/* ── UC-03 stage rail ────────────────────────────────────────────────────── */
+
+.stage-rail {
+  margin: 0 0 var(--s-6);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.stage-rail-head {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-4);
+}
+
+.stage-list {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-node {
+  flex: 1 1 0;
+  min-width: 74px;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.stage-node:last-child {
+  border-right: 0;
+}
+
+.stage-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-1);
+  height: 56px;
+  padding: var(--s-2) var(--s-3);
+  color: inherit;
+  text-decoration: none;
+}
+
+.stage-link:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+.stage-node[data-current='true'] .stage-link {
+  background: var(--surface-selected);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.stage-code {
+  font-size: var(--t-20);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-20);
+  color: var(--text-secondary);
+}
+
+.stage-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.stage-glyph {
+  display: inline-flex;
+  align-items: center;
+}
+
+.stage-glyph .glyph {
+  display: block;
+}
+
+.stage-pin {
+  align-self: flex-start;
+  padding-left: var(--s-2);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  color: var(--text-tertiary);
+}
+
+.stage-gate {
+  /* Bottom-right, on the pin line: the top row belongs to the code and the
+     state word, and a gate tag there collides with both at 88 px. */
+  position: absolute;
+  right: var(--s-2);
+  bottom: var(--s-1);
+  padding: 0 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  font-size: 9px;
+  line-height: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.stage-progress {
+  display: block;
+  height: 2px;
+  margin-top: var(--s-1);
+  background: var(--surface-hover);
+}
+
+.stage-progress[hidden] {
+  display: none;
+}
+
+.stage-bar {
+  display: block;
+  height: 2px;
+  width: var(--pct, 0%);
+  background: var(--running);
+  transition: width var(--progress-duration) var(--ease-standard);
+}
+
+/* state colours on the rail — the word and glyph carry the meaning */
+.stage-node[data-state='not_run'] .stage-state {
+  color: var(--text-tertiary);
+}
+
+.stage-node[data-state='running'] .stage-code,
+.stage-node[data-state='running'] .stage-state {
+  color: var(--running);
+}
+
+.stage-node[data-state='running'] .stage-glyph {
+  animation: stage-spin var(--spin-duration) linear infinite;
+}
+
+.stage-node[data-state='done'] .stage-state {
+  color: var(--success);
+}
+
+.stage-node[data-state='awaiting_approval'] .stage-code,
+.stage-node[data-state='awaiting_approval'] .stage-state {
+  color: var(--accent);
+}
+
+.stage-node[data-state='stale'] .stage-link {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(187, 161, 255, 0.14) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+.stage-node[data-state='stale'] .stage-state {
+  color: var(--stale);
+}
+
+.stage-node[data-state='failed'] .stage-link {
+  background: rgba(255, 123, 114, 0.08);
+}
+
+.stage-node[data-state='failed'] .stage-state {
+  color: var(--danger);
+}
+
+.stage-node[data-state='blocked'] .stage-code,
+.stage-node[data-state='blocked'] .stage-state {
+  color: var(--warning);
+}
+
+.stage-node[data-state='cancelled'] .stage-state {
+  color: var(--cancelled);
+  text-decoration: line-through;
+}
+
+@keyframes stage-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.stage-stale-summary {
+  align-self: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding-right: var(--s-4);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* ── UC-05 stale ribbon ──────────────────────────────────────────────────── */
+
+.stage-ribbons {
+  display: block;
+}
+
+.stale-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 28px;
+  padding: 0 var(--s-4);
+  background: var(--surface-stale-tint);
+  border-top: 1px dashed var(--stale);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--stale);
+}
+
+.stale-ribbon[hidden] {
+  display: none;
+}
+
+.stale-ribbon-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+  font-family: var(--font-mono);
+  font-size: var(--t-20);
+}
+
+.stale-ribbon-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.stale-ribbon-cause {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.stale-ribbon-why {
+  margin-left: auto;
+  font-size: var(--t-20);
+  color: var(--text-secondary);
+}
+
+.stale-ribbon-why summary {
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-link);
+}
+
+.stale-ribbon-why p {
+  flex-basis: 100%;
+  margin: var(--s-2) 0 var(--s-3);
+  max-width: 80ch;
+  color: var(--text-secondary);
+}
+
+/* ── UC-02 workspace tabs ────────────────────────────────────────────────── */
+
+.workspace-tablist {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-1);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 0 0 var(--s-6);
+}
+
+.workspace-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--s-5);
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.workspace-tab:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.workspace-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+
+.workspace-tab:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+.workspace-panel {
+  min-width: 0;
+}
+
+.workspace-panel:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ── stage summary cards (the shell's honest per-stage panel) ────────────── */
+
+.stage-summary {
+  margin: 0 0 var(--s-6);
+  padding: var(--s-6);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+}
+
+.stage-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
+  flex-wrap: wrap;
+}
+
+.stage-summary-head h2 {
+  margin: 0;
+  font-size: var(--t-50);
+  line-height: var(--lh-50);
+}
+
+.stage-summary-dl {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+}
+
+.stage-summary-dl dt {
+  color: var(--text-tertiary);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-top: var(--s-2);
+}
+
+.stage-summary-dl dd {
+  margin: 0;
+  color: var(--text-primary);
+  max-width: 92ch;
+}
+
+/* ── S-02 overview / attention queue ─────────────────────────────────────── */
+
+.overview {
+  min-width: 0;
+}
+
+.overview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin: 0 0 var(--s-6);
+}
+
+.overview-head h2 {
+  margin: 0;
+  font-size: var(--t-70);
+  line-height: var(--lh-70);
+}
+
+.overview-count {
+  color: var(--accent);
+  font-size: var(--t-60);
+}
+
+.overview-new {
+  margin: 0 0 var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-warning-tint);
+  border: 1px solid var(--warning);
+  border-radius: var(--r-3);
+  color: var(--text-primary);
+  font-size: var(--t-30);
+}
+
+.overview-none {
+  margin: 0 0 var(--s-6);
+  color: var(--text-secondary);
+}
+
+.attention-card {
+  margin: 0 0 var(--s-5);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  overflow: hidden;
+}
+
+.attention-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-3) var(--s-6);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+.attention-group-title {
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-semibold);
+}
+
+.attention-batch {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.attention-progress {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.attention-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attention-row {
+  display: grid;
+  grid-template-columns:
+    var(--s-11) minmax(0, 160px) minmax(0, 200px) minmax(0, 1fr)
+    var(--s-11) var(--s-11);
+  align-items: center;
+  gap: var(--s-5);
+  min-height: var(--s-11);
+  padding: var(--s-2) var(--s-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.attention-row:last-child {
+  border-bottom: 0;
+}
+
+.attention-row:hover {
+  background: var(--surface-hover);
+}
+
+.attention-position {
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+}
+
+.attention-label {
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  overflow-wrap: anywhere;
+}
+
+.attention-reason {
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  overflow-wrap: anywhere;
+}
+
+.attention-detail {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.attention-age {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.attention-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-min);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-2);
+  color: var(--text-primary);
+  font-size: var(--t-20);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.attention-open:hover {
+  background: var(--surface-hover);
+}
+
+.attention-open:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.attention-card-quiet .attention-quiet-line {
+  margin: 0;
+  padding: var(--s-5) var(--s-6);
+  color: var(--text-tertiary);
+  font-size: var(--t-30);
+}
+
+/* rows carry a state through a left bar, never colour alone (§3.1) */
+.attention-row[data-stage-state='failed'] {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.attention-row[data-stage-state='blocked'] {
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.attention-row[data-stage-state='awaiting_approval'] {
+  box-shadow: inset 0 0 0 0 transparent;
+}
+
+.attention-row[data-stage-state='stale'] {
+  box-shadow: inset 3px 0 0 var(--stale);
+}
+
+/* ── overview progress + empty + loading + error ─────────────────────────── */
+
+.overview-progress {
+  margin: var(--s-8) 0 0;
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.overview-progress h2 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+  color: var(--text-secondary);
+}
+
+.overview-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-group {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.overview-group-label {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.overview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-5);
+  max-width: 560px;
+  margin: var(--s-9) auto;
+  padding: var(--s-8);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+}
+
+.overview-empty-line {
+  margin: 0;
+  font-size: var(--t-60);
+  line-height: var(--lh-60);
+}
+
+.overview-empty-quiet {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--t-30);
+}
+
+.overview-error {
+  max-width: 640px;
+  margin: var(--s-9) auto;
+  padding: var(--s-8);
+  background: var(--surface-panel);
+  border: 1px solid var(--danger);
+  border-left-width: 4px;
+  border-radius: var(--r-3);
+}
+
+.overview-error h2 {
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-60);
+  line-height: var(--lh-60);
+  color: var(--danger);
+}
+
+.overview-error p {
+  margin: 0 0 var(--s-5);
+  color: var(--text-secondary);
+}
+
+.attention-skeleton {
+  display: block;
+  height: var(--s-5);
+  margin: var(--s-4) var(--s-6);
+  border-radius: var(--r-2);
+  background: var(--surface-hover);
+}
+
+.attention-skeleton-head {
+  width: 30%;
+  height: var(--s-6);
+}
+
+.attention-skeleton-row {
+  width: 70%;
+}
+
+/* ── responsive bands (UI_SPEC §7.1/§7.2) ────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .stage-list {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .stage-node {
+    flex: 0 0 44px;
+    min-width: 44px;
+  }
+
+  .stage-link {
+    align-items: center;
+    height: 48px;
+    padding: var(--s-1);
+    gap: 0;
+  }
+
+  /* The word stays in the accessible name; the tooltip carries it visually. */
+  .stage-state-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .stage-pin {
+    display: none;
+  }
+
+  .stage-stale-summary {
+    display: none;
+  }
+
+  .attention-row {
+    grid-template-columns: var(--s-11) minmax(0, 1fr) var(--s-11);
+    row-gap: var(--s-2);
+  }
+
+  .attention-label {
+    grid-column: 2;
+  }
+
+  .attention-reason,
+  .attention-detail {
+    grid-column: 2;
+  }
+
+  .attention-age {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .attention-open {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 767px) {
+  .page-head {
+    align-items: flex-start;
+  }
+
+  .stage-summary {
+    padding: var(--s-5);
+  }
+
+  .stage-summary-dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stage-summary-dl dt {
+    padding-top: var(--s-4);
+  }
+
+  .stale-ribbon {
+    padding: var(--s-2) var(--s-4);
+  }
+
+  .stale-ribbon-why {
+    margin-left: 0;
+  }
+
+  .overview-head h2 {
+    font-size: var(--t-60);
+    line-height: var(--lh-60);
+  }
+
+  .attention-row {
+    grid-template-columns: var(--s-11) minmax(0, 1fr);
+  }
+
+  .attention-open {
+    grid-column: 2;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .attention-card-head {
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .attention-row {
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .vchip[data-size='lg'] {
+    height: 24px;
+    font-size: var(--t-10);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+}
+`;
+export const APP_CSS = [tokensCss, baseCss, shellCss, authCss, seriesCss, workspaceCss].join('\n');

@@ -10,6 +10,7 @@ import {
   seriesCss,
   shellCss,
   tokensCss,
+  workspaceCss,
 } from '../../src/web/styles/embedded.js';
 
 /**
@@ -43,6 +44,10 @@ describe('embedded stylesheets', () => {
     expect(seriesCss).toBe(read('series.css'));
   });
 
+  it('mirrors workspace.css exactly', () => {
+    expect(workspaceCss).toBe(read('workspace.css'));
+  });
+
   it('is exactly what the generator renders from the four sources', () => {
     const moduleText = readFileSync(
       new URL('../../src/web/styles/embedded.ts', import.meta.url),
@@ -54,15 +59,20 @@ describe('embedded stylesheets', () => {
       { file: 'shell.css', exportName: 'shellCss', content: read('shell.css') },
       { file: 'auth.css', exportName: 'authCss', content: read('auth.css') },
       { file: 'series.css', exportName: 'seriesCss', content: read('series.css') },
+      { file: 'workspace.css', exportName: 'workspaceCss', content: read('workspace.css') },
     ]);
     expect(moduleText).toBe(expected);
   });
 
-  it('bundles the layers in cascade order: tokens, base, shell, auth, series', () => {
-    expect(APP_CSS).toBe([tokensCss, baseCss, shellCss, authCss, seriesCss].join('\n'));
+  it('bundles the layers in cascade order: tokens, base, shell, auth, series, workspace', () => {
+    expect(APP_CSS).toBe(
+      [tokensCss, baseCss, shellCss, authCss, seriesCss, workspaceCss].join('\n'),
+    );
     expect(APP_CSS.indexOf('--surface-app')).toBeLessThan(APP_CSS.indexOf('box-sizing'));
     expect(APP_CSS.indexOf('box-sizing')).toBeLessThan(APP_CSS.indexOf('.status-strip'));
     expect(APP_CSS.indexOf('.status-strip')).toBeLessThan(APP_CSS.indexOf('.login-card'));
     expect(APP_CSS.indexOf('.login-card')).toBeLessThan(APP_CSS.indexOf('.series-table'));
+    expect(APP_CSS.indexOf('.series-table')).toBeLessThan(APP_CSS.indexOf('.stage-rail'));
+    expect(APP_CSS.indexOf('.stage-rail')).toBeLessThan(APP_CSS.indexOf('.attention-row'));
   });
 });

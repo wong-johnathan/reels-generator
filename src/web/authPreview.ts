@@ -20,12 +20,14 @@ import {
   OverviewSchema,
   SeriesDetailSchema,
   SeriesVersionDetailSchema,
+  VideoDetailSchema,
 } from '../../contract/api.js';
 import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { createWebApp, type WebRequest, type WebResponse } from './app.js';
 import type { AuthOutcome } from './auth/login.js';
 import { MemorySessionStore } from './auth/session.js';
 import { createMemorySeriesGateway } from './series/gateway.js';
+import { createMemoryVideoGateway } from './workspace/gateway.js';
 
 const DEMO_OPERATOR = 'operator';
 const DEMO_PASSWORD = 'preview';
@@ -46,7 +48,13 @@ function transpile(relativePath: string, label: string): string | null {
 }
 
 function readClientModule(name: string): string | null {
-  if (name !== 'login' && name !== 'shell' && name !== 'behaviours' && name !== 'series-editor') {
+  if (
+    name !== 'login' &&
+    name !== 'shell' &&
+    name !== 'behaviours' &&
+    name !== 'series-editor' &&
+    name !== 'workspace'
+  ) {
     return null;
   }
   const file = name === 'series-editor' ? 'seriesEditor' : name;
@@ -55,7 +63,16 @@ function readClientModule(name: string): string | null {
 
 /** The enhancer's shared rules, served from the same source the server uses. */
 function readSharedModule(path: string): string | null {
-  if (path !== 'format.js' && path !== 'series/commit.js' && path !== 'series/fields.js') {
+  const allowed = [
+    'format.js',
+    'series/commit.js',
+    'series/fields.js',
+    'workspace/events.js',
+    'workspace/glyphs.js',
+    'shared/stages.js',
+    'shared/states.js',
+  ];
+  if (!allowed.includes(path)) {
     return null;
   }
   return transpile('./' + path.replace(/\.js$/, '.ts'), path.replace(/[^a-z0-9]+/gi, '-'));
@@ -97,6 +114,7 @@ export function createAuthPreviewHandler(
     health: HealthReportSchema.parse(FIXTURES['health.report']),
     now: options.now ?? ((): number => Date.now()),
     series: demoSeriesGateway(),
+    video: createMemoryVideoGateway([VideoDetailSchema.parse(FIXTURES['video.get'])]),
     assets: { readClientModule, readSharedModule },
   });
 }

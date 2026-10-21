@@ -80,6 +80,8 @@ export interface ShellModel {
   readonly attentionCount: number;
   readonly degraded: readonly DegradedNotice[];
   readonly content: string;
+  /** Trusted HTML for the title row's right-hand side (the workspace chip). */
+  readonly titleAside?: string;
   readonly aside?: { readonly label: string; readonly content: string };
   readonly footer?: string;
   readonly assets: {
@@ -103,6 +105,7 @@ export interface ShellInput {
   readonly session: SessionInfo;
   /** Trusted HTML rendered by the card that owns the surface. */
   readonly content: string;
+  readonly titleAside?: string;
   readonly breadcrumbs?: readonly BreadcrumbItem[];
   readonly aside?: { readonly label: string; readonly content: string };
   readonly footer?: string;
@@ -146,6 +149,7 @@ export function buildShellModel(input: ShellInput): ShellModel {
     attentionCount: input.overview.counts.needs_attention,
     degraded: degradedNotices(input.overview, input.health),
     content: input.content,
+    ...(input.titleAside === undefined ? {} : { titleAside: input.titleAside }),
     ...(input.aside === undefined ? {} : { aside: input.aside }),
     ...(input.footer === undefined ? {} : { footer: input.footer }),
     assets: {
@@ -247,7 +251,7 @@ function renderStatusStrip(status: StatusStripModel): string {
       ? ''
       : '<span class="status-attention mono" data-attention-count="' +
         status.attention +
-        '"><span class="num">' +
+        '"><span class="num" data-count-value>' +
         status.attention +
         '</span> need attention</span>';
 
@@ -290,11 +294,11 @@ function renderStatusStrip(status: StatusStripModel): string {
 
 function renderRail(model: ShellModel): string {
   const items = NAV_ITEMS.map((item) => {
-    const current = model.nav === item.key ? ' aria-current="page"' : '';
     const isOverview = item.key === 'overview';
+    const current = model.nav === item.key ? ' aria-current="page"' : '';
     const badge =
       isOverview && model.attentionCount > 0
-        ? '<span class="rail-badge mono" aria-hidden="true">' +
+        ? '<span class="rail-badge mono" aria-hidden="true" data-attention-count>' +
           model.attentionCount +
           '</span>' +
           '<span class="sr-only"> ' +
@@ -453,9 +457,13 @@ export function renderShell(model: ShellModel): string {
     '<div class="content">' +
     renderMobileBar(model) +
     renderBreadcrumb(model.breadcrumbs) +
-    '<h1 class="page-title">' +
-    escapeHtml(model.title) +
-    '</h1>' +
+    (model.titleAside === undefined
+      ? '<h1 class="page-title">' + escapeHtml(model.title) + '</h1>'
+      : '<div class="page-head"><h1 class="page-title">' +
+        escapeHtml(model.title) +
+        '</h1>' +
+        model.titleAside +
+        '</div>') +
     renderDegradedBanner(model.degraded) +
     grid +
     footer +
