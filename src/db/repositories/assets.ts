@@ -110,10 +110,15 @@ function insertParams(input: NewAssetProvenance): unknown[] {
 }
 
 /**
- * Insert the asset row, or return the row that already owns this object key.
- * The key is supplied by the caller (readable path, D-F), never derived here:
- * the same path is the conflict target, so a re-render or re-store under the
- * same path resolves to the existing row.
+ * Write the asset row for this object key, replacing the previous one if the path
+ * is already taken.
+ *
+ * The key is a readable path (D-F), so the same stage retried writes the same
+ * key — and the bytes at that path were just overwritten by the store. Keeping
+ * the old row would leave the database describing bytes that no longer exist, so
+ * the conflict updates provenance in place and reports `created: false`. The row
+ * identity is preserved, which keeps `asset_ref` links (and the download route)
+ * pointing at one video per path.
  */
 export async function insertOrReuseAsset(
   db: Queryable,
@@ -126,29 +131,34 @@ export async function insertOrReuseAsset(
       'retention_eligible_at) ' +
       'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, ' +
       '$17, $18, $19, $20) ' +
-      'ON CONFLICT (object_key) DO NOTHING ' +
+      'ON CONFLICT (object_key) DO UPDATE SET ' +
+      'content_sha256 = EXCLUDED.content_sha256, ' +
+      'object_size_bytes = EXCLUDED.object_size_bytes, ' +
+      'mime_type = EXCLUDED.mime_type, ' +
+      'width = EXCLUDED.width, ' +
+      'height = EXCLUDED.height, ' +
+      'series_version_id = EXCLUDED.series_version_id, ' +
+      'provider = EXCLUDED.provider, ' +
+      'model = EXCLUDED.model, ' +
+      'seed = EXCLUDED.seed, ' +
+      'provider_request_id = EXCLUDED.provider_request_id, ' +
+      'prompt_hash = EXCLUDED.prompt_hash, ' +
+      'prompt_text = EXCLUDED.prompt_text, ' +
+      'rights_metadata = EXCLUDED.rights_metadata, ' +
+      'generation_run_id = EXCLUDED.generation_run_id, ' +
+      'retention_eligible_at = EXCLUDED.retention_eligible_at, ' +
+      'created_at = now() ' +
       'RETURNING ' +
-      ASSET_COLUMNS,
+      ASSET_COLUMNS +
+      ', (xmax = 0) AS created',
     insertParams(input),
   );
-  const created = inserted.rows[0];
-  if (created !== undefined) return { asset: created, created: true };
-
-  // The conflict target is the object key, so the dedupe hit is looked up by
-  // key — exact, not "newest by hash", because the hash is no longer unique.
-  const existing = await db.query<AssetRow>(
-    'SELECT ' + ASSET_COLUMNS + ' FROM asset WHERE object_key = $1',
-    [input.objectKey],
-  );
-  const row = existing.rows[0];
+  const row = inserted.rows[0] as (AssetRow & { created: boolean }) | undefined;
   if (row === undefined) {
-    throw new Error(
-      'asset at object key ' +
-        input.objectKey +
-        ' conflicted but no row is visible: the transaction isolation level hides it',
-    );
+    throw new Error('asset at object key ' + input.objectKey + ' was neither inserted nor updated');
   }
-  return { asset: row, created: false };
+  const { created, ...asset } = row;
+  return { asset: asset as AssetRow, created };
 }
 
 export interface SceneImagePersistence extends NewAssetProvenance {
@@ -294,8 +304,24 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
         prompt_hash, prompt_text, rights_metadata, generation_run_id, retention_eligible_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
              $15, $16, $17::jsonb, $18, $19)
-     ON CONFLICT (object_key) DO NOTHING
-     RETURNING ${ASSET_COLUMNS}`,
+     ON CONFLICT (object_key) DO UPDATE SET
+       content_sha256 = EXCLUDED.content_sha256,
+       object_size_bytes = EXCLUDED.object_size_bytes,
+       mime_type = EXCLUDED.mime_type,
+       width = EXCLUDED.width,
+       height = EXCLUDED.height,
+       series_version_id = EXCLUDED.series_version_id,
+       provider = EXCLUDED.provider,
+       model = EXCLUDED.model,
+       seed = EXCLUDED.seed,
+       provider_request_id = EXCLUDED.provider_request_id,
+       prompt_hash = EXCLUDED.prompt_hash,
+       prompt_text = EXCLUDED.prompt_text,
+       rights_metadata = EXCLUDED.rights_metadata,
+       generation_run_id = EXCLUDED.generation_run_id,
+       retention_eligible_at = EXCLUDED.retention_eligible_at,
+       created_at = now()
+     RETURNING ${ASSET_COLUMNS}, (xmax = 0) AS created`,
     [
       input.projectId,
       input.stage,
@@ -319,20 +345,12 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
       input.retentionEligibleAt ?? null,
     ],
   );
-  const created = inserted.rows[0];
-  if (created !== undefined) return { row: created, created: true };
-
-  // The conflict target is the object key, so the dedupe hit is looked up by
-  // key — exact, because the hash is no longer unique.
-  const existing = await db.query<AssetRow>(
-    `SELECT ${ASSET_COLUMNS} FROM asset WHERE object_key = $1`,
-    [input.objectKey],
-  );
-  const row = existing.rows[0];
-  if (row === undefined) {
-    throw new Error(`asset at object key ${input.objectKey} was neither inserted nor found`);
+  const written = inserted.rows[0] as (AssetRow & { created: boolean }) | undefined;
+  if (written === undefined) {
+    throw new Error(`asset at object key ${input.objectKey} was neither inserted nor updated`);
   }
-  return { row, created: false };
+  const { created, ...row } = written;
+  return { row: row as AssetRow, created };
 }
 
 export async function findAssetById(db: Queryable, id: string): Promise<AssetRow | null> {

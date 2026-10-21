@@ -26,6 +26,7 @@ import {
   testDatabaseUrl,
   type TestDatabase,
 } from '../../tests/helpers/pg.js';
+import { insertOrReuseAsset } from '../db/repositories/assets.js';
 import { runMigrations } from '../db/runner.js';
 import { createBatch } from '../domain/batch.js';
 import { FakeTextAdapter } from '../adapters/fake-text.js';
@@ -247,5 +248,54 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       [projectId],
     );
     expect(settled.rows[0]).toEqual({ project_status: 'COMPLETE', batch_status: 'COMPLETE' });
+
+    // ── a retried stage writes the same path ─────────────────────────────────
+    // Under sha256 keys a re-write never collided. With readable paths the same
+    // stage retried lands on the same object key, so the bytes are replaced
+    // underneath a row that already exists: the row must follow the new bytes
+    // rather than keep describing content that is no longer there.
+    const first = await insertOrReuseAsset(db.pool, {
+      projectId,
+      stage: 'RE',
+      kind: 'video',
+      contentSha256: 'a'.repeat(64),
+      objectKey: 'e2e-series/batch-0001/video.mp4',
+      objectSizeBytes: 100,
+      mimeType: 'video/mp4',
+    });
+    const second = await insertOrReuseAsset(db.pool, {
+      projectId,
+      stage: 'RE',
+      kind: 'video',
+      contentSha256: 'b'.repeat(64),
+      objectKey: 'e2e-series/batch-0001/video.mp4',
+      objectSizeBytes: 200,
+      mimeType: 'video/mp4',
+    });
+
+    expect(first.created).toBe(false); // the render already wrote this path
+    expect(second.created).toBe(false);
+    expect(second.asset.id).toBe(first.asset.id); // identity preserved for refs
+    expect(second.asset.content_sha256).toBe('b'.repeat(64));
+    expect(second.asset.object_size_bytes).toBe('200');
+
+    const rows = await db.pool.query<{ n: string }>(
+      'SELECT count(*)::text AS n FROM asset WHERE object_key = $1',
+      ['e2e-series/batch-0001/video.mp4'],
+    );
+    expect(rows.rows[0]!.n).toBe('1');
+
+    // Identical bytes may now live at two paths: dedupe is gone by design (D-F).
+    const elsewhere = await insertOrReuseAsset(db.pool, {
+      projectId,
+      stage: 'RE',
+      kind: 'video',
+      contentSha256: 'b'.repeat(64),
+      objectKey: 'e2e-series/batch-0001/video-copy.mp4',
+      objectSizeBytes: 200,
+      mimeType: 'video/mp4',
+    });
+    expect(elsewhere.created).toBe(true);
+    expect(elsewhere.asset.content_sha256).toBe('b'.repeat(64));
   });
 });
