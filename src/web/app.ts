@@ -62,6 +62,7 @@ import {
 import {
   SeriesArchivedError,
   SeriesConflictError,
+  SeriesNotFoundError,
   SeriesSlugTakenError,
   type SeriesGateway,
 } from './series/gateway.js';
@@ -193,6 +194,7 @@ const MAX_FORM_BODY_CHARS = 65_536;
 const NAME_TAKEN_MESSAGE = 'That name is already used by another series.';
 const SAVE_FAILED_MESSAGE = 'The series could not be saved. Nothing was changed.';
 const CREATE_FAILED_MESSAGE = 'The series could not be created. Nothing was saved.';
+const BATCH_FAILED_MESSAGE = 'The batch could not be started. Nothing was created.';
 
 /** S-12's keyboard enhancer, loaded with the workspace module. */
 const SCENE_GRID_SCRIPTS: readonly string[] = ['/assets/client/scene-grid.js'];
@@ -1714,6 +1716,38 @@ export function createWebApp(
       if (effective === 'GET') return renderCreatePage({ session });
       if (effective === 'POST') return createSeries(gateway, body, session);
       return methodNotAllowed('GET, HEAD, POST');
+    }
+
+    // POST /series/:id/batches — the operator's explicit batch request (R-019-4).
+    // No cron/timer/schedule reaches this route: it is an authenticated form
+    // post, and it is the only thing that mints a batch.
+    const batchMatch = pathname.match(/^\/series\/([^/]+)\/batches$/);
+    if (batchMatch !== null) {
+      const batchSeriesId = batchMatch[1] as string;
+      if (effective === 'POST') {
+        if (body.length > MAX_FORM_BODY_CHARS) {
+          return json(400, 'validation_failed', 'Batch request is too large');
+        }
+        if ((await gateway.get(batchSeriesId)) === null) {
+          return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+        }
+        try {
+          const created = await gateway.createBatch(batchSeriesId);
+          return redirect(
+            '/series/' + encodeURIComponent(batchSeriesId) + '?batched=' + created.projectCount,
+          );
+        } catch (error) {
+          if (error instanceof SeriesArchivedError || error instanceof SeriesNotFoundError) {
+            return renderEditPage(gateway, batchSeriesId, { session, status: 409 });
+          }
+          return renderEditPage(gateway, batchSeriesId, {
+            session,
+            saveError: BATCH_FAILED_MESSAGE,
+            status: 503,
+          });
+        }
+      }
+      return methodNotAllowed('POST');
     }
 
     const seriesId = pathname.slice('/series/'.length);

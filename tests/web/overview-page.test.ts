@@ -129,6 +129,7 @@ describe('GET / — the attention queue', () => {
       get: async () => null,
       create: async () => detail,
       update: async () => detail,
+      createBatch: async () => ({ batchId: 'batch-1', projectCount: 1 }),
     };
     const firstRun = await signedIn({ overview: emptyOverview, series });
     const firstRunPage = parseHtml((await firstRun.get('/')).body);

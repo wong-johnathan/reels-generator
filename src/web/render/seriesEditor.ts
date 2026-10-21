@@ -415,6 +415,34 @@ function renderPanel(model: SeriesEditorModel): string {
   );
 }
 
+/**
+ * R-019-4: the only control that starts a batch. An explicit operator click on
+ * the series editor — no timer, cron or schedule reaches this form. The size
+ * comes from the series snapshot (`videos_per_batch`), read back here so the
+ * button says exactly what it will create.
+ */
+function renderBatchAction(model: SeriesEditorModel): string {
+  if (model.mode !== 'edit' || model.status === 'archived' || model.detail === undefined) {
+    return '';
+  }
+  const profile = model.detail.profile as { videos_per_batch?: unknown };
+  const raw =
+    typeof profile.videos_per_batch === 'number' ? Math.trunc(profile.videos_per_batch) : 1;
+  const count = Math.min(Math.max(raw, 1), 30);
+  return (
+    '<section class="series-batch" aria-labelledby="batch-heading">' +
+    '<h2 class="series-commit-heading" id="batch-heading">New batch</h2>' +
+    '<p class="series-commit-lead">Start one batch of ' +
+    count +
+    (count === 1 ? ' video' : ' videos') +
+    ' from the current profile.</p>' +
+    '<form method="post" action="/series/' +
+    escapeAttr(model.detail.id) +
+    '/batches"><button class="btn btn-primary" type="submit">Start batch</button></form>' +
+    '</section>'
+  );
+}
+
 export function renderSeriesEditor(model: SeriesEditorModel): SeriesEditorParts {
   const effectiveVersion = model.conflict?.currentVersion ?? model.detail?.current_version ?? 0;
   const savedVersion = model.savedVersion;
@@ -524,5 +552,5 @@ export function renderSeriesEditor(model: SeriesEditorModel): SeriesEditorParts 
     renderForm(model) +
     '</section>';
 
-  return { main, aside: renderPanel(model) };
+  return { main, aside: renderPanel(model) + renderBatchAction(model) };
 }

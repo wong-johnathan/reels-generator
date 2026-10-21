@@ -32,11 +32,22 @@ export interface SeriesUpdateInput {
   readonly profile?: Record<string, unknown>;
 }
 
+/** The result of an explicit create-batch request (R-019). */
+export interface BatchCreated {
+  readonly batchId: string;
+  readonly projectCount: number;
+}
+
 export interface SeriesGateway {
   list(): Promise<readonly SeriesSummary[]>;
   get(seriesId: string): Promise<SeriesDetail | null>;
   create(input: SeriesCreateInput): Promise<SeriesDetail>;
   update(seriesId: string, input: SeriesUpdateInput): Promise<SeriesDetail>;
+  /**
+   * R-019-4: mint a batch from the operator's explicit request. The size comes
+   * from the series snapshot (`videos_per_batch`), never from this call.
+   */
+  createBatch(seriesId: string): Promise<BatchCreated>;
   /** Optional: a sourced in-flight video count, when the adapter has one. */
   inFlightVideos?(seriesId: string): Promise<number | null>;
 }
@@ -309,6 +320,19 @@ export function createMemorySeriesGateway(
 
     async inFlightVideos(seriesId: string): Promise<number | null> {
       return entries.get(seriesId)?.inFlightVideos ?? null;
+    },
+
+    async createBatch(seriesId: string): Promise<BatchCreated> {
+      const entry = requireEntry(seriesId);
+      if (entry.detail.status === 'archived') throw new SeriesArchivedError();
+      const raw = entry.detail.profile['videos_per_batch'];
+      const projectCount = typeof raw === 'number' ? Math.min(Math.max(Math.trunc(raw), 1), 30) : 1;
+      const batchId = uuid();
+      entry.detail = SeriesDetailSchema.parse({
+        ...entry.detail,
+        in_flight_batches: entry.detail.in_flight_batches + 1,
+      });
+      return { batchId, projectCount };
     },
 
     seriesCount(): number {

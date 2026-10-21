@@ -5,6 +5,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ensureBucket,
+  InMemoryBucketStore,
   InMemoryContentAddressedStore,
   InvalidContentHashError,
   ObjectKeyMismatchError,
@@ -50,5 +52,24 @@ describe('object store (R-026)', () => {
     const first = await store.get(key);
     first?.bytes.fill(0);
     expect((await store.get(key))?.bytes).toEqual(BYTES);
+  });
+});
+
+describe('bucket ensure at boot (R-018)', () => {
+  it('creates the bucket on first call and reports it', async () => {
+    const store = new InMemoryBucketStore();
+    expect(await ensureBucket(store, 'reels')).toEqual({ created: true });
+    expect(await store.bucketExists('reels')).toBe(true);
+  });
+
+  it('is idempotent on re-run (no duplicate create)', async () => {
+    const store = new InMemoryBucketStore();
+    await ensureBucket(store, 'reels');
+    expect(await ensureBucket(store, 'reels')).toEqual({ created: false });
+  });
+
+  it('refuses an empty bucket name', async () => {
+    const store = new InMemoryBucketStore();
+    await expect(ensureBucket(store, '   ')).rejects.toThrow(RangeError);
   });
 });

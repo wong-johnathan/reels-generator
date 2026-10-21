@@ -172,6 +172,9 @@ describe('S-03 Series list', () => {
         update: async () => {
           throw new Error('not used');
         },
+        createBatch: async () => {
+          throw new Error('not used');
+        },
       },
     });
     expect(handle).toBeDefined();
@@ -201,6 +204,9 @@ describe('S-03 Series list', () => {
           throw new Error('unavailable');
         },
         update: async () => {
+          throw new Error('unavailable');
+        },
+        createBatch: async () => {
           throw new Error('unavailable');
         },
       },

@@ -26,12 +26,18 @@ import {
   SeriesConflictError,
   SeriesNotFoundError,
   SeriesSlugTakenError,
+  type BatchCreated,
   type SeriesCreateInput,
   type SeriesDetail,
   type SeriesGateway,
   type SeriesSummary,
   type SeriesUpdateInput,
 } from './gateway.js';
+import {
+  BatchSeriesArchivedError,
+  BatchSeriesNotFoundError,
+  createBatch as mintBatch,
+} from '../../domain/batch.js';
 
 /**
  * One row per series, joined to its current version. The snapshot (not the
@@ -279,6 +285,17 @@ export function createSeriesGateway(pool: Pool): SeriesGateway {
 
     async inFlightVideos(seriesId: string): Promise<number | null> {
       return countInFlightVideos(pool, seriesId);
+    },
+
+    async createBatch(seriesId: string): Promise<BatchCreated> {
+      try {
+        const result = await mintBatch(pool, { seriesId });
+        return { batchId: result.batchId, projectCount: result.projectIds.length };
+      } catch (error) {
+        if (error instanceof BatchSeriesNotFoundError) throw new SeriesNotFoundError(seriesId);
+        if (error instanceof BatchSeriesArchivedError) throw new SeriesArchivedError();
+        throw error;
+      }
     },
   };
 }

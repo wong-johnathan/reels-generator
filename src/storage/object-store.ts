@@ -97,3 +97,51 @@ export class InMemoryContentAddressedStore implements ContentAddressedStore {
     return [...this.objects.keys()];
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bucket lifecycle — TECH_DESIGN §2.1 (MinIO), boot-time ensure (R-018)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The smallest object-storage *bucket* surface the worker needs at boot: check
+ * the bucket exists and create it when it does not. Kept separate from
+ * `ContentAddressedStore` on purpose — a content-addressed blob store has no
+ * bucket concept, and forcing `makeBucket` onto it would conflate two concerns.
+ *
+ * There is no MinIO/S3 client in this repo and `@aws-sdk/client-s3` is not a
+ * dependency, so this milestone ships the deterministic in-memory binding and
+ * records the gap: a real MinIO binding (against `MINIO_ENDPOINT` /
+ * `MINIO_BUCKET`) is an image/dependency change, not an orchestration change.
+ */
+export interface ObjectBucketStore {
+  bucketExists(name: string): Promise<boolean>;
+  makeBucket(name: string): Promise<void>;
+}
+
+/** Deterministic in-memory bucket set; `makeBucket` is idempotent by construction. */
+export class InMemoryBucketStore implements ObjectBucketStore {
+  private readonly buckets = new Set<string>();
+
+  async bucketExists(name: string): Promise<boolean> {
+    return this.buckets.has(name);
+  }
+
+  async makeBucket(name: string): Promise<void> {
+    this.buckets.add(name);
+  }
+}
+
+/**
+ * Idempotent boot-time ensure: create the bucket only when it is absent.
+ * Returns `true` when this call created it, `false` when it already existed —
+ * the caller logs which happened, and re-running at every boot is safe.
+ */
+export async function ensureBucket(
+  store: ObjectBucketStore,
+  name: string,
+): Promise<{ created: boolean }> {
+  if (name.trim().length === 0) throw new RangeError('bucket name must not be empty');
+  if (await store.bucketExists(name)) return { created: false };
+  await store.makeBucket(name);
+  return { created: true };
+}
