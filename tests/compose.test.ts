@@ -293,6 +293,13 @@ describe('compose.dockerhub.yaml stays a faithful copy of compose.yaml', () => {
       const { image: hubImage, ...hubRest } = copy ?? {};
       if (APP_SERVICES.includes(name)) {
         expect(hubImage, `${name} must move to Docker Hub`).not.toBe(baseImage);
+      } else if (name === 'minio') {
+        // The object store is the one third-party image the convenience file
+        // hardcodes: an operator-supplied variable would defeat its purpose.
+        expect(baseImage, 'compose.yaml keeps the variable').toContain('MINIO_IMAGE');
+        expect(hubImage, 'compose.dockerhub.yaml hardcodes a concrete ref').toMatch(
+          /^quay\.io\/minio\/minio:RELEASE\.[0-9TZ.-]+$/,
+        );
       } else {
         expect(hubImage, `${name} is a third-party image and must stay identical`).toBe(baseImage);
       }
@@ -319,15 +326,21 @@ describe('compose.dockerhub.yaml stays a faithful copy of compose.yaml', () => {
     }
   });
 
+  it('needs no release variables: nothing to paste from images.env', () => {
+    const text = readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8');
+    // Store credentials still come from .env; the *release* pins must not appear
+    // here, or pulling "latest" would still require the digest output.
+    for (const key of ['RELEASE_TAG', 'WEB_DIGEST', 'WORKER_DIGEST', 'OPS_DIGEST', 'MINIO_IMAGE']) {
+      expect(text, key).not.toContain(key);
+    }
+    expect(text.match(/\$\{[A-Z0-9_]+:\?/g) ?? []).toHaveLength(
+      (text.match(/\$\{(POSTGRES|MINIO_ROOT|REDIS|SESSION|OPERATOR)[A-Z0-9_]*:\?/g) ?? []).length,
+    );
+  });
+
   it('leaves no application image on GHCR', () => {
     for (const [name, service] of Object.entries(hub.services)) {
       expect(service.image ?? '', name).not.toContain('ghcr.io');
     }
-  });
-
-  it('keeps the release pins out of the file, so compose can start without them', () => {
-    const text = readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8');
-    expect(text).not.toContain('RELEASE_TAG');
-    expect(text).not.toMatch(/\$\{(WEB|WORKER|OPS)_DIGEST/);
   });
 });

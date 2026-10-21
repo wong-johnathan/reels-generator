@@ -75,7 +75,7 @@ const GROUPS: readonly { readonly title: string; readonly keys: readonly string[
   },
   { title: 'logging', keys: ['LOG_LEVEL', 'TZ'] },
   {
-    title: 'release pins — DO NOT EDIT BY HAND',
+    title: 'release pins — ONLY for compose.yaml (skip these if you run compose.dockerhub.yaml)',
     keys: [
       'RELEASE_TAG',
       'WEB_DIGEST',
@@ -123,11 +123,11 @@ const COMPOSE_ONLY: Readonly<Record<string, { readonly comment: string; readonly
     },
     MINIO_IMAGE: {
       comment:
-        'REQUIRED by compose · digest-pinned object store · quay.io/minio/minio:RELEASE.xxxx@sha256:<64 hex>',
+        'compose.yaml only · digest-pinned object store (compose.dockerhub.yaml hardcodes one)',
       value: '',
     },
     DOCKERHUB_USER: {
-      comment: 'docker compose only · Docker Hub organisation · default wongjohnathanwh741',
+      comment: 'compose.dockerhub.yaml only · Docker Hub organisation · default wongjohnathanwh741',
       value: 'wongjohnathanwh741',
     },
   };
@@ -204,9 +204,10 @@ for (const group of GROUPS) {
 
 lines.push(
   '# ── notes ───────────────────────────────────────────────────────────────────',
-  '# RELEASE_TAG and *_DIGEST are printed by the CI release job as images.env;',
-  '# append that to .env rather than typing digests. Docker Hub pulls use the',
-  '# override file: docker compose -f compose.yaml -f compose.dockerhub.yaml up -d',
+  '# Running compose.dockerhub.yaml (pull :latest)? Delete this whole release-pins',
+  '# section — that file uses none of it. Running compose.yaml (pinned)? RELEASE_TAG',
+  '# and *_DIGEST are printed by the CI release job as images.env; append that file',
+  '# to .env instead of typing digests.',
   '',
 );
 

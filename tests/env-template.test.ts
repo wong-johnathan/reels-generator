@@ -75,15 +75,14 @@ describe('.env.template', () => {
   });
 
   it('states whether each key is required or defaulted', () => {
-    const documented = template
-      .split('\n')
-      .filter(
-        (line) =>
-          line.startsWith('# REQUIRED') ||
-          line.startsWith('# optional') ||
-          line.startsWith('# docker compose only'),
-      ).length;
-    expect(documented).toBe(assignments.length);
+    // Wording-agnostic: every assignment must be preceded by a comment line.
+    const lines = template.split('\n');
+    const undocumented = lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => /^[A-Z][A-Z0-9_]*=/.test(line))
+      .filter(({ index }) => !lines[index - 1]?.startsWith('# '))
+      .map(({ line }) => line.split('=')[0]);
+    expect(undocumented).toEqual([]);
   });
 
   it('carries the Docker Hub organisation the compose variant expects', () => {

@@ -128,10 +128,12 @@ services:
     mem_limit: 256m
 
   minio:
-    # The object store image is operator-supplied: `minio/minio` is no longer published on
-    # Docker Hub (404 as of 2026-10-20) and quay.io/minio/minio requires registry auth.
-    # MINIO_IMAGE must be a digest-pinned ref, e.g. quay.io/minio/minio:vX@sha256:…
-    image: ${MINIO_IMAGE:?MINIO_IMAGE must be a digest-pinned object-store image (see docs/DEPLOYMENT.md)}
+    # Hardcoded on purpose, so this file needs no release variables: `minio/minio` is no
+    # longer published on Docker Hub (404) and the quay.io manifest is not anonymously
+    # resolvable from here, so the digest could not be verified. Tag only — reproducible
+    # pinning is compose.yaml's job. quay.io may require `docker login quay.io` on the NAS;
+    # if it does, or you mirror the image elsewhere, override the single line below.
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     platform: linux/amd64
     restart: unless-stopped
     env_file: .env
