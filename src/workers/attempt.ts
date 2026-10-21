@@ -35,11 +35,13 @@ import {
   markGenerationRunUnknownCharge,
 } from '../db/repositories/generation-runs.js';
 import {
+  findJobAttemptsByJob,
   finishJobAttempt,
   heartbeatAttempt,
   markAttemptRunning,
 } from '../db/repositories/job-attempts.js';
 import { markJobStatus } from '../db/repositories/jobs.js';
+import type { JobAttemptRow } from '../db/repositories/types.js';
 import {
   AdapterStageMismatchError,
   GenerationRunContractViolationError,
@@ -238,17 +240,48 @@ const PENDING_RUN_MESSAGE =
   'a generation_run from a previous process is still pending: the provider call may have billed, ' +
   'so it was marked unknown charge and not reissued (R-012-3/R-012-4)';
 
+/** How long a lease may be quiet before a `pending` run counts as abandoned. */
+export const DEFAULT_LEASE_TTL_SECONDS = 60;
+
 export interface PendingRunGuard {
   readonly reissueAllowed: boolean;
   readonly pendingRunIds: readonly string[];
   readonly attemptIds: readonly string[];
+  /**
+   * True when a pending run's attempt still has a live lease — another worker is
+   * executing it right now, so this caller must not even close the row.
+   */
+  readonly inProgress: boolean;
+}
+
+export interface PendingRunGuardOptions {
+  readonly leaseTtlSeconds?: number;
+  readonly now?: Date;
+  /**
+   * Only a heartbeat/started stamp counts as a live lease. The reconciler sets
+   * this: the job is already known-stalled, and a worker can die seconds after
+   * committing a run, so a fresh `created_at` is not evidence of life.
+   */
+  readonly requireHeartbeat?: boolean;
+}
+
+function isLiveAttempt(attempt: JobAttemptRow, cutoff: Date, requireHeartbeat: boolean): boolean {
+  const stamp = requireHeartbeat
+    ? (attempt.heartbeat_at ?? attempt.started_at)
+    : (attempt.heartbeat_at ?? attempt.started_at ?? attempt.created_at);
+  return stamp !== null && stamp.getTime() > cutoff.getTime();
 }
 
 /**
- * The ≤1-billable rule (TECH_DESIGN §5.5). A run that is still `pending` means
- * a call was issued and the process died before it was accounted for. Mark it
- * `unknown charge`, close its attempt, and refuse to call the provider again
- * automatically — only an operator may start a new run (R-011-3).
+ * The ≤1-billable rule (TECH_DESIGN §5.5) in two cases:
+ *
+ * - **Abandoned** (newest lease stamp older than the TTL): the call may have
+ *   billed. Mark the run `unknown charge`, close its attempt, and refuse to call
+ *   the provider again automatically — only an operator may start a new run
+ *   (R-011-3).
+ * - **Live** (a fresh heartbeat/creation stamp): another worker is executing
+ *   this attempt right now. Refuse, but touch nothing: closing the winner's row
+ *   would corrupt a call that is still in flight.
  *
  * Shared by `runProviderAttempt` (manual/queued retry) and the reconciler
  * (startup resume), so the rule has exactly one implementation.
@@ -256,13 +289,29 @@ export interface PendingRunGuard {
 export async function refuseReissueOfPendingRuns(
   deps: { readonly pool: Pool },
   jobId: string,
+  options: PendingRunGuardOptions = {},
 ): Promise<PendingRunGuard> {
   const pending = await findPendingRunsForJob(deps.pool, jobId);
   if (pending.length === 0) {
-    return { reissueAllowed: true, pendingRunIds: [], attemptIds: [] };
+    return { reissueAllowed: true, pendingRunIds: [], attemptIds: [], inProgress: false };
   }
 
+  const pendingRunIds = pending.map((run) => run.id);
   const attemptIds = [...new Set(pending.map((run) => run.job_attempt_id))];
+  const cutoff = new Date(
+    (options.now ?? new Date()).getTime() -
+      (options.leaseTtlSeconds ?? DEFAULT_LEASE_TTL_SECONDS) * 1_000,
+  );
+  const attempts = await findJobAttemptsByJob(deps.pool, jobId);
+  const live = attempts.some(
+    (attempt) =>
+      attemptIds.includes(attempt.id) &&
+      isLiveAttempt(attempt, cutoff, options.requireHeartbeat ?? false),
+  );
+  if (live) {
+    return { reissueAllowed: false, pendingRunIds, attemptIds, inProgress: true };
+  }
+
   for (const run of pending) {
     await markGenerationRunUnknownCharge(deps.pool, run.id);
   }
@@ -273,11 +322,7 @@ export async function refuseReissueOfPendingRuns(
     });
   }
 
-  return {
-    reissueAllowed: false,
-    pendingRunIds: pending.map((run) => run.id),
-    attemptIds,
-  };
+  return { reissueAllowed: false, pendingRunIds, attemptIds, inProgress: false };
 }
 
 /**
@@ -296,6 +341,7 @@ export async function runProviderAttempt(
 
   const guard = await refuseReissueOfPendingRuns(deps, job.jobId);
   if (!guard.reissueAllowed) {
+    if (guard.inProgress) return inProgressAttemptOutcome(job);
     await markJobStatus(deps.pool, job.jobId, 'failed');
     const failure: ClassifiedFailure = {
       errorClass: 'non_retryable',
@@ -317,7 +363,7 @@ export async function runProviderAttempt(
 
   // R-012-1: this COMMIT is the point of no return. The adapter cannot be
   // reached except through the branded run this call returns.
-  const run: PersistedGenerationRun = await openAttempt(deps.pool, {
+  const run: PersistedGenerationRun | null = await openAttempt(deps.pool, {
     jobId: job.jobId,
     attemptNo: job.attemptNo,
     projectId: job.projectId,
@@ -329,7 +375,17 @@ export async function runProviderAttempt(
     schemaVersion: job.schemaVersion ?? null,
     seriesVersionId: job.seriesVersionId ?? null,
     workerId: job.workerId ?? null,
+  }).catch((caught: unknown) => {
+    if (isDuplicateAttemptError(caught)) return null;
+    throw caught;
   });
+
+  if (run === null) {
+    // The unique (job_id, attempt_no) constraint is the concurrency guard: a
+    // second worker that claimed the same attempt must not call the provider and
+    // must not touch the winner's rows.
+    return duplicateAttemptOutcome(job);
+  }
 
   await markJobStatus(deps.pool, job.jobId, 'running');
   await markAttemptRunning(deps.pool, run.jobAttemptId, job.workerId ?? null);
@@ -460,4 +516,66 @@ export async function runAttemptSequence(
  */
 export async function heartbeatAttemptLease(pool: Pool, attemptId: string): Promise<boolean> {
   return heartbeatAttempt(pool, attemptId);
+}
+
+/**
+ * Postgres unique violation on `(job_id, attempt_no)` — two workers claimed the
+ * same attempt. The loser must not issue a provider call (that would be the
+ * double-bill this whole module exists to prevent) and must not touch the
+ * winner's rows, so it is reported as a non-retryable outcome instead.
+ */
+function isDuplicateAttemptError(error: unknown): boolean {
+  const record = recordOf(error);
+  return (
+    record.code === '23505' &&
+    (record.constraint === 'job_attempt_job_attempt_no_key' ||
+      (typeof record.detail === 'string' && record.detail.includes('(job_id, attempt_no)')))
+  );
+}
+
+function duplicateAttemptOutcome(job: ProviderAttemptJob): AttemptOutcome {
+  const message =
+    `attempt ${job.attemptNo} for job ${job.jobId} already exists: another worker holds it, ` +
+    'so no provider call was made';
+  return {
+    attemptNo: job.attemptNo,
+    runId: null,
+    status: 'failed',
+    charge: 'unbilled',
+    failure: {
+      errorClass: 'non_retryable',
+      httpStatus: null,
+      mayHaveBilled: false,
+      timedOut: false,
+      message,
+    },
+    retry: { requeue: false, delayMs: 0, nextAttemptNo: null },
+    error: new Error(message),
+  };
+}
+
+/**
+ * A pending run whose lease is still live: another worker is inside this
+ * attempt. This caller made no call, so its charge is `unbilled` and it must not
+ * retry — retrying would race the live worker and the ledger slot it holds.
+ */
+function inProgressAttemptOutcome(job: ProviderAttemptJob): AttemptOutcome {
+  const message =
+    `attempt ${job.attemptNo} for job ${job.jobId} is already running under a live lease: ` +
+    'another worker owns it, so no provider call was made here';
+  return {
+    attemptNo: job.attemptNo,
+    runId: null,
+    status: 'failed',
+    charge: 'unbilled',
+    failure: {
+      errorClass: 'non_retryable',
+      httpStatus: null,
+      mayHaveBilled: false,
+      timedOut: false,
+      message,
+    },
+    retry: { requeue: false, delayMs: 0, nextAttemptNo: null },
+    error: new Error(message),
+  };
 }

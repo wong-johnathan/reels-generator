@@ -342,6 +342,20 @@ describe.skipIf(!hasDatabase)('provider attempt lifecycle (US-013)', () => {
       workerId: 'killed-worker',
     });
 
+    // A real resume happens long after the kill, so age the residue past the
+    // lease TTL: that is what makes it abandonable rather than live.
+    await db.pool.query(
+      `UPDATE job_attempt
+          SET created_at = now() - make_interval(secs => 600),
+              started_at = now() - make_interval(secs => 600)
+        WHERE id = $1`,
+      [crashed.jobAttemptId],
+    );
+    await db.pool.query(
+      `UPDATE generation_run SET created_at = now() - make_interval(secs => 600) WHERE id = $1`,
+      [crashed.id],
+    );
+
     const outcome = await runProviderAttempt(
       { pool: db.pool, adapter: bound },
       { ...attemptJob(jobId), attemptNo: 2 },
@@ -394,5 +408,75 @@ describe.skipIf(!hasDatabase)('provider attempt lifecycle (US-013)', () => {
       open.jobAttemptId,
     ]);
     expect(await heartbeatAttemptLease(db.pool, open.jobAttemptId)).toBe(false);
+  });
+});
+
+describe.skipIf(!hasDatabase)('concurrent attempt claims (R-012-1, R-012-3)', () => {
+  it('a duplicate claim never reaches the provider and leaves the winner rows intact', async () => {
+    // This block re-declares its own harness so it does not depend on the suite
+    // above; a second worker claiming an attempt that already exists is the only
+    // way two provider calls could ever be issued for one attempt.
+    const db2 = await createTestDatabase();
+    try {
+      await runMigrations(db2.pool);
+      const seeded2 = await seedProject(db2.pool);
+      const job = await db2.pool.query<{ id: string }>(
+        `INSERT INTO job (project_id, stage, status) VALUES ($1, 'NA', 'running') RETURNING id`,
+        [seeded2.projectId],
+      );
+      const jobId = job.rows[0]!.id;
+
+      const winner = await openAttempt(db2.pool, {
+        jobId,
+        attemptNo: 1,
+        projectId: seeded2.projectId,
+        stage: 'NA',
+        provider: 'fake',
+        promptHash: ttsPromptHash(TTS_REQUEST),
+        workerId: 'worker-a',
+      });
+
+      const { adapter, bound } = harness();
+      const outcome = await runProviderAttempt(
+        { pool: db2.pool, adapter: bound },
+        {
+          jobId,
+          attemptNo: 1,
+          projectId: seeded2.projectId,
+          stage: 'NA',
+          promptHash: ttsPromptHash(TTS_REQUEST),
+          workerId: 'worker-b',
+        },
+      );
+
+      expect(adapter.calls).toHaveLength(0);
+      expect(outcome.status).toBe('failed');
+      expect(outcome.failure?.errorClass).toBe('non_retryable');
+      expect(outcome.failure?.mayHaveBilled).toBe(false);
+      expect(outcome.retry.requeue).toBe(false);
+      expect(outcome.charge).toBe('unbilled');
+      expect(outcome.failure?.message).toContain('live lease');
+
+      const attempts = await db2.pool.query(
+        `SELECT attempt_no, worker_id, status FROM job_attempt WHERE job_id = $1`,
+        [jobId],
+      );
+      expect(attempts.rows).toEqual([{ attempt_no: 1, worker_id: 'worker-a', status: 'pending' }]);
+
+      const run = await db2.pool.query<{ status: string; charge_status: string }>(
+        `SELECT status, charge_status FROM generation_run WHERE id = $1`,
+        [winner.id],
+      );
+      expect(run.rows[0]).toEqual({ status: 'pending', charge_status: 'pending' });
+
+      // The winner's job is still being worked on; the loser must not fail it.
+      const jobRow = await db2.pool.query<{ status: string }>(
+        `SELECT status FROM job WHERE id = $1`,
+        [jobId],
+      );
+      expect(jobRow.rows[0]!.status).toBe('running');
+    } finally {
+      await db2.close();
+    }
   });
 });

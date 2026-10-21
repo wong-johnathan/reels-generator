@@ -26,17 +26,14 @@ import { finishJobAttempt, findOpenJobAttempts } from '../db/repositories/job-at
 import { findStalledJobs, markJobStatus, setJobRetryScope } from '../db/repositories/jobs.js';
 import type { StalledJobRow } from '../db/repositories/types.js';
 import { isStageCode, type StageCode } from '../shared/index.js';
-import { MAX_ATTEMPTS_PER_JOB, refuseReissueOfPendingRuns } from './attempt.js';
+import {
+  DEFAULT_LEASE_TTL_SECONDS,
+  MAX_ATTEMPTS_PER_JOB,
+  refuseReissueOfPendingRuns,
+} from './attempt.js';
 import type { EnqueuePort } from './queues.js';
 
-/**
- * How long a lease may be quiet before the job is treated as abandoned.
- * TECH_DESIGN §7.5 heartbeats every ≤ 5 s, so 60 s is twelve missed beats —
- * generous enough not to fight a slow-but-alive worker, short enough that a
- * restart resumes promptly.
- */
-export const DEFAULT_LEASE_TTL_SECONDS = 60;
-
+export { DEFAULT_LEASE_TTL_SECONDS };
 /** TECH_DESIGN §7.5: every attempt heartbeats at ≤ 5 s. */
 export const LEASE_HEARTBEAT_INTERVAL_MS = 5_000;
 
@@ -108,7 +105,11 @@ export async function reconcileStalledJobs(deps: ReconcileDeps): Promise<Reconci
 
   for (const job of stalled) {
     const stage = stageOf(job.stage);
-    const pending = await refuseReissueOfPendingRuns(deps, job.id);
+    const pending = await refuseReissueOfPendingRuns(deps, job.id, {
+      leaseTtlSeconds: deps.leaseTtlSeconds ?? DEFAULT_LEASE_TTL_SECONDS,
+      ...(deps.now === undefined ? {} : { now: deps.now }),
+      requireHeartbeat: true,
+    });
 
     if (!pending.reissueAllowed) {
       // The load-bearing line of the whole module: a call may have billed, so
