@@ -16,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 
 import { createDependencyProbe } from '../api/server.js';
 import { createPool } from '../db/client.js';
+import { migrateOnStart } from '../boot/migrate-on-start.js';
 import { ensureBucket, type ContentAddressedStore } from '../storage/object-store.js';
 import { createS3Stores, s3ConfigFromEnv } from '../storage/s3-store.js';
 import {
@@ -82,6 +83,11 @@ export async function ensureWorkerBucket(env: NodeJS.ProcessEnv): Promise<{ crea
 export async function buildWorkerDeps(env: NodeJS.ProcessEnv): Promise<OrchestratorDeps> {
   const stores = createS3Stores(s3ConfigFromEnv(env));
   const pool = createPool(env);
+
+  // Web and workers all call this; the advisory lock makes the race harmless and
+  // the ledger makes a second call a no-op.
+  await migrateOnStart(pool, { env, log: (line) => console.log(line) });
+
   const fakeMode = isFakeProviderMode(env);
 
   // Fake mode pre-qualifies the fixture image adapter by construction (the only

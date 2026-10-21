@@ -171,6 +171,15 @@ const SPECS = [
     expected: 'non-empty model id',
   },
   {
+    key: 'MIGRATE_ON_START',
+    kind: 'enum',
+    roles: [],
+    default: 'true',
+    choices: ['true', 'false'],
+    expected:
+      'true or false: apply pending migrations when web/worker boot. Default true — a pull-and-up must not leave the schema behind the code. Set false only when migrations are run deliberately as a separate step',
+  },
+  {
     key: 'RESEARCH_PROVIDER',
     kind: 'enum',
     roles: [],

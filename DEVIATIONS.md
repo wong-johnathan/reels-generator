@@ -43,3 +43,30 @@ values per release and keeping them in sync with `.env`.
 **Reversal:** restore the digest refs in `compose.yaml`, re-add the five keys to
 the env templates, and reinstate the `release-manifest` job in
 `.github/workflows/build.yml` (git history has it at `9c17b6b`).
+
+## D-G — Migrations run on boot (R-017-2 deviated)
+
+**Rule:** R-017-2 keeps the web and worker entrypoints free of migration work; the
+schema step is the profile-gated `migrate` one-shot, run before `up`.
+
+**What we do instead:** `web` and both workers call `runMigrations` before they
+serve, controlled by `MIGRATE_ON_START` (default `true`). `false` restores the
+old contract exactly.
+
+**Why:** the first deploy of the UI failed with `relation "operator" does not
+exist` because a `pull` then `up -d` skipped the separate migration step. At
+single-operator scale, an ordering rule that lives in a shell script is a rule
+that gets skipped.
+
+**Why it is safe:** `runMigrations` takes a `pg_advisory_lock` on a dedicated
+connection, so replicas booting together serialise rather than race, and every
+migration is recorded in `schema_migration` with a checksum, so the second caller
+finds nothing pending. A migration that fails throws, the process exits, and the
+container does not take traffic on a schema older than its code.
+
+**Cost:** a slow migration lengthens boot and can trip the health check, which is
+why `MIGRATE_ON_START=false` plus the one-shot remains the answer for a large or
+risky change.
+
+**Reversal:** set `MIGRATE_ON_START=false` in `.env` and keep `deploy/up.sh` as
+the entry point; no code change needed.

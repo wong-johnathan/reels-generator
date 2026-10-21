@@ -40,6 +40,7 @@ import { PgSessionStore } from '../auth/sessions.js';
 import type { AuthenticatedSession, SessionResolver } from '../auth/types.js';
 import { formatIssues, validateEnv } from '../config/env.js';
 import { createPool, describeTarget, poolConfigFromEnv } from '../db/client.js';
+import { migrateOnStart } from '../boot/migrate-on-start.js';
 import { redactText } from '../security/redact.js';
 import {
   authorize,
@@ -659,6 +660,12 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
 
   const pool = createPool(process.env);
   try {
+    // Schema first: a process whose schema is older than its code must not take
+    // traffic. Concurrent replicas serialise on the migration advisory lock.
+    await migrateOnStart(pool, {
+      env: process.env,
+      log: (line) => console.log(line),
+    });
     // The object store is a hard production dependency: env validation above
     // already required MINIO_*, and this construction fails loudly (never an
     // in-memory fallback) if any of them is absent or malformed.

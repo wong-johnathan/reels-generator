@@ -91,15 +91,21 @@ detached, and prints `docker compose ps`.
 
     ./deploy/up.sh
 
-The migration step on its own (safe to re-run; B-02 makes it idempotent):
+Migrations run on boot: `web` and both workers apply any pending migration before
+they serve (deviation D-G from R-017-2). A `pull` followed by `up -d` therefore
+cannot leave the schema behind the code — the failure that produced
+`relation "operator" does not exist` on the first deploy. Replicas starting at the
+same moment serialise on the migration advisory lock, and a process whose
+migration fails exits instead of serving a stale schema.
+
+To run them deliberately, or to keep migrations out of the application entrypoints
+entirely, set `MIGRATE_ON_START=false` and use the one-shot:
 
     docker compose --profile migrate run --rm migrate
 
-Why two steps: `migrate` and `backup` are profile-gated one-shots, and Compose
-cannot express `depends_on` from an always-on service to a service outside the
-active profile. TECH_DESIGN §9.2 asks for "web/workers depend on migrate"; the
-supported equivalent is the ordered script. Migrations run only in the `migrate`
-one-shot, never in the web or worker entrypoint (R-017-2).
+`migrate` and `backup` remain profile-gated one-shots. TECH_DESIGN §9.2 asks for
+"web/workers depend on migrate"; the supported equivalents are boot-time
+migration (default) or the ordered script with migration disabled.
 
 Expected result:
 

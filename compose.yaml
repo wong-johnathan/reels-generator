@@ -13,9 +13,12 @@
 #   docker compose --profile migrate run --rm migrate
 #   docker compose --profile backup  run --rm backup
 #
-# NOTE (deviation from TECH_DESIGN §9.2, documented in docs/DEPLOYMENT.md):
-# web/workers do not `depends_on: migrate`. Compose cannot gate a default-profile
-# service on a profile-gated one-shot, so `deploy/up.sh` runs migrate first, then `up`.
+# Migrations (deviation from TECH_DESIGN §9.2, documented in docs/DEPLOYMENT.md):
+# web and the workers apply pending migrations on boot (MIGRATE_ON_START, default
+# true), so a pull-and-up can no longer leave the schema behind the code — the
+# `relation "operator" does not exist` first-boot failure. Concurrent replicas
+# serialise on the migration advisory lock. The profile-gated `migrate` one-shot
+# remains for running migrations deliberately, or with MIGRATE_ON_START=false.
 name: reels-generator
 
 x-app: &app
