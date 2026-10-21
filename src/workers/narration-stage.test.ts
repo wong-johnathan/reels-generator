@@ -102,7 +102,8 @@ describe.skipIf(!hasDatabase)('narration stage (US-021)', () => {
         model_id: VOICE.model_id,
       }),
     );
-    expect(audioRow.object_key).toBe(`sha256:${audioRow.content_sha256}`);
+    // The key is a readable path now (D-F): <slug>/batch-0001/narration.mp3.
+    expect(audioRow.object_key).toMatch(/^[a-z0-9-]+\/batch-\d{4}\/narration\.mp3$/);
     expect(Number(audioRow.object_size_bytes)).toBeGreaterThan(44);
     expect((audioRow.rights_metadata as { voice: Record<string, unknown> }).voice).toMatchObject({
       voice_id: VOICE.voice_id,

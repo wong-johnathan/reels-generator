@@ -75,7 +75,9 @@ async function seedSceneImage(
     text: { reels_scene: sceneNoValue + '-' + projectId.slice(0, 8) },
   });
   const hash = sha256Hex(bytes);
-  const key = 'scenes/' + sceneNoValue + '.png';
+  // Namespaced by project: several cases in this file build a project with the
+  // same scene numbers, and object_key is unique now that keys are paths.
+  const key = 'scenes/' + projectId.slice(0, 8) + '/' + sceneNoValue + '.png';
   await blobs.put(key, bytes, 'image/png');
   const asset = await db.pool.query<{ id: string }>(
     'INSERT INTO asset (project_id, stage, scene_id, kind, content_sha256, object_key, ' +

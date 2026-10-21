@@ -150,7 +150,11 @@ describe.skipIf(!hasDatabase)('timing stage (US-022)', () => {
         seriesVersionId: seeded.seriesVersionId,
       },
     );
-    if (result.status !== 'stored') throw new Error('narration stage did not store the take');
+    if (result.status !== 'stored') {
+      // Name the stage's own reason: a bare 'did not store the take' hid a
+      // duplicate-key failure behind a generic message.
+      throw new Error(`narration stage did not store the take: ${result.message}`);
+    }
     return result.narration;
   }
 
