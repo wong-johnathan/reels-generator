@@ -46,6 +46,7 @@ export interface PreviewOptions {
 
 const CSP =
   "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; " +
+  "media-src 'self'; " +
   "base-uri 'none'; form-action 'self'";
 
 const HTML_HEADERS = {

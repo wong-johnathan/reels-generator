@@ -19,14 +19,16 @@ import {
   HealthReportSchema,
   OverviewSchema,
   SeriesDetailSchema,
+  NarrationViewSchema,
   SeriesVersionDetailSchema,
   VideoDetailSchema,
 } from '../../contract/api.js';
 import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { createWebApp, type WebRequest, type WebResponse } from './app.js';
 import type { AuthOutcome } from './auth/login.js';
-import { MemorySessionStore } from './auth/session.js';
+import { MemorySessionStore, readSessionToken } from './auth/session.js';
 import { createMemorySeriesGateway } from './series/gateway.js';
+import { createMemoryNarrationGateway } from './narration/gateway.js';
 import { createMemoryVideoGateway } from './workspace/gateway.js';
 
 const DEMO_OPERATOR = 'operator';
@@ -56,6 +58,7 @@ const CLIENT_MODULE_FILES: Readonly<Record<string, string>> = {
   'script-review': 'scriptReview',
   workspace: 'workspace',
   'scene-grid': 'sceneGrid',
+  narration: 'narration',
 };
 
 function readClientModule(name: string): string | null {
@@ -71,6 +74,7 @@ function readSharedModule(path: string): string | null {
     'series/fields.js',
     'workspace/events.js',
     'workspace/glyphs.js',
+    'narration/model.js',
     'shared/stages.js',
     'shared/states.js',
   ];
@@ -106,19 +110,143 @@ export interface AuthPreviewOptions {
   readonly now?: () => number;
 }
 
+/**
+ * A deterministic silent 16-bit WAV at the fixture's duration, so the preview
+ * can exercise real playback (S-14's word-following) with no provider and no
+ * binary asset on disk. Latin-1: one character per byte, written back as bytes.
+ */
+function silentWav(durationSeconds: number): string {
+  const sampleRate = 8000;
+  const samples = Math.max(1, Math.round(durationSeconds * sampleRate));
+  const dataBytes = samples * 2;
+  const bytes = new Uint8Array(44 + dataBytes);
+  const ascii = (offset: number, text: string): void => {
+    for (let index = 0; index < text.length; index += 1) {
+      bytes[offset + index] = text.charCodeAt(index);
+    }
+  };
+  const uint16 = (offset: number, value: number): void => {
+    bytes[offset] = value & 0xff;
+    bytes[offset + 1] = (value >> 8) & 0xff;
+  };
+  const uint32 = (offset: number, value: number): void => {
+    bytes[offset] = value & 0xff;
+    bytes[offset + 1] = (value >>> 8) & 0xff;
+    bytes[offset + 2] = (value >>> 16) & 0xff;
+    bytes[offset + 3] = (value >>> 24) & 0xff;
+  };
+  ascii(0, 'RIFF');
+  uint32(4, 36 + dataBytes);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  uint32(16, 16);
+  uint16(20, 1);
+  uint16(22, 1);
+  uint32(24, sampleRate);
+  uint32(28, sampleRate * 2);
+  uint16(32, 2);
+  uint16(34, 16);
+  ascii(36, 'data');
+  uint32(40, dataBytes);
+  let latin1 = '';
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    latin1 += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  }
+  return latin1;
+}
+
 export function createAuthPreviewHandler(
   options: AuthPreviewOptions = {},
 ): (request: WebRequest) => Promise<WebResponse> {
-  return createWebApp({
-    sessions: new MemorySessionStore(),
+  const video = VideoDetailSchema.parse(FIXTURES['video.get']);
+  const narration = NarrationViewSchema.parse(FIXTURES['audio.get']);
+  const audioAssetId = narration.asset?.id ?? '';
+  const wav = silentWav(narration.duration_s ?? 1);
+  const sessions = new MemorySessionStore();
+  const now = options.now ?? ((): number => Date.now());
+  const app = createWebApp({
+    sessions,
     authenticate: demoAuthenticate,
     overview: OverviewSchema.parse(FIXTURES['overview.get']),
     health: HealthReportSchema.parse(FIXTURES['health.report']),
-    now: options.now ?? ((): number => Date.now()),
+    now,
     series: demoSeriesGateway(),
-    video: createMemoryVideoGateway([VideoDetailSchema.parse(FIXTURES['video.get'])]),
+    video: createMemoryVideoGateway([video]),
+    // S-14 demo storage: the fixture take, not yet accepted, so both the
+    // verdict and the accept gap are visible on the page.
+    narration: createMemoryNarrationGateway({
+      videoId: video.id,
+      view: { ...narration, accepted_at: null },
+      accept: true,
+    }),
     assets: { readClientModule, readSharedModule },
   });
+
+  function header(request: WebRequest, name: string): string | undefined {
+    for (const [key, value] of Object.entries(request.headers ?? {})) {
+      if (key.toLowerCase() === name) return value;
+    }
+    return undefined;
+  }
+
+  /** `bytes=start-end`, clamped to the body; null for an absent/unsupported range. */
+  function parseRange(value: string | undefined): { start: number; end: number } | null {
+    if (value === undefined) return null;
+    const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+    if (match === null) return null;
+    const size = wav.length;
+    const rawStart = match[1] ?? '';
+    const rawEnd = match[2] ?? '';
+    if (rawStart.length === 0 && rawEnd.length === 0) return null;
+    let start = rawStart.length === 0 ? size - Number(rawEnd) : Number(rawStart);
+    let end = rawStart.length === 0 || rawEnd.length === 0 ? size - 1 : Number(rawEnd);
+    start = Math.max(0, Math.min(start, size - 1));
+    end = Math.max(start, Math.min(end, size - 1));
+    return Number.isFinite(start) && Number.isFinite(end) ? { start, end } : null;
+  }
+
+  // Preview-only stand-in for the asset proxy INT-01 mounts: the narration
+  // fixture's `urls.full` resolves to a silent WAV of the same duration, behind
+  // the same session guard, with byte ranges so the player can seek.
+  return async function handle(request: WebRequest): Promise<WebResponse> {
+    const path = request.url.split('?')[0] ?? '';
+    const asset = /^\/asset\/([^/]+)\/full$/.exec(path);
+    if (asset !== null && asset[1] === audioAssetId && request.method.toUpperCase() === 'GET') {
+      const token = readSessionToken(header(request, 'cookie'));
+      if (token === null || sessions.read(token, now()) === null) {
+        return {
+          status: 303,
+          headers: { location: '/login?required=1', 'cache-control': 'no-store' },
+          body: '',
+        };
+      }
+      const range = parseRange(header(request, 'range'));
+      if (range === null) {
+        return {
+          status: 200,
+          headers: {
+            'content-type': 'audio/wav',
+            'cache-control': 'no-store',
+            'accept-ranges': 'bytes',
+            'content-length': String(wav.length),
+          },
+          body: wav,
+        };
+      }
+      return {
+        status: 206,
+        headers: {
+          'content-type': 'audio/wav',
+          'cache-control': 'no-store',
+          'accept-ranges': 'bytes',
+          'content-range': 'bytes ' + range.start + '-' + range.end + '/' + wav.length,
+          'content-length': String(range.end - range.start + 1),
+        },
+        body: wav.slice(range.start, range.end + 1),
+      };
+    }
+    return app(request);
+  };
 }
 
 function collectBody(request: IncomingMessage): Promise<string> {
@@ -155,6 +283,11 @@ export function startAuthPreviewServer(
       })
       .then((result) => {
         response.writeHead(result.status, result.headers);
+        // The preview's silent WAV is latin-1 text; write it back as bytes.
+        if ((result.headers['content-type'] ?? '').startsWith('audio/')) {
+          response.end(Buffer.from(result.body, 'latin1'));
+          return;
+        }
         response.end(result.body);
       })
       .catch(() => {

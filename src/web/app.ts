@@ -57,6 +57,10 @@ import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
 import type { VideoGateway } from './workspace/gateway.js';
 import { isTabKey, tabKeyForStage, type TabKey } from './workspace/model.js';
+import { NarrationRefusedError, type NarrationGateway } from './narration/gateway.js';
+import { ACCEPT_UNWIRED_REASON, type NarrationView } from './narration/model.js';
+import { NARRATION_SCRIPTS, renderNarrationPanel } from './render/narration.js';
+import { audioNotice } from './narration/notice.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
 type HealthReport = z.infer<typeof HealthReportSchema>;
@@ -79,6 +83,8 @@ export interface WebAppDependencies {
   readonly scenes?: SceneGateway;
   /** S-10 script storage. Absent builds fall back to the F-04 stage summary. */
   readonly script?: ScriptGateway;
+  /** S-14 narration & timing. Absent builds fall back to the F-04 stage summary. */
+  readonly narration?: NarrationGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
@@ -107,6 +113,7 @@ export interface WebResponse {
 
 const CSP =
   "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; " +
+  "media-src 'self'; " +
   "connect-src 'self'; base-uri 'none'; form-action 'self'";
 
 const HTML_HEADERS: Readonly<Record<string, string>> = {
@@ -158,6 +165,7 @@ const SHARED_MODULE_ROOTS: readonly string[] = [
   '/assets/series/',
   '/assets/workspace/',
   '/assets/script/',
+  '/assets/narration/',
   '/assets/shared/',
 ];
 
@@ -479,14 +487,26 @@ export function createWebApp(
       rawTab === 'scenes' &&
       action !== undefined &&
       actionId === 'replace-image';
+    const isAudioCommit =
+      input.method === 'POST' &&
+      tail.length === 2 &&
+      rawTab === 'audio' &&
+      (action === 'rerun' || action === 'accept');
 
     if (tail.length === 1 && rawTab !== undefined && !isTabKey(rawTab)) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
-    if (tail.length >= 2 && !isSceneDetail && !isRelease && !isApprove && !isReplace) {
+    if (
+      tail.length >= 2 &&
+      !isSceneDetail &&
+      !isRelease &&
+      !isApprove &&
+      !isReplace &&
+      !isAudioCommit
+    ) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
-    const isCommit = isRelease || isApprove || isReplace;
+    const isCommit = isRelease || isApprove || isReplace || isAudioCommit;
     if (input.method !== 'GET' && !isCommit) return methodNotAllowed('GET, HEAD');
 
     let detail: VideoDetail;
@@ -542,6 +562,14 @@ export function createWebApp(
     ): Promise<StoryboardView | null> {
       try {
         return await gatewayWithScenes.storyboard(videoId);
+      } catch {
+        return null;
+      }
+    }
+
+    async function narrationOrNull(narration: NarrationGateway): Promise<NarrationView | null> {
+      try {
+        return await narration.get(videoId);
       } catch {
         return null;
       }
@@ -701,6 +729,97 @@ export function createWebApp(
       return redirect(base + '/scenes/' + encodeURIComponent(sceneId) + '?notice=replaced');
     }
 
+    // ── S-14 audio commits (US-021, US-022) ─────────────────────────────────
+
+    if (isAudioCommit) {
+      const narration = deps.narration;
+      if (narration === undefined) {
+        return json(503, 'not_ready', 'The audio surfaces are not mounted');
+      }
+      const fields = parseFormEncoded(input.body);
+
+      if (action === 'rerun') {
+        const reason = (fields['reason'] ?? '').trim();
+        if (reason.length > 500) {
+          return json(400, 'validation_failed', 'The reason is longer than 500 characters');
+        }
+        try {
+          await narration.rerun(videoId, reason.length === 0 ? {} : { reason });
+        } catch (error) {
+          const fresh = await narrationOrNull(narration);
+          const refused = error instanceof NarrationRefusedError;
+          const failureMessage = error instanceof Error ? error.message : 'unknown error';
+          return workspacePage({
+            tab: 'audio',
+            crumb: 'Audio',
+            status: refused ? 409 : 503,
+            scripts: NARRATION_SCRIPTS,
+            panel: renderNarrationPanel({
+              detail,
+              narration: fresh,
+              alignmentId: null,
+              acceptWired: narration.accept !== undefined,
+              notice: {
+                kind: 'error',
+                message: refused
+                  ? failureMessage
+                  : 'The re-run could not be queued. Nothing was changed and nothing was spent.',
+              },
+            }),
+          });
+        }
+        return redirect(base + '/audio?notice=rerun-queued');
+      }
+
+      const alignmentId = (fields['alignment_id'] ?? '').trim();
+      if (alignmentId.length === 0) {
+        return json(400, 'validation_failed', 'An alignment id is required');
+      }
+      const accept = narration.accept;
+      if (accept === undefined) {
+        const fresh = await narrationOrNull(narration);
+        return workspacePage({
+          tab: 'audio',
+          crumb: 'Audio',
+          status: 503,
+          scripts: NARRATION_SCRIPTS,
+          panel: renderNarrationPanel({
+            detail,
+            narration: fresh,
+            alignmentId: null,
+            acceptWired: false,
+            notice: { kind: 'error', message: ACCEPT_UNWIRED_REASON },
+          }),
+        });
+      }
+      try {
+        await accept(videoId, { alignmentId });
+      } catch (error) {
+        const fresh = await narrationOrNull(narration);
+        const refused = error instanceof NarrationRefusedError;
+        const failureMessage = error instanceof Error ? error.message : 'unknown error';
+        return workspacePage({
+          tab: 'audio',
+          crumb: 'Audio',
+          status: refused ? 409 : 503,
+          scripts: NARRATION_SCRIPTS,
+          panel: renderNarrationPanel({
+            detail,
+            narration: fresh,
+            alignmentId: null,
+            acceptWired: true,
+            notice: {
+              kind: 'error',
+              message: refused
+                ? failureMessage
+                : 'The timing could not be accepted. Nothing was changed.',
+            },
+          }),
+        });
+      }
+      return redirect(base + '/audio?notice=accepted');
+    }
+
     // ── scene detail (S-13) ────────────────────────────────────────────────
 
     if (isSceneDetail) {
@@ -785,6 +904,43 @@ export function createWebApp(
             '</section>',
         });
       }
+    }
+
+    // S-14 owns the audio tab. Without a narration gateway the F-04 stage
+    // summary stays in place — an honest fallback, never invented narration.
+    if (tab === 'audio' && deps.narration !== undefined) {
+      const narration = deps.narration;
+      let view: NarrationView | null = null;
+      let failed = false;
+      try {
+        view = await narration.get(videoId);
+      } catch {
+        failed = true;
+      }
+      const notice = audioNotice(input.search.get('notice'));
+      return workspacePage({
+        tab: 'audio',
+        crumb: 'Audio',
+        scripts: NARRATION_SCRIPTS,
+        ...(failed ? { status: 503 } : {}),
+        panel: renderNarrationPanel({
+          detail,
+          narration: view,
+          alignmentId: null,
+          acceptWired: narration.accept !== undefined,
+          ...(failed
+            ? {
+                notice: {
+                  kind: 'error' as const,
+                  message:
+                    'Narration could not be loaded. The rest of the workspace is unaffected; nothing was changed.',
+                },
+              }
+            : notice === null
+              ? {}
+              : { notice }),
+        }),
+      });
     }
 
     if (tab === 'storyboard' && deps.scenes !== undefined) {

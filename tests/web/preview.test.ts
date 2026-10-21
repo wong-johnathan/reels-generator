@@ -96,7 +96,7 @@ describe('preview security and determinism', () => {
   it('sets a restrictive content security policy with no inline script or style', () => {
     const headers = get('/').headers;
     expect(headers['content-security-policy']).toBe(
-      "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'",
+      "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self'; base-uri 'none'; form-action 'self'",
     );
     expect(headers['x-content-type-options']).toBe('nosniff');
     expect(headers['referrer-policy']).toBe('no-referrer');
