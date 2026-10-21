@@ -16,7 +16,8 @@ import {
 } from './runner.js';
 
 /**
- * B-02 Signal: `migrate up` applies M-001…M-005 idempotently.
+ * B-02 Signal: `migrate up` applies every bundled migration idempotently.
+ * B-14 adds M-006 (the series_version guards), so the pinned list is M-001…M-006.
  *
  * These tests run against a real Postgres 16 (see tests/helpers/pg.ts). They
  * assert the acceptance shape of the schema itself — the 22 tables of
@@ -49,7 +50,7 @@ const DESIGNED_TABLES = [
   'video_stage',
 ] as const;
 
-const MIGRATION_IDS = ['M-001', 'M-002', 'M-003', 'M-004', 'M-005'] as const;
+const MIGRATION_IDS = ['M-001', 'M-002', 'M-003', 'M-004', 'M-005', 'M-006'] as const;
 
 const hasDatabase = testDatabaseUrl() !== null;
 if (!hasDatabase) console.warn(`[schema tests skipped] ${SKIP_REASON}`);
@@ -151,7 +152,7 @@ async function rejection(promise: Promise<unknown>): Promise<Error> {
 const DB_TEST_TIMEOUT_MS = 120_000;
 
 describe.skipIf(!hasDatabase)(
-  'migration baseline M-001…M-005 (B-02 Signal)',
+  'migration baseline M-001…M-006 (B-02 Signal + B-14 guards)',
   { timeout: DB_TEST_TIMEOUT_MS },
   () => {
     let db: TestDatabase;
@@ -164,7 +165,7 @@ describe.skipIf(!hasDatabase)(
       await db.close();
     }, DB_TEST_TIMEOUT_MS);
 
-    it('applies M-001…M-005 in order and creates exactly the 22 designed tables', async () => {
+    it('applies M-001…M-006 in order and creates exactly the 22 designed tables', async () => {
       const result = await runMigrations(db.pool);
 
       expect(result.applied).toEqual([...MIGRATION_IDS]);

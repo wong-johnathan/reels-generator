@@ -27,6 +27,7 @@ import {
 } from 'node:http';
 import { connect } from 'node:net';
 import { pathToFileURL } from 'node:url';
+import type { Pool } from 'pg';
 
 import { LoginRequestSchema } from '../../contract/api.js';
 import { LoginBackoff } from '../auth/backoff.js';
@@ -46,6 +47,7 @@ import {
   type HttpResponse,
   type HttpRequestLike,
 } from '../web/middleware/auth.js';
+import { handleSeriesRequest } from './series-routes.js';
 
 export interface Readiness {
   readonly ready: boolean;
@@ -60,6 +62,15 @@ export type HandlerResponse = HttpResponse;
 export interface HttpRequest extends HttpRequestLike {
   /** The peer address, used only to scope the login backoff. */
   readonly remoteAddress?: string;
+}
+
+/**
+ * Handlers that need the database. Optional: a probe-only or auth-only handler
+ * mounts nothing behind them, so B-13's auth tests keep exactly the surface they
+ * assert.
+ */
+export interface ContentRuntime {
+  readonly pool: Pool;
 }
 
 /** What the production entrypoint injects. Tests pass the same shape. */
@@ -260,7 +271,11 @@ async function handleLogout(request: HttpRequest, auth: AuthRuntime): Promise<Ha
  * Route a request. Pure and injectable so the tests run without binding a socket
  * or requiring a database; `startServer` adds the socket and body reading.
  */
-export function createRequestHandler(probe: HealthProbe, auth?: AuthRuntime) {
+export function createRequestHandler(
+  probe: HealthProbe,
+  auth?: AuthRuntime,
+  content?: ContentRuntime,
+) {
   return async function handle(request: HttpRequest): Promise<HandlerResponse> {
     const method = request.method.toUpperCase();
     const path = request.url.split('?')[0] ?? '/';
@@ -303,6 +318,15 @@ export function createRequestHandler(probe: HealthProbe, auth?: AuthRuntime) {
     const decision = await authorize(request, { resolver: auth.service as SessionResolver });
     if (!decision.allowed) {
       return decision.response ?? envelope('unauthorized', 'Authentication required', 401);
+    }
+
+    // Series CRUD + versioning (B-14): the session is authenticated and, for
+    // mutating methods, CSRF-checked by `authorize` above.
+    if (content !== undefined && decision.session !== null) {
+      const seriesResponse = await handleSeriesRequest(request, decision.session, {
+        pool: content.pool,
+      });
+      if (seriesResponse !== null) return seriesResponse;
     }
 
     if (path === '/api/logout') {
@@ -395,9 +419,10 @@ export function startServer(options: {
   port: number;
   probe: HealthProbe;
   auth?: AuthRuntime;
+  content?: ContentRuntime;
   host?: string;
 }): ReturnType<typeof createServer> {
-  const handle = createRequestHandler(options.probe, options.auth);
+  const handle = createRequestHandler(options.probe, options.auth, options.content);
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const respond = (response: HandlerResponse): void => {
       res.writeHead(response.status, response.headers as Record<string, string | string[]>);
@@ -469,6 +494,7 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
         sessionTtlSeconds: ttlHours * 3600,
         secureCookies: (result.values.APP_BASE_URL ?? '').startsWith('https://'),
       },
+      content: { pool },
     });
     server.on('close', () => {
       void pool.end();

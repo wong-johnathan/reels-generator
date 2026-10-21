@@ -12,6 +12,7 @@
  */
 import { M001_FOUNDATION_SQL } from './m001-foundation.js';
 import { M002_CONTENT_SQL } from './m002-content.js';
+import { M006_SERIES_VERSION_GUARDS_SQL } from './m006-series-version-guards.js';
 import { M003_EXECUTION_SQL } from './m003-execution.js';
 import { M004_ASSETS_SQL } from './m004-assets.js';
 import { M005_STATE_GATES_SEED_SQL } from './m005-state-gates-seed.js';
@@ -51,5 +52,11 @@ export const MIGRATIONS: readonly Migration[] = [
     description:
       'state, gates, seed: video_stage, review_decision, publication_log, invalidation_rule, provider_qualification',
     sql: M005_STATE_GATES_SEED_SQL,
+  },
+  {
+    id: 'M-006',
+    description:
+      'series_version guards: strictly increasing version, immutable rows, current_version_id maintenance',
+    sql: M006_SERIES_VERSION_GUARDS_SQL,
   },
 ];
