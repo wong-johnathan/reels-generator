@@ -22,7 +22,9 @@
     "env:validate": "tsx src/boot/validate-env.ts",
     "auth:seed": "tsx src/auth/seed.ts",
     "security:scan": "tsx src/security/scan-cli.ts",
-    "start:web": "node dist/src/api/server.js"
+    "start:web": "node dist/src/api/server.js",
+    "qualify:image": "node dist/src/cli/qualify-image.js",
+    "qualify:image:dev": "tsx src/cli/qualify-image.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1154.0",
