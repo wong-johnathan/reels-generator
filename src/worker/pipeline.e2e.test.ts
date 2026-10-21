@@ -166,7 +166,10 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
 
     // Every stage is done up to and including RE; the video waits at QC.
     const stages = await db.pool.query<{ stage: string; state: string }>(
-      `SELECT stage, state FROM video_stage WHERE project_id = $1 AND stage IN ('T','RS','SC','SB','IM','NA','TC','RE') ORDER BY stage`,
+      // ORDER BY stage sorts alphabetically (IM, NA, RE, RS, SB, SC, T, TC), which
+      // says nothing about pipeline order. Order by position in the rail instead.
+      `SELECT stage, state FROM video_stage WHERE project_id = $1 AND stage IN ('T','RS','SC','SB','IM','NA','TC','RE')
+        ORDER BY array_position(ARRAY['T','RS','SC','SB','IM','NA','TC','RE']::text[], stage)`,
       [projectId],
     );
     expect(stages.rows.map((row) => [row.stage, row.state])).toEqual([
