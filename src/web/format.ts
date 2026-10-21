@@ -108,3 +108,21 @@ export function formatCount(value: number): string {
   if (Math.abs(rounded) <= 9_999) return String(rounded);
   return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
+
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const;
+
+/**
+ * §9.6: bytes use binary units with one decimal (`6.2 GB`, `1.8 GB`,
+ * `41.2 MB`). Whole bytes carry no decimal. Never `k`, never a currency.
+ */
+export function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '—';
+  let scaled = value;
+  let unit = 0;
+  while (scaled >= 1024 && unit < BYTE_UNITS.length - 1) {
+    scaled /= 1024;
+    unit += 1;
+  }
+  if (unit === 0) return Math.trunc(value) + ' B';
+  return scaled.toFixed(1) + ' ' + BYTE_UNITS[unit];
+}

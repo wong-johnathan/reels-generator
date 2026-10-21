@@ -117,6 +117,8 @@ export interface ShellInput {
     readonly extraScripts?: readonly string[];
   };
   readonly liveStatus?: string;
+  /** S-19 owns the five-part degraded block; the shell banner would repeat it. */
+  readonly showDegradedBanner?: boolean;
 }
 
 const DEFAULT_STYLES = '/assets/app.css';
@@ -147,7 +149,8 @@ export function buildShellModel(input: ShellInput): ShellModel {
       now,
     },
     attentionCount: input.overview.counts.needs_attention,
-    degraded: degradedNotices(input.overview, input.health),
+    degraded:
+      input.showDegradedBanner === false ? [] : degradedNotices(input.overview, input.health),
     content: input.content,
     ...(input.titleAside === undefined ? {} : { titleAside: input.titleAside }),
     ...(input.aside === undefined ? {} : { aside: input.aside }),
