@@ -6,6 +6,9 @@
 *.key
 deploy/secrets/
 
+# ── Dispatcher's parallel worktrees (never app code) ──
+.worktrees/
+
 # ── Build output, dependencies, caches ──
 node_modules/
 dist/
