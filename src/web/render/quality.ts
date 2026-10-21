@@ -93,6 +93,9 @@ function renderPlayer(model: RenderPanelModel): string {
     kv('Passes', model.stats.passLine) +
     stats +
     '</dl>' +
+    '<p class="quality-download"><a class="btn btn-secondary quality-download-link" href="' +
+    escapeAttr('/videos/' + encodeURIComponent(model.videoId) + '/download') +
+    '" download>Download MP4</a></p>' +
     '</figure>'
   );
 }

@@ -61,6 +61,9 @@ import { createPostgresSceneGateway } from '../web/scenes/postgres.js';
 import { createPostgresScriptGateway } from '../web/script/postgres.js';
 import { createSeriesGateway } from '../web/series/postgres.js';
 import { createVideoGateway } from '../web/workspace/postgres.js';
+import { createPostgresDownloadGateway } from '../web/download/postgres.js';
+import type { VideoDownloadGateway } from '../web/download/gateway.js';
+import { createS3Stores, s3ConfigFromEnv } from '../storage/s3-store.js';
 
 export interface Readiness {
   readonly ready: boolean;
@@ -69,7 +72,7 @@ export interface Readiness {
 
 export type HealthProbe = () => Promise<Readiness>;
 
-export type HandlerResponse = HttpResponse;
+export type HandlerResponse = HttpResponse & { readonly bodyBytes?: Uint8Array };
 
 /** A request as the handler sees it: already parsed, no socket required. */
 export interface HttpRequest extends HttpRequestLike {
@@ -91,6 +94,12 @@ export interface ContentRuntime {
    * database per request.
    */
   readonly overview?: Overview;
+  /**
+   * The final-video download seam. Bound only when an object store is available;
+   * a handler built without it answers 503 on /videos/:id/download rather than
+   * inventing bytes.
+   */
+  readonly download?: VideoDownloadGateway;
 }
 
 /** What the production entrypoint injects. Tests pass the same shape. */
@@ -384,6 +393,7 @@ function webDeps(auth: AuthRuntime, content?: ContentRuntime): WebAppDependencie
           narration: createPostgresNarrationGateway(content.pool),
           render: createPostgresRenderGateway(content.pool),
           exportPackage: createPostgresExportGateway(content.pool),
+          download: content.download,
           ops: createPostgresOpsGateway(content.pool),
         }),
     // The web session record carries only the operator and expiry; the CSRF
@@ -411,7 +421,12 @@ async function handleWebApp(
   if (response.setCookies !== undefined && response.setCookies.length > 0) {
     headers['set-cookie'] = response.setCookies;
   }
-  return { status: response.status, headers, body: response.body };
+  return {
+    status: response.status,
+    headers,
+    body: response.body,
+    ...(response.bodyBytes === undefined ? {} : { bodyBytes: response.bodyBytes }),
+  };
 }
 
 /**
@@ -592,6 +607,10 @@ export function startServer(options: {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const respond = (response: HandlerResponse): void => {
       res.writeHead(response.status, response.headers as Record<string, string | string[]>);
+      if (response.bodyBytes !== undefined) {
+        res.end(response.bodyBytes);
+        return;
+      }
       res.end(response.body);
     };
 
@@ -640,6 +659,10 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
 
   const pool = createPool(process.env);
   try {
+    // The object store is a hard production dependency: env validation above
+    // already required MINIO_*, and this construction fails loudly (never an
+    // in-memory fallback) if any of them is absent or malformed.
+    const stores = createS3Stores(s3ConfigFromEnv(process.env));
     const seeded = await seedOperatorFromEnv(process.env, pool);
     const ttlHours = Number.parseInt(result.values.SESSION_TTL_HOURS ?? '720', 10);
     const service = new AuthService({
@@ -665,7 +688,11 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
         sessionTtlSeconds: ttlHours * 3600,
         secureCookies: (result.values.APP_BASE_URL ?? '').startsWith('https://'),
       },
-      content: { pool, overview },
+      content: {
+        pool,
+        overview,
+        download: createPostgresDownloadGateway(pool, stores.content),
+      },
     });
     server.on('close', () => {
       void pool.end();

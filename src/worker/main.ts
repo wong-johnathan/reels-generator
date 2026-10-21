@@ -15,13 +15,14 @@ import { pathToFileURL } from 'node:url';
 
 import { createDependencyProbe } from '../api/server.js';
 import { createPool } from '../db/client.js';
-import { ensureBucket, InMemoryBucketStore } from '../storage/object-store.js';
+import { ensureBucket, type ContentAddressedStore } from '../storage/object-store.js';
+import { createS3Stores, s3ConfigFromEnv } from '../storage/s3-store.js';
 import { FakeTextAdapter } from '../adapters/fake-text.js';
 import { FakeTtsAdapter } from '../adapters/tts.js';
 import { FakeImageAdapter } from '../adapters/fake-image.js';
 import { InMemoryImageQualificationStore } from '../adapters/image-qualification.js';
+import { BlobNotFoundError, type AssetBlobStore } from '../workers/asset-store.js';
 import { ProcessFfmpegRunner } from '../render/ffmpeg.js';
-import { SharedBlobStore } from './blobs.js';
 import { runWorkerLoop } from './loop.js';
 import {
   advanceAfterStage,
@@ -39,15 +40,39 @@ export function resolveWorkerRole(value: string | undefined): WorkerRole {
   return value === 'render' ? 'render' : 'content';
 }
 
-/** R-018: the bucket is ensured at boot, idempotently — never `mc mb` by hand. */
-export async function ensureWorkerBucket(env: NodeJS.ProcessEnv): Promise<{ created: boolean }> {
-  const bucket = env.MINIO_BUCKET ?? 'reels';
-  return ensureBucket(new InMemoryBucketStore(), bucket);
+/**
+ * An `AssetBlobStore` facade over a `ContentAddressedStore` — the narration and
+ * timing stages address the same S3 bucket through their own port, so both
+ * production ports share one S3 client (the same role `SharedBlobStore` plays
+ * for the in-memory fake path).
+ */
+function assetBlobStore(content: ContentAddressedStore): AssetBlobStore {
+  return {
+    put: async (objectKey, bytes, contentType) => {
+      await content.put(objectKey, bytes, contentType);
+    },
+    get: async (objectKey) => {
+      const stored = await content.get(objectKey);
+      if (stored === null) throw new BlobNotFoundError(objectKey);
+      return stored.bytes;
+    },
+    has: (objectKey) => content.has(objectKey),
+  };
 }
 
-/** The fake-provider dependency graph for the milestone loop. */
+/**
+ * R-018: the bucket is ensured at boot, idempotently — never `mc mb` by hand.
+ * The S3/MinIO binding is a hard production dependency: `s3ConfigFromEnv`
+ * throws (naming every missing key) rather than falling back to in-memory.
+ */
+export async function ensureWorkerBucket(env: NodeJS.ProcessEnv): Promise<{ created: boolean }> {
+  const stores = createS3Stores(s3ConfigFromEnv(env));
+  return ensureBucket(stores.bucket, stores.bucketName);
+}
+
+/** The production dependency graph: fake providers, real S3-backed blobs. */
 export async function buildWorkerDeps(env: NodeJS.ProcessEnv): Promise<OrchestratorDeps> {
-  const blobs = new SharedBlobStore();
+  const stores = createS3Stores(s3ConfigFromEnv(env));
   const qualification = new InMemoryImageQualificationStore();
   await seedFakeImageQualification(qualification);
   return {
@@ -56,8 +81,8 @@ export async function buildWorkerDeps(env: NodeJS.ProcessEnv): Promise<Orchestra
     tts: new FakeTtsAdapter(),
     image: new FakeImageAdapter(),
     qualification,
-    contentBlobs: blobs.asset,
-    renderBlobs: blobs.content,
+    contentBlobs: assetBlobStore(stores.content),
+    renderBlobs: stores.content,
     runner: new ProcessFfmpegRunner(),
     workerId: env.HOSTNAME ?? 'worker',
   };
@@ -97,36 +122,38 @@ export function startWorkerHealthServer(options: {
 
 const entrypoint = process.argv[1];
 if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).href) {
-  const role = resolveWorkerRole(process.env.ROLE);
-  const stages = role === 'render' ? RENDER_STAGES : CONTENT_STAGES;
-  const port = Number.parseInt(
-    process.env.WORKER_HTTP_PORT ?? (role === 'render' ? '8082' : '8081'),
-    10,
-  );
-
-  void ensureWorkerBucket(process.env).then((result) => {
-    console.log(
-      `bucket ${process.env.MINIO_BUCKET ?? 'reels'} ${result.created ? 'created' : 'already present'}`,
+  async function run(): Promise<void> {
+    const role = resolveWorkerRole(process.env.ROLE);
+    const stages = role === 'render' ? RENDER_STAGES : CONTENT_STAGES;
+    const port = Number.parseInt(
+      process.env.WORKER_HTTP_PORT ?? (role === 'render' ? '8082' : '8081'),
+      10,
     );
-  });
 
-  const server = startWorkerHealthServer({
-    port,
-    role,
-    probe: createDependencyProbe(process.env),
-  });
+    // R-018 + the production object-store binding. `s3ConfigFromEnv` throws a
+    // key-naming error when MINIO_* is absent, so a worker that cannot reach
+    // object storage fails before the health server opens — never in-memory.
+    const bucket = await ensureWorkerBucket(process.env);
+    console.log(
+      `bucket ${process.env.MINIO_BUCKET} ${bucket.created ? 'created' : 'already present'}`,
+    );
 
-  let stopping = false;
-  process.on('SIGTERM', () => {
-    console.log(`${role}-worker received SIGTERM; finishing the current job, then exiting`);
-    stopping = true;
-  });
-  process.on('SIGINT', () => {
-    console.log(`${role}-worker received SIGINT; finishing the current job, then exiting`);
-    stopping = true;
-  });
+    const server = startWorkerHealthServer({
+      port,
+      role,
+      probe: createDependencyProbe(process.env),
+    });
 
-  void (async () => {
+    let stopping = false;
+    process.on('SIGTERM', () => {
+      console.log(`${role}-worker received SIGTERM; finishing the current job, then exiting`);
+      stopping = true;
+    });
+    process.on('SIGINT', () => {
+      console.log(`${role}-worker received SIGINT; finishing the current job, then exiting`);
+      stopping = true;
+    });
+
     const deps = await buildWorkerDeps(process.env);
     const processed = await runWorkerLoop({
       pool: deps.pool,
@@ -138,5 +165,11 @@ if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).hr
     });
     console.log(`${role}-worker loop exited after ${processed} job(s); closing health server`);
     server.close(() => process.exit(0));
-  })();
+  }
+
+  void run().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`worker: refusing to start — ${message}`);
+    process.exit(1);
+  });
 }

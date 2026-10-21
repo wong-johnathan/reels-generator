@@ -127,6 +127,14 @@ describe('S-15 awaiting approval', () => {
     expect(textOf(byId(page, 'quality-safe-note') as HtmlNode)).toBe(SAFE_AREA_LINE);
   });
 
+  it('offers a visible download link to the final MP4', () => {
+    const page = parseHtml(html());
+    const link = byTag(page, 'a').find((node) => (node.attrs['href'] ?? '').endsWith('/download'));
+    expect(link).toBeDefined();
+    expect(link?.attrs['href']).toBe('/videos/' + detail.id + '/download');
+    expect(textOf(link as HtmlNode)).toBe('Download MP4');
+  });
+
   it('states the render facts, including the pass count', () => {
     const page = parseHtml(html());
     const stats = byId(page, 'quality-stats') as HtmlNode;

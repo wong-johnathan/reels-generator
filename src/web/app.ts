@@ -69,6 +69,7 @@ import {
 import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
 import type { VideoGateway } from './workspace/gateway.js';
+import type { VideoDownloadFile, VideoDownloadGateway } from './download/gateway.js';
 import { StageCodeSchema, UuidSchema } from '../../contract/api.js';
 import type { StageCode } from '../shared/stages.js';
 import type { OpsGateway, ProviderSettingsView } from './health/gateway.js';
@@ -119,6 +120,8 @@ export interface WebAppDependencies {
   readonly render?: RenderGateway;
   /** S-16 export package and per-stage pins. Absent builds keep the F-04 summary. */
   readonly exportPackage?: ExportGateway;
+  /** S-15 final-video download. Absent builds answer 503 rather than inventing bytes. */
+  readonly download?: VideoDownloadGateway;
   /** S-19/S-21 health, provider settings and attempt rows. Absent builds answer 503. */
   readonly ops?: OpsGateway;
   readonly assets?: {
@@ -227,6 +230,11 @@ function headerValue(
   return undefined;
 }
 
+/** A header-safe filename: CR/LF and quotes are stripped so a value can never split a header. */
+function safeFilename(filename: string): string {
+  return filename.replace(/[\r\n"]/g, '_');
+}
+
 function parseTarget(url: string): URL | null {
   try {
     return new URL(url, 'http://web.local');
@@ -318,7 +326,7 @@ export function createWebApp(
       record,
       body: request.body ?? '',
     });
-    return isHead ? { ...response, body: '' } : response;
+    return isHead ? { ...response, body: '', bodyBytes: undefined } : response;
   };
 
   async function route(input: {
@@ -538,6 +546,36 @@ export function createWebApp(
       return json(400, 'validation_failed', 'Malformed video path');
     }
     const [rawTab, action, actionId] = tail;
+
+    // ── S-15 video download (US-024): the final MP4, streamed from storage ──
+    // The guard already required a session; this branch resolves the newest RE
+    // video asset and answers 404 (no asset), 503 (no store) or the bytes.
+    if (tail.length === 1 && rawTab === 'download') {
+      if (input.method !== 'GET') return methodNotAllowed('GET, HEAD');
+      const download = deps.download;
+      if (download === undefined) {
+        return json(503, 'not_ready', 'Video download is not mounted (no object store bound)');
+      }
+      let file: VideoDownloadFile | null;
+      try {
+        file = await download.download(videoId);
+      } catch {
+        return json(503, 'not_ready', 'The video could not be read from storage');
+      }
+      if (file === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      return {
+        status: 200,
+        headers: {
+          'content-type': file.mimeType,
+          'content-disposition': 'attachment; filename="' + safeFilename(file.filename) + '"',
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        },
+        body: '',
+        bodyBytes: file.bytes,
+      };
+    }
+
     const isSceneDetail = input.method === 'GET' && tail.length === 2 && rawTab === 'scenes';
     const isRelease =
       input.method === 'POST' &&
