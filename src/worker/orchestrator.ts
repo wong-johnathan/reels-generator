@@ -21,6 +21,7 @@ import type { StageCode } from '../shared/stages.js';
 import { applyProjectStatusTransition } from '../db/repositories/video-stages.js';
 import { applyStageEvent, setProjectCurrentStage } from '../db/repositories/stage-state.js';
 import { insertQueuedJob } from '../db/repositories/jobs.js';
+import { MAX_ATTEMPTS_PER_JOB } from '../workers/attempt.js';
 import type { ContentAddressedStore } from '../storage/object-store.js';
 import type { AssetBlobStore } from '../workers/asset-store.js';
 import type { ImageAdapter } from '../adapters/image.js';
@@ -220,9 +221,33 @@ async function ensureProjectRunning(pool: Pool, projectId: string): Promise<void
  * `succeeded` (mark job succeeded + advance), `retryable` (leave the job — the
  * retry backoff will re-claim it), `failed` (mark job failed, terminal).
  */
+/**
+ * The attempt number this dispatch should record.
+ *
+ * The job row does not carry a counter — `job_attempt` is the ledger, and
+ * (job_id, attempt_no) is unique. Hardcoding 1 meant any second dispatch of the
+ * same job collided with its own first attempt and the stage died with
+ * 'another worker holds it' while nobody held anything.
+ */
+async function nextAttemptNo(pool: Pool, jobId: string): Promise<number> {
+  const result = await pool.query<{ next: number }>(
+    `SELECT coalesce(max(attempt_no), 0) + 1 AS next FROM job_attempt WHERE job_id = $1`,
+    [jobId],
+  );
+  return Number(result.rows[0]?.next ?? 1);
+}
+
 export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise<StageRunOutcome> {
   await ensureProjectRunning(deps.pool, job.projectId);
-  const attemptNo = 1;
+  const attemptNo = await nextAttemptNo(deps.pool, job.id);
+  if (attemptNo > MAX_ATTEMPTS_PER_JOB) {
+    // R-011-2: the ladder is three attempts. A fourth dispatch is a bug upstream,
+    // not a provider problem, and must not silently record an out-of-range attempt.
+    return {
+      status: 'failed',
+      message: `attempt budget exhausted for job ${job.id} (${MAX_ATTEMPTS_PER_JOB} attempts)`,
+    };
+  }
   const workerId = deps.workerId ?? null;
 
   switch (job.stage) {
