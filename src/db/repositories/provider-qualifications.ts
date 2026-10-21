@@ -1,16 +1,32 @@
 /**
- * `provider_qualification` — the recorded adapter qualification (R-008-3, §5.6).
+ * `provider_qualification` — the recorded adapter qualification of R-008-3 /
+ * TECH_DESIGN §5.6.
  *
  * Written by each adapter's `qualify()`; read by the gate before a billable call.
  * The newest row per (provider, adapter) is the verdict: a failed row and an
  * absent row both refuse the call, so a regression cannot be "forgotten" by
  * simply not re-running qualification.
  *
- * `run_at` is set to `clock_timestamp()` rather than the column's `now()`
+ * `run_at` defaults to `clock_timestamp()` rather than the column's `now()`
  * default: `now()` is the transaction-start time, so two qualifications started
  * in quick succession could share a timestamp and make "latest" ambiguous.
+ *
+ * B-09 merge note: B-04 and B-07 each landed a module at this path (flagged as an
+ * INT-01 hotspot). This is the union of both, with the read/write semantics
+ * unchanged for each caller. One home for the qualification rows, not two.
  */
+import type { TtsQualificationEntry, TtsQualificationStore } from '../../adapters/tts.js';
 import type { Queryable } from '../client.js';
+
+export interface NewProviderQualification {
+  readonly provider: string;
+  readonly adapter: string;
+  readonly passed: boolean;
+  /** Serialised into `jsonb`. Must never contain a credential (R-015-5). */
+  readonly details: Record<string, unknown>;
+  /** Measurement time; defaults to the database clock. Set explicitly in tests/backfills. */
+  readonly runAt?: Date;
+}
 
 export interface ProviderQualificationRow {
   readonly id: string;
@@ -22,26 +38,24 @@ export interface ProviderQualificationRow {
   readonly run_at: Date;
 }
 
-export interface NewProviderQualification {
-  readonly provider: string;
-  readonly adapter: string;
-  readonly passed: boolean;
-  /** Serialised into `jsonb`. Must never contain a credential (R-015-5). */
-  readonly details: unknown;
-}
-
 const COLUMNS = /* sql */ `id, provider, adapter, passed, details, run_at`;
 
-/** Record one qualification verdict. Returns the committed row. */
+/** Append one measurement. Rows are never updated: the history is the audit trail. */
 export async function insertQualification(
   db: Queryable,
   input: NewProviderQualification,
 ): Promise<ProviderQualificationRow> {
   const result = await db.query<ProviderQualificationRow>(
     `INSERT INTO provider_qualification (provider, adapter, passed, details, run_at)
-     VALUES ($1, $2, $3, $4::jsonb, clock_timestamp())
+     VALUES ($1, $2, $3, $4::jsonb, COALESCE($5, clock_timestamp()))
      RETURNING ${COLUMNS}`,
-    [input.provider, input.adapter, input.passed, JSON.stringify(input.details)],
+    [
+      input.provider,
+      input.adapter,
+      input.passed,
+      JSON.stringify(input.details),
+      input.runAt ?? null,
+    ],
   );
   const row = result.rows[0];
   if (!row) throw new Error('provider_qualification insert returned no row');
@@ -63,6 +77,16 @@ export async function latestQualification(
     [provider, adapter],
   );
   return result.rows[0] ?? null;
+}
+
+/** Boolean form of the gate, for callers that need a value rather than a throw. */
+export async function isAdapterQualified(
+  db: Queryable,
+  provider: string,
+  adapter: string,
+): Promise<boolean> {
+  const latest = await latestQualification(db, provider, adapter);
+  return latest?.passed === true;
 }
 
 export class ProviderNotQualifiedError extends Error {
@@ -100,4 +124,18 @@ export async function assertLatestQualificationPassed(
     );
   }
   return row;
+}
+
+/** `TtsQualificationStore` over Postgres — what `qualify()` writes through. */
+export class PostgresQualificationStore implements TtsQualificationStore {
+  constructor(private readonly db: Queryable) {}
+
+  async record(entry: TtsQualificationEntry): Promise<void> {
+    await insertQualification(this.db, {
+      provider: entry.provider,
+      adapter: entry.adapter,
+      passed: entry.passed,
+      details: entry.details,
+    });
+  }
 }
