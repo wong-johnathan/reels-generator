@@ -189,7 +189,11 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       `SELECT status, current_stage FROM project WHERE id = $1`,
       [projectId],
     );
-    expect(project.rows[0]!.status).toBe('RUNNING');
+    // COMPLETE here means "the pipeline has no work left for this video": the MP4
+    // is rendered and downloadable. It does NOT mean approved — QC/FA/EX are
+    // operator gates that are not wired yet, which is why current_stage still
+    // reads QC: the render stage records the gate it hands over to.
+    expect(project.rows[0]!.status).toBe('COMPLETE');
     expect(project.rows[0]!.current_stage).toBe('QC');
 
     // The video asset + its asset_ref link, with a non-trivial stored size.
