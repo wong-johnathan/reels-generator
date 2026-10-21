@@ -9,6 +9,7 @@ import {
   changedFields,
   createReady,
   createSummary,
+  defaultProfile,
   deriveSlug,
   profileToValues,
   validateSeriesValues,
@@ -53,13 +54,14 @@ describe('the field blocks', () => {
     }
   });
 
-  it('keeps exactly the seven primary inputs and the mode radio outside Advanced', () => {
+  it('keeps exactly the eight primary inputs and the mode radio outside Advanced', () => {
     const primary = FIELDS.filter((field) => field.block === 'primary').map((field) => field.path);
     expect(primary).toEqual([
       'name',
       'niche.subject',
       'script_style.example_script',
       'target_duration_s',
+      'videos_per_batch',
       'narration_language',
       'voice_config.voice_id',
       'art_style.preset',
@@ -99,6 +101,7 @@ describe('the field blocks', () => {
       'art_style.recurring_protagonist',
       'default_aspect_ratio',
       'target_duration_s',
+      'videos_per_batch',
       'narration_language',
       'image_resolution',
       'mode',
@@ -143,9 +146,16 @@ describe('profile <-> form values', () => {
   });
 
   it('round-trips the profile through the form without losing a value', () => {
-    const rebuilt = valuesToProfile(profileToValues(profile), profile);
-    expect(rebuilt).toEqual(profile);
-    expect(SeriesProfileSchema.parse(rebuilt)).toEqual(profile);
+    // A profile written today carries the batch size; profiles from before the
+    // field existed fall back to 1 through the field's initial value.
+    const current = { ...profile, videos_per_batch: 3 };
+    const rebuilt = valuesToProfile(profileToValues(current), current);
+    expect(rebuilt).toEqual(current);
+    expect(SeriesProfileSchema.parse(rebuilt)).toEqual(current);
+  });
+
+  it('falls back to one video for a profile written before the field existed', () => {
+    expect(profileToValues(profile)['videos_per_batch']).toBe('1');
   });
 
   it('keeps a blank example script out of the snapshot (it is optional)', () => {
@@ -282,9 +292,16 @@ describe('the create summary', () => {
       'name',
       'niche.subject',
       'target_duration_s',
+      'videos_per_batch',
       'mode',
     ]);
-    expect(summary.map((row) => row.label)).toEqual(['Series name', 'Niche', 'Duration', 'Mode']);
+    expect(summary.map((row) => row.label)).toEqual([
+      'Series name',
+      'Niche',
+      'Duration',
+      'Videos per batch',
+      'Mode',
+    ]);
     expect(summary.map((row) => row.path)).not.toContain('image_resolution');
     expect(summary.map((row) => row.path)).not.toContain('default_aspect_ratio');
   });
@@ -465,5 +482,40 @@ describe('derived slug edge cases', () => {
 
   it('accepts an ordinary name', () => {
     expect(validateSeriesValues(base, 'create').errors['name']).toBeUndefined();
+  });
+});
+
+describe('videos per batch', () => {
+  const base: Record<string, string> = {
+    name: 'The Art of Seduction',
+    'niche.subject': 'Female psychology',
+    target_duration_s: '75',
+    videos_per_batch: '5',
+    narration_language: 'en',
+    mode: 'creative',
+  };
+
+  it('defaults to one video', () => {
+    const defaults = profileToValues(SeriesProfileSchema.parse(defaultProfile()));
+    expect(defaults['videos_per_batch']).toBe('1');
+  });
+
+  it('carries the chosen count into the stored profile', () => {
+    const profile = valuesToProfile(base, null);
+    expect(profile['videos_per_batch']).toBe(5);
+  });
+
+  it('refuses a count outside 1 to 30', () => {
+    for (const bad of ['0', '31', '', 'many']) {
+      const result = validateSeriesValues({ ...base, videos_per_batch: bad }, 'create');
+      expect(result.errors['videos_per_batch']).toBeDefined();
+    }
+  });
+
+  it('accepts the range edges', () => {
+    for (const ok of ['1', '30']) {
+      const result = validateSeriesValues({ ...base, videos_per_batch: ok }, 'create');
+      expect(result.errors['videos_per_batch']).toBeUndefined();
+    }
   });
 });

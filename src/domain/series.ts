@@ -148,6 +148,7 @@ export function defaultProfile(input: SeriesProfilePatch = {}): SeriesProfile {
     art_style: null,
     default_aspect_ratio: '9:16',
     target_duration_s: DEFAULT_TARGET_DURATION_S,
+    videos_per_batch: 1,
     narration_language: 'en',
     captions_preset: null,
     music_config: null,

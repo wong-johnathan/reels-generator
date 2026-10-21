@@ -133,6 +133,11 @@ export const SeriesProfileSchema = z.object({
   art_style: JsonObjectSchema.nullable(),
   default_aspect_ratio: AspectRatioSchema,
   target_duration_s: z.int().min(15).max(300),
+  /**
+   * How many videos one batch produces. Optional so profiles written before this
+   * existed stay valid; consumers read `?? 1`.
+   */
+  videos_per_batch: z.int().min(1).max(30).optional(),
   narration_language: z.string(),
   captions_preset: JsonObjectSchema.nullable(),
   music_config: JsonObjectSchema.nullable(),

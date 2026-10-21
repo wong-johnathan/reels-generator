@@ -48,6 +48,12 @@ export interface FieldSpec {
   readonly label: string;
   readonly block: BlockId;
   readonly kind: FieldKind;
+  /**
+   * Value shown when the stored profile predates this field. Without it a
+   * profile written before the field existed renders blank, and saving blanks a
+   * numeric field to zero — which then fails its own range check.
+   */
+  readonly initial?: string;
   /** Visible helper below the control (UC-19: helper, never a placeholder). */
   readonly helper: string;
   /** False for the series-row fields (name) that the snapshot excludes. */
@@ -67,6 +73,10 @@ export interface FieldSpec {
 /** R-009-1: range 10–180 s, recommended ceiling ≤90 s, default 75 s. */
 export const MIN_DURATION_S = 10;
 export const MAX_DURATION_S = 180;
+
+/** R-019: a batch is up to 30 videos, generated for manual download and upload. */
+export const MIN_VIDEOS_PER_BATCH = 1;
+export const MAX_VIDEOS_PER_BATCH = 30;
 
 const LINES_HELPER = 'One item per line.';
 
@@ -108,6 +118,16 @@ export const FIELDS: readonly FieldSpec[] = [
     step: 1,
     unit: 's',
     helper: '10–180 s. The default is 75 s.',
+  },
+  {
+    path: 'videos_per_batch',
+    label: 'Videos per batch',
+    block: 'primary',
+    kind: 'number',
+    initial: '1',
+    min: MIN_VIDEOS_PER_BATCH,
+    max: MAX_VIDEOS_PER_BATCH,
+    helper: 'How many videos one batch generates: 1 to 30.',
   },
   {
     path: 'narration_language',
@@ -364,6 +384,7 @@ export function defaultProfile(): Record<string, unknown> {
     art_style: { preset: '', palette: '', recurring_protagonist: true },
     default_aspect_ratio: '9:16',
     target_duration_s: 75,
+    videos_per_batch: 1,
     narration_language: 'en',
     captions_preset: null,
     music_config: null,
@@ -375,13 +396,15 @@ export function defaultProfile(): Record<string, unknown> {
 export function profileToValues(profile: SeriesProfile): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of FIELDS) {
+    if (field.profile === false) {
+      values[field.path] = '';
+      continue;
+    }
+    const stored = getPath(profile as unknown as Record<string, unknown>, field.path);
     values[field.path] =
-      field.profile === false
-        ? ''
-        : valueFromProfile(
-            field,
-            getPath(profile as unknown as Record<string, unknown>, field.path),
-          );
+      stored === undefined || stored === null
+        ? (field.initial ?? '')
+        : valueFromProfile(field, stored);
   }
   return values;
 }
@@ -516,6 +539,7 @@ const CREATE_SUMMARY_PATHS: readonly string[] = [
   'name',
   'niche.subject',
   'target_duration_s',
+  'videos_per_batch',
   'mode',
 ];
 
@@ -555,6 +579,16 @@ export function validateSeriesValues(
 
   if ((values['niche.subject'] ?? '').trim().length === 0) {
     errors['niche.subject'] = 'Enter a niche.';
+  }
+
+  const batchSize = (values['videos_per_batch'] ?? '').trim();
+  if (!/^\d+$/.test(batchSize)) {
+    errors['videos_per_batch'] = 'Videos per batch must be a whole number from 1 to 30.';
+  } else {
+    const count = Number(batchSize);
+    if (count < MIN_VIDEOS_PER_BATCH || count > MAX_VIDEOS_PER_BATCH) {
+      errors['videos_per_batch'] = 'Videos per batch must be a whole number from 1 to 30.';
+    }
   }
 
   const duration = (values['target_duration_s'] ?? '').trim();
