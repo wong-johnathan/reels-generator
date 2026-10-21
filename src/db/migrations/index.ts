@@ -16,7 +16,6 @@ import { M006_SERIES_VERSION_GUARDS_SQL } from './m006-series-version-guards.js'
 import { M003_EXECUTION_SQL } from './m003-execution.js';
 import { M004_ASSETS_SQL } from './m004-assets.js';
 import { M005_STATE_GATES_SEED_SQL } from './m005-state-gates-seed.js';
-import { M007_OBJECT_LAYOUT_SQL } from './m007-object-layout.js';
 
 export interface Migration {
   /** Stable, sortable id recorded in `schema_migration` (e.g. `M-001`). */
@@ -59,11 +58,5 @@ export const MIGRATIONS: readonly Migration[] = [
     description:
       'series_version guards: strictly increasing version, immutable rows, current_version_id maintenance',
     sql: M006_SERIES_VERSION_GUARDS_SQL,
-  },
-  {
-    id: 'M-007',
-    description:
-      'object layout: drop the content-addressed key CHECK and hash uniqueness, unique object_key (D-F)',
-    sql: M007_OBJECT_LAYOUT_SQL,
   },
 ];
