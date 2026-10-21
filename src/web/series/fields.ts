@@ -95,7 +95,7 @@ export const FIELDS: readonly FieldSpec[] = [
     path: 'niche.subject',
     label: 'Niche',
     block: 'primary',
-    kind: 'text',
+    kind: 'textarea',
     required: true,
     helper: 'What the series is about. This seeds topic proposals and script drafts.',
   },

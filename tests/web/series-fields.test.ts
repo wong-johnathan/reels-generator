@@ -496,8 +496,10 @@ describe('videos per batch', () => {
   };
 
   it('defaults to one video', () => {
-    const defaults = profileToValues(SeriesProfileSchema.parse(defaultProfile()));
-    expect(defaults['videos_per_batch']).toBe('1');
+    // The form default and the stored default must agree; `mode` stays blank
+    // because R-027-1 forbids choosing it for the owner.
+    expect(defaultProfile()['videos_per_batch']).toBe(1);
+    expect(FIELD_BY_PATH.get('videos_per_batch')?.initial).toBe('1');
   });
 
   it('carries the chosen count into the stored profile', () => {

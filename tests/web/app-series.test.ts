@@ -234,6 +234,9 @@ describe('S-04 create (US-008, UX A-4/A-5)', () => {
     // The action must be the route that accepts POST: /series answers GET only,
     // so a form pointing there 405s on submit with nothing to act on.
     expect(response.body).toContain('method="post" action="/series/new"');
+    // A one-line niche invites one-line niches; the field must be a textarea.
+    expect(response.body).toContain('<textarea');
+    expect(response.body).toMatch(/<textarea[^>]*name="niche\.subject"/);
   });
 
   it('creates version 1 and redirects to the saved editor', async () => {
