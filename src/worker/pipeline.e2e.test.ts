@@ -213,5 +213,15 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
     expect(narration.rows.map((row) => row.role)).toEqual(
       expect.arrayContaining(['narration', 'narration_alignment', 'storyboard_plan']),
     );
+
+    // A finished video must say so. Before settling existed the batch read ACTIVE
+    // forever and the operator had no readiness signal beyond reading the rail.
+    const settled = await db.pool.query<{ project_status: string; batch_status: string }>(
+      `SELECT p.status AS project_status, b.status AS batch_status
+         FROM project p JOIN batch b ON b.id = p.batch_id
+        WHERE p.id = $1`,
+      [projectId],
+    );
+    expect(settled.rows[0]).toEqual({ project_status: 'COMPLETE', batch_status: 'COMPLETE' });
   });
 });

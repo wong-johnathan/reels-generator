@@ -21,6 +21,7 @@ import type { StageCode } from '../shared/stages.js';
 import { applyProjectStatusTransition } from '../db/repositories/video-stages.js';
 import { applyStageEvent, setProjectCurrentStage } from '../db/repositories/stage-state.js';
 import { insertQueuedJob } from '../db/repositories/jobs.js';
+import { settleAfterStage } from './settle.js';
 import { MAX_ATTEMPTS_PER_JOB } from '../workers/attempt.js';
 import type { ContentAddressedStore } from '../storage/object-store.js';
 import type { AssetBlobStore } from '../workers/asset-store.js';
@@ -370,7 +371,13 @@ export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise
  */
 export async function advanceAfterStage(pool: Pool, job: ClaimedJob): Promise<StageCode | null> {
   const next = NEXT_STAGE[job.stage];
-  if (next === undefined) return null;
+  if (next === undefined) {
+    // RE is the end of the rail for this milestone, so this is where a finished
+    // video (and possibly its batch) is marked complete. Without this the batch
+    // read ACTIVE forever and the UI could not say a video was ready.
+    await settleAfterStage(pool, job.projectId);
+    return null;
+  }
 
   const existing = await pool.query<{ id: string }>(
     `SELECT id FROM job
