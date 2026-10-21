@@ -1,0 +1,296 @@
+/*
+ * Auth surfaces — S-01 Login (UI_SPEC §6.1) and the SY-3 system page.
+ *
+ * S-01 is the only screen without the app shell: one centred 400 px card on
+ * the app surface. Every measurement below is the §6.1 table; colours come
+ * from tokens.css, with one measured exception: the primary button's label is
+ * #FFFFFF (UI_SPEC §8.2 measures it at 5.72:1 on --accent-fill).
+ */
+
+.auth {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--s-12) var(--s-8) var(--s-10);
+  background: var(--surface-app);
+}
+
+.auth-main {
+  width: 100%;
+  max-width: 400px;
+  min-width: 0;
+}
+
+/* ── SY-2 banner above the card (UI_SPEC §6.1) ───────────────────────────── */
+
+.auth-notice {
+  margin: 0 0 var(--s-6);
+  padding: var(--s-5) var(--s-6);
+  border-left: 4px solid var(--warning);
+  background: var(--surface-warning-tint);
+  border-radius: var(--r-2);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-primary);
+}
+
+.auth-notice p {
+  margin: 0;
+}
+
+.auth-notice[data-kind='required'] {
+  border-left-color: var(--accent);
+  background: var(--surface-selected);
+}
+
+/* ── S-01 card ───────────────────────────────────────────────────────────── */
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  box-shadow: var(--e-1);
+  padding: var(--s-9);
+}
+
+.login-wordmark {
+  margin: 0;
+  font-size: var(--t-80);
+  line-height: var(--lh-80);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.login-subline {
+  margin: var(--s-4) 0 var(--s-8);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-secondary);
+}
+
+.login-form {
+  display: block;
+}
+
+.login-field {
+  margin-bottom: var(--s-6);
+}
+
+.login-label {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.login-password {
+  position: relative;
+}
+
+.login-input {
+  display: block;
+  width: 100%;
+  height: var(--target-review);
+  padding: 0 var(--s-4);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-2);
+  font-family: inherit;
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+}
+
+.login-input:hover {
+  border-color: var(--border-strong);
+}
+
+.login-password .login-input {
+  padding-right: var(--s-11);
+}
+
+.login-reveal {
+  position: absolute;
+  top: 6px;
+  right: var(--s-2);
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--s-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--t-10);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.login-reveal:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.login-error {
+  margin: var(--s-4) 0 0;
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--danger);
+}
+
+.login-error span[aria-hidden='true'] {
+  margin-right: var(--s-1);
+}
+
+/* 24 px below the password on an empty form: the field block owns 16 px, the
+   error adds 8, the button adds the remaining 24. */
+.login-field:last-of-type {
+  margin-bottom: var(--s-8);
+}
+
+.login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  width: 100%;
+  height: var(--target-review);
+  margin-top: var(--s-8);
+  background: var(--accent-fill);
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  font-family: inherit;
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-standard);
+}
+
+.login-submit:hover {
+  background: var(--accent-fill-hover);
+}
+
+/* The one use of the inverse flash in the product (--surface-inverse token). */
+.login-submit:active {
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+}
+
+.login-submit[disabled] {
+  background: var(--control-fill);
+  color: var(--text-secondary);
+  cursor: progress;
+}
+
+.login-note {
+  margin: var(--s-8) 0 0;
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--text-tertiary);
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--r-full);
+  animation: auth-spin var(--spin-duration) linear infinite;
+}
+
+.spinner[hidden] {
+  display: none;
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── SY-3 not found / no access ──────────────────────────────────────────── */
+
+.system-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  box-shadow: var(--e-1);
+  padding: var(--s-9);
+}
+
+.system-code {
+  margin: 0 0 var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-tertiary);
+}
+
+.system-title {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-70);
+  line-height: var(--lh-70);
+}
+
+.system-body {
+  margin: 0 0 var(--s-8);
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+  color: var(--text-secondary);
+}
+
+.system-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-review);
+  padding: 0 var(--s-6);
+  background: var(--accent-fill);
+  color: #ffffff;
+  border-radius: var(--r-2);
+  font-size: var(--t-40);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+
+.system-action:hover {
+  background: var(--accent-fill-hover);
+  text-decoration: none;
+}
+
+.system-note {
+  margin: var(--s-8) 0 0;
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--text-tertiary);
+}
+
+/* AX-16: the only loop in the product stops. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+/* AX-14: phone band keeps 16 px page padding and a full-width card. */
+@media (max-width: 480px) {
+  .auth {
+    padding: var(--s-8) var(--s-6) var(--s-10);
+  }
+
+  .login-card,
+  .system-card {
+    padding: var(--s-6);
+  }
+}
