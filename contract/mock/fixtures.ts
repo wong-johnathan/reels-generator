@@ -373,9 +373,37 @@ const renderAsset = {
   },
 };
 
-const posterAsset = { ...renderAsset, id: IDS.poster, stage: 'POSTER', kind: 'poster' };
-const srtAsset = { ...renderAsset, id: IDS.srt, stage: 'EX', kind: 'caption' };
-const vttAsset = { ...renderAsset, id: IDS.vtt, stage: 'EX', kind: 'caption' };
+function ownUrls(id: string) {
+  return {
+    thumb: `/asset/${id}/thumb`,
+    detail: `/asset/${id}/detail`,
+    full: `/asset/${id}/full`,
+  };
+}
+
+// Each asset points at its own id. The spread above inherited the video's urls,
+// which would have made the poster and both caption files resolve to the MP4.
+const posterAsset = {
+  ...renderAsset,
+  id: IDS.poster,
+  stage: 'POSTER',
+  kind: 'poster',
+  urls: ownUrls(IDS.poster),
+};
+const srtAsset = {
+  ...renderAsset,
+  id: IDS.srt,
+  stage: 'EX',
+  kind: 'caption',
+  urls: ownUrls(IDS.srt),
+};
+const vttAsset = {
+  ...renderAsset,
+  id: IDS.vtt,
+  stage: 'EX',
+  kind: 'caption',
+  urls: ownUrls(IDS.vtt),
+};
 
 const render = {
   status: 'awaiting_approval',
@@ -393,24 +421,48 @@ const render = {
         label: 'Resolution and frame rate',
         pass: true,
         measured: '1080×1920 @ 30 fps',
-        expected: '1080×1920 @ 30 fps',
+        expected: '1080×1920 @ 30 fps (±0 px, ±1 fps)',
         requirement: 'R-010-2',
       },
       {
         id: 'QC-3',
-        label: 'Duration within 75 s ± 5 %',
+        label: 'Audio stream present and within ±0.5 s of the video',
         pass: true,
-        measured: '75.1 s',
-        expected: '71.3–78.8 s',
+        measured: '75.1 s audio · 75.1 s video · +0.0 s',
+        expected: 'present · within ±0.5 s',
         requirement: 'R-010-3',
       },
       {
-        id: 'QC-6',
-        label: 'Caption word coverage',
+        id: 'QC-4',
+        label: 'Flagged frames (mean luminance <16 or >240)',
         pass: true,
-        measured: '99.6 %',
-        expected: '≥ 99 %',
+        measured: '0 flagged',
+        expected: '0',
+        requirement: 'R-010-4',
+      },
+      {
+        id: 'QC-5',
+        label: 'Every scene present, visible duration ≥ narration span − 0.2 s',
+        pass: true,
+        measured: '17 of 17 scenes · min margin +0.0 s',
+        expected: '17 of 17 · ≥ span − 0.2 s',
+        requirement: 'R-010-5',
+      },
+      {
+        id: 'QC-6',
+        label: 'Captions inside the 5 % safe area',
+        pass: true,
+        measured: '100.0 %',
+        expected: '100.0 %',
         requirement: 'R-010-6',
+      },
+      {
+        id: 'QC-7',
+        label: 'Rendered duration inside the ±5 % band',
+        pass: true,
+        measured: '75.1 s',
+        expected: '71.3–78.8 s',
+        requirement: 'R-010-7',
       },
     ],
     checked_at: T1,

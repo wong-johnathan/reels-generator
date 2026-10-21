@@ -48,7 +48,11 @@ import {
 import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
 import type { VideoGateway } from './workspace/gateway.js';
-import { isTabKey, tabKeyForStage, type TabKey } from './workspace/model.js';
+import { isTabKey, tabKeyForStage, type TabKey, type VideoDetail } from './workspace/model.js';
+import { RenderRefusedError, type RenderGateway } from './quality/gateway.js';
+import type { RenderView } from './quality/model.js';
+import { qualityNotice, type QualityNotice } from './quality/notice.js';
+import { renderQualityPanel } from './render/quality.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
 type HealthReport = z.infer<typeof HealthReportSchema>;
@@ -67,6 +71,8 @@ export interface WebAppDependencies {
   readonly series?: SeriesGateway;
   /** S-09…S-16 storage. Absent builds answer 503 rather than inventing data. */
   readonly video?: VideoGateway;
+  /** S-15 render output and the final-approval gate. Absent builds fall back to F-04. */
+  readonly render?: RenderGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
@@ -91,10 +97,13 @@ export interface WebResponse {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string;
+  /** Set only by the preview's asset stand-ins; the production proxy streams from MinIO. */
+  readonly bodyBytes?: Uint8Array;
 }
 
 const CSP =
   "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; " +
+  "media-src 'self'; " +
   "connect-src 'self'; base-uri 'none'; form-action 'self'";
 
 const HTML_HEADERS: Readonly<Record<string, string>> = {
@@ -199,6 +208,17 @@ export function parseFormEncoded(body: string): Record<string, string> {
   }
   return fields;
 }
+
+/**
+ * S-15 copy the route owns. Both sentences are commitments: nothing was
+ * approved, nothing was changed. They are shown as an error notice inside the
+ * render panel, never as a bare JSON error page.
+ */
+const RENDER_LOAD_FAILED =
+  'The render could not be loaded. The rest of the workspace is unaffected; nothing was changed.';
+const APPROVAL_NOT_SENT_REASON =
+  'The approval was not sent: the page did not carry the revision the contract requires. ' +
+  'Reload the page and try again. Nothing was approved.';
 
 export function createWebApp(
   deps: WebAppDependencies,
@@ -324,8 +344,13 @@ export function createWebApp(
     }
 
     if (pathname === '/videos' || pathname.startsWith('/videos/')) {
-      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
-      return videoRoutes({ pathname, session: sessionInfo(record) });
+      return videoRoutes({
+        method: effective,
+        pathname,
+        search: target.searchParams,
+        body: input.body,
+        session: sessionInfo(record),
+      });
     }
 
     if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
@@ -380,7 +405,10 @@ export function createWebApp(
   // ── S-09…S-16 video workspace shell (W-04, IP-03) ───────────────────────
 
   async function videoRoutes(input: {
+    readonly method: string;
     readonly pathname: string;
+    readonly search: URLSearchParams;
+    readonly body: string;
     readonly session: SessionInfo;
   }): Promise<WebResponse> {
     const gateway = deps.video;
@@ -388,49 +416,174 @@ export function createWebApp(
 
     const rest = input.pathname.slice('/videos/'.length);
     const segments = rest.split('/');
+    if (segments.length > 3) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     const rawId = segments[0];
-    const rawTab = segments[1];
-    if (rawId === undefined || rawId.length === 0 || segments.length > 2) {
-      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
-    }
-    if (rawTab !== undefined && !isTabKey(rawTab)) {
+    if (rawId === undefined || rawId.length === 0) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
 
     let videoId: string;
+    const tail: string[] = [];
     try {
       videoId = decodeURIComponent(rawId);
+      for (const segment of segments.slice(1)) tail.push(decodeURIComponent(segment));
     } catch {
-      return json(400, 'validation_failed', 'Malformed video id');
+      return json(400, 'validation_failed', 'Malformed video path');
     }
 
-    let detail;
+    const [rawTab, action] = tail;
+    const isRenderCommit =
+      input.method === 'POST' && tail.length === 2 && rawTab === 'render' && action === 'approve';
+    if (tail.length >= 2 && !isRenderCommit) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    if (tail.length === 1 && rawTab !== undefined && !isTabKey(rawTab)) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    if (input.method !== 'GET' && !isRenderCommit) return methodNotAllowed('GET, HEAD, POST');
+
+    let detail: VideoDetail;
     try {
-      detail = await gateway.get(videoId);
+      const loaded = await gateway.get(videoId);
+      if (loaded === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      detail = loaded;
     } catch {
       return json(503, 'not_ready', 'The video workspace is unavailable');
     }
-    if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+
+    const base = '/videos/' + encodeURIComponent(videoId);
+
+    function workspacePage(view: {
+      readonly tab: TabKey;
+      readonly panel?: string;
+      readonly scripts?: readonly string[];
+      readonly status?: number;
+    }): WebResponse {
+      const parts = renderWorkspace(detail, view.tab, {
+        ...(view.panel === undefined ? {} : { panel: view.panel }),
+        ...(view.scripts === undefined ? {} : { scripts: view.scripts }),
+      });
+      return html(
+        page({
+          title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
+          nav: null,
+          breadcrumbs: [
+            { label: 'Overview', href: '/' },
+            { label: detail.series_name, href: '/series/' + encodeURIComponent(detail.series_id) },
+            { label: 'Video ' + (detail.position_in_batch + 1) },
+          ],
+          content: parts.content,
+          titleAside: parts.titleAside,
+          footer: parts.footer,
+          session: input.session,
+          scripts: parts.scripts,
+        }),
+        view.status ?? 200,
+      );
+    }
+
+    // ── S-15 render & QC + final approval (US-024, US-025, R-005-3/4) ───────
+
+    /**
+     * The revision `render.approve` must carry. Gap S-15-1: `render.get` does
+     * not return it, so it comes from the gateway seam or not at all — the page
+     * disables approval rather than posting a guessed number.
+     */
+    async function revisionOrNull(renders: RenderGateway): Promise<number | null> {
+      if (renders.revision === undefined) return null;
+      try {
+        const revision = await renders.revision(videoId);
+        return typeof revision === 'number' && Number.isInteger(revision) && revision >= 1
+          ? revision
+          : null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function renderPage(input: {
+      readonly renders: RenderGateway;
+      readonly notice?: QualityNotice | null;
+      readonly status?: number;
+      /** Set when the read itself failed; the page then carries the error notice. */
+      readonly failed?: boolean;
+    }): Promise<WebResponse> {
+      let view: RenderView | null = null;
+      let failed = input.failed ?? false;
+      if (!failed) {
+        try {
+          view = await input.renders.get(videoId);
+        } catch {
+          failed = true;
+        }
+      }
+      const revision = failed ? null : await revisionOrNull(input.renders);
+      const notice: QualityNotice | null =
+        failed === true ? { kind: 'error', message: RENDER_LOAD_FAILED } : (input.notice ?? null);
+      return workspacePage({
+        tab: 'render',
+        ...(failed ? { status: 503 } : input.status === undefined ? {} : { status: input.status }),
+        panel: renderQualityPanel({
+          detail,
+          render: view,
+          revision,
+          approveWired: input.renders.approve !== undefined,
+          ...(notice === null ? {} : { notice }),
+        }),
+      });
+    }
+
+    if (isRenderCommit) {
+      const renders = deps.render;
+      if (renders === undefined) {
+        return json(503, 'not_ready', 'The render surfaces are not mounted');
+      }
+      const fields = parseFormEncoded(input.body);
+      const note = (fields['note'] ?? '').trim();
+      if (note.length > 2000) {
+        return json(400, 'validation_failed', 'The note is longer than 2000 characters');
+      }
+      const revision = Number((fields['revision'] ?? '').trim());
+      if (!Number.isInteger(revision) || revision < 1) {
+        return renderPage({
+          renders,
+          status: 422,
+          notice: { kind: 'error', message: APPROVAL_NOT_SENT_REASON },
+        });
+      }
+      try {
+        await renders.approve(videoId, note.length === 0 ? { revision } : { revision, note });
+      } catch (error) {
+        const refused = error instanceof RenderRefusedError;
+        const message = error instanceof Error ? error.message : 'unknown error';
+        return renderPage({
+          renders,
+          status: refused ? 409 : 503,
+          notice: {
+            kind: 'error',
+            message: refused
+              ? message
+              : 'The approval could not be sent. Nothing was approved and no stage re-ran.',
+          },
+        });
+      }
+      return redirect(base + '/render?notice=approved');
+    }
 
     // No tab in the URL: open the tab that holds the stage needing attention.
-    const tab: TabKey = rawTab === undefined ? tabKeyForStage(detail.current_stage) : rawTab;
-    const parts = renderWorkspace(detail, tab);
-    return html(
-      page({
-        title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
-        nav: null,
-        breadcrumbs: [
-          { label: 'Overview', href: '/' },
-          { label: detail.series_name, href: '/series/' + encodeURIComponent(detail.series_id) },
-          { label: 'Video ' + (detail.position_in_batch + 1) },
-        ],
-        content: parts.content,
-        titleAside: parts.titleAside,
-        footer: parts.footer,
-        session: input.session,
-        scripts: parts.scripts,
-      }),
-    );
+    const tab: TabKey =
+      rawTab !== undefined && isTabKey(rawTab) ? rawTab : tabKeyForStage(detail.current_stage);
+
+    // S-15 owns the render tab. Without a render gateway the F-04 stage summary
+    // stays in place — an honest fallback, never an invented QC result.
+    if (tab === 'render' && deps.render !== undefined) {
+      return renderPage({
+        renders: deps.render,
+        notice: qualityNotice(input.search.get('notice')),
+      });
+    }
+
+    return workspacePage({ tab });
   }
 
   function page(input: {
