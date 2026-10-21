@@ -75,3 +75,107 @@ export async function findGenerationRunById(
   );
   return result.rows[0] ?? null;
 }
+
+/** Terminal `generation_run.status` values the worker writes (TECH_DESIGN §3.1). */
+export const FINAL_RUN_STATUSES = ['succeeded', 'failed', 'timed_out', 'unknown'] as const;
+export type FinalRunStatus = (typeof FINAL_RUN_STATUSES)[number];
+export type RunChargeStatus = 'billed' | 'unbilled' | 'unknown';
+
+export interface FinishGenerationRunInput {
+  readonly status: FinalRunStatus;
+  readonly chargeStatus: RunChargeStatus;
+  readonly errorClass?: 'transient' | 'non_retryable' | null;
+  readonly httpStatus?: number | null;
+  readonly providerRequestId?: string | null;
+  /**
+   * Only close the row if it is still `pending`. The worker uses this for
+   * failures raised *before* the adapter was invoked: a row someone else has
+   * already finished must not be rewritten.
+   */
+  readonly onlyIfPending?: boolean;
+}
+
+/** Record that the HTTP call is starting (R-012-1's `started_at`). */
+export async function markGenerationRunStarted(
+  db: Queryable,
+  runId: string,
+  providerRequestId?: string | null,
+): Promise<void> {
+  await db.query(
+    `UPDATE generation_run
+        SET started_at = COALESCE(started_at, now()),
+            provider_request_id = COALESCE($2, provider_request_id)
+      WHERE id = $1 AND status = 'pending'`,
+    [runId, providerRequestId ?? null],
+  );
+}
+
+/**
+ * Close the cost row with the outcome of the call.
+ *
+ * `charge_status='unknown'` is the honest value whenever the request may have
+ * reached the provider (R-012-4); callers must never pass `unbilled` on doubt.
+ */
+export async function finishGenerationRun(
+  db: Queryable,
+  runId: string,
+  input: FinishGenerationRunInput,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE generation_run
+        SET status = $2,
+            charge_status = $3,
+            error_class = $4,
+            http_status = $5,
+            provider_request_id = COALESCE($6, provider_request_id),
+            ended_at = now()
+      WHERE id = $1${input.onlyIfPending ? " AND status = 'pending'" : ''}`,
+    [
+      runId,
+      input.status,
+      input.chargeStatus,
+      input.errorClass ?? null,
+      input.httpStatus ?? null,
+      input.providerRequestId ?? null,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * A `pending`/`pending` run whose call was in flight when the process died.
+ * The reconciler marks these `unknown`; it must never reissue them (§5.5).
+ */
+export async function findPendingRunsForJob(
+  db: Queryable,
+  jobId: string,
+): Promise<GenerationRunRow[]> {
+  const result = await db.query<GenerationRunRow>(
+    `SELECT gr.*
+       FROM generation_run gr
+       JOIN job_attempt ja ON ja.id = gr.job_attempt_id
+      WHERE ja.job_id = $1 AND gr.status = 'pending'
+      ORDER BY gr.created_at ASC`,
+    [jobId],
+  );
+  return result.rows;
+}
+
+/**
+ * Mark a mid-call run as "may have billed" without reissuing it (R-012-4,
+ * TECH_DESIGN §5.5). `status='unknown'` says the call's fate is unknown.
+ */
+export async function markGenerationRunUnknownCharge(
+  db: Queryable,
+  runId: string,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE generation_run
+        SET status = 'unknown',
+            charge_status = 'unknown',
+            ended_at = COALESCE(ended_at, now())
+      WHERE id = $1 AND status = 'pending'`,
+    [runId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}

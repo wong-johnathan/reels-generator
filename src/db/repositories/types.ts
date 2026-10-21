@@ -47,3 +47,26 @@ export interface JobAttemptRow {
   readonly backoff_s: number | null;
   readonly created_at: Date;
 }
+
+/** `job` — the queue's durable mirror (TECH_DESIGN §3.2, §7.1). */
+export interface JobRow {
+  readonly id: string;
+  readonly project_id: string;
+  readonly stage: string;
+  readonly scene_id: string | null;
+  readonly status: string;
+  readonly priority: number;
+  readonly retry_scope: unknown;
+  readonly created_at: Date;
+  readonly updated_at: Date;
+}
+
+/**
+ * A `job` row plus the lease facts the reconciler needs (TECH_DESIGN §7.4).
+ * `last_heartbeat` comes from `job_attempt` because `job` itself carries no
+ * heartbeat — the lease belongs to the attempt that is holding the work.
+ */
+export interface StalledJobRow extends JobRow {
+  readonly last_heartbeat: Date | null;
+  readonly max_attempt_no: number | null;
+}
