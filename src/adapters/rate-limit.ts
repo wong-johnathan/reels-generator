@@ -1,14 +1,13 @@
 /**
- * Per-provider-key rate limiting — R-008-2, TECH_DESIGN §5.7.
+ * Per-provider-key rate limit — R-008-2 / TECH_DESIGN §5.7.
  *
- * "Per-provider-key token bucket, default 10 requests/min, configurable,
- * enforced inside each adapter". The bucket queues a call until a token is
- * available; it never drops the request.
+ * A token bucket sized to `PROVIDER_RATE_LIMIT_PER_MIN` (default 10/min, below
+ * every documented provider QPS: DeepSeek search/fetch is 5 QPS per account and
+ * API). Exceeding the bucket *waits*; it never drops a job (TECH_DESIGN §5.7).
  *
- * The Redis mirror described in §5.7 (so a worker restart does not reset the
- * window) belongs to the worker/queue layer (B-08); this module is the
- * in-process enforcement every adapter shares. The clock and sleep function
- * are injectable so tests assert the limit without actually waiting.
+ * The clock and sleep are injectable so the pacing is testable without real
+ * time passing. Every acquisition is serialised through a promise chain: two
+ * concurrent callers must not be handed the same token.
  */
 
 export interface RateLimiter {
@@ -17,69 +16,84 @@ export interface RateLimiter {
 }
 
 export interface TokenBucketOptions {
-  /** Burst size and refill budget, in requests per minute. */
+  /** Requests per minute; also the burst capacity. */
   readonly perMinute: number;
+  /** Milliseconds since the epoch. Defaults to `Date.now`. */
   readonly now?: () => number;
+  /** Defaults to a real `setTimeout` sleep. */
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
-const defaultSleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    // Do not hold the process open for a rate-limit wait.
-    timer.unref?.();
-  });
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-export class TokenBucketRateLimiter implements RateLimiter {
-  readonly perMinute: number;
+export class TokenBucket implements RateLimiter {
+  private readonly capacity: number;
+  private readonly refillPerMs: number;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
-  private readonly ratePerMs: number;
+
   private tokens: number;
   private lastRefillAt: number;
-  /** Serialises acquirers so two concurrent calls cannot spend the same token. */
+  /** Serialises acquisitions so concurrent callers cannot share a token. */
   private tail: Promise<void> = Promise.resolve();
 
   constructor(options: TokenBucketOptions) {
-    if (!Number.isInteger(options.perMinute) || options.perMinute < 1) {
+    const { perMinute } = options;
+    if (!Number.isInteger(perMinute) || perMinute <= 0) {
       throw new Error(
-        `perMinute must be a positive integer (R-008-2), received ${String(options.perMinute)}`,
+        `rate limit requires a positive integer per-minute rate (received ${String(perMinute)})`,
       );
     }
-    this.perMinute = options.perMinute;
-    this.now = options.now ?? Date.now;
+    this.capacity = perMinute;
+    this.refillPerMs = perMinute / 60_000;
+    this.now = options.now ?? (() => Date.now());
     this.sleep = options.sleep ?? defaultSleep;
-    this.ratePerMs = options.perMinute / 60_000;
-    this.tokens = options.perMinute;
+    this.tokens = perMinute;
     this.lastRefillAt = this.now();
   }
 
   acquire(): Promise<void> {
-    const turn = this.tail.then(() => this.take());
-    // Keep the chain alive even if a caller's `take()` rejects.
-    this.tail = turn.catch(() => undefined);
-    return turn;
+    const next = this.tail.then(() => this.take());
+    // A failed acquisition must not poison the chain for later callers.
+    this.tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
   }
 
-  private refill(atMs: number): void {
-    const elapsed = atMs - this.lastRefillAt;
+  private refill(nowMs: number): void {
+    const elapsed = nowMs - this.lastRefillAt;
     if (elapsed <= 0) return;
-    this.tokens = Math.min(this.perMinute, this.tokens + elapsed * this.ratePerMs);
-    this.lastRefillAt = atMs;
+    this.tokens = Math.min(this.capacity, this.tokens + elapsed * this.refillPerMs);
+    this.lastRefillAt = nowMs;
   }
 
   private async take(): Promise<void> {
-    for (;;) {
-      this.refill(this.now());
-      if (this.tokens >= 1) {
-        this.tokens -= 1;
-        return;
-      }
-      const waitMs = Math.ceil((1 - this.tokens) / this.ratePerMs);
-      await this.sleep(waitMs);
+    this.refill(this.now());
+    if (this.tokens >= 1) {
+      this.tokens -= 1;
+      return;
     }
+
+    const waitMs = Math.ceil((1 - this.tokens) / this.refillPerMs);
+    await this.sleep(waitMs);
+    this.refill(this.now());
+    // Guard against an injected clock that did not advance during the sleep.
+    this.tokens = Math.max(0, this.tokens - 1);
   }
 }
 
-/** For the deterministic fakes: a fake must never make a test wait. */
+/**
+ * B-04 named the same bucket TokenBucketRateLimiter; B-05/B-06 named it
+ * TokenBucket. Both batches shipped the identical algorithm under a different
+ * class name. Until INT-01 converges the duplicate, both names must resolve to
+ * ONE implementation: two buckets for one provider key would double the
+ * effective rate and quietly break R-008-2.
+ */
+export { TokenBucket as TokenBucketRateLimiter };
+
+/** A limiter that never waits. For the deterministic fakes, nothing else. */
 export const UNLIMITED_RATE_LIMITER: RateLimiter = { acquire: async () => undefined };
