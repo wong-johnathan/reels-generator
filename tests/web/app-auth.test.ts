@@ -153,10 +153,10 @@ describe('signing in (R-015-1, R-015-2)', () => {
 
   it('returns to the requested route after signing in', async () => {
     const handler = app();
-    const response = await handler(login(undefined, form({ ...CREDENTIALS, next: '/series' })));
+    const response = await handler(login(undefined, form({ ...CREDENTIALS, next: '/reports' })));
     expect(response.status).toBe(303);
-    expect(response.headers['location']).toBe('/series');
-    const page = await handler(get('/series', sessionCookie(response)));
+    expect(response.headers['location']).toBe('/reports');
+    const page = await handler(get('/reports', sessionCookie(response)));
     expect(page.status).toBe(404);
     expect(page.body).toContain('Page not found');
   });

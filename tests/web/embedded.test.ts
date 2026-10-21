@@ -3,7 +3,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { renderEmbeddedModule } from '../../src/web/styles/embed.js';
-import { APP_CSS, authCss, baseCss, shellCss, tokensCss } from '../../src/web/styles/embedded.js';
+import {
+  APP_CSS,
+  authCss,
+  baseCss,
+  seriesCss,
+  shellCss,
+  tokensCss,
+} from '../../src/web/styles/embedded.js';
 
 /**
  * The runtime serves CSS from a generated module (the image build copies only
@@ -32,6 +39,10 @@ describe('embedded stylesheets', () => {
     expect(authCss).toBe(read('auth.css'));
   });
 
+  it('mirrors series.css exactly', () => {
+    expect(seriesCss).toBe(read('series.css'));
+  });
+
   it('is exactly what the generator renders from the four sources', () => {
     const moduleText = readFileSync(
       new URL('../../src/web/styles/embedded.ts', import.meta.url),
@@ -42,14 +53,16 @@ describe('embedded stylesheets', () => {
       { file: 'base.css', exportName: 'baseCss', content: read('base.css') },
       { file: 'shell.css', exportName: 'shellCss', content: read('shell.css') },
       { file: 'auth.css', exportName: 'authCss', content: read('auth.css') },
+      { file: 'series.css', exportName: 'seriesCss', content: read('series.css') },
     ]);
     expect(moduleText).toBe(expected);
   });
 
-  it('bundles the layers in cascade order: tokens, base, shell, auth', () => {
-    expect(APP_CSS).toBe([tokensCss, baseCss, shellCss, authCss].join('\n'));
+  it('bundles the layers in cascade order: tokens, base, shell, auth, series', () => {
+    expect(APP_CSS).toBe([tokensCss, baseCss, shellCss, authCss, seriesCss].join('\n'));
     expect(APP_CSS.indexOf('--surface-app')).toBeLessThan(APP_CSS.indexOf('box-sizing'));
     expect(APP_CSS.indexOf('box-sizing')).toBeLessThan(APP_CSS.indexOf('.status-strip'));
     expect(APP_CSS.indexOf('.status-strip')).toBeLessThan(APP_CSS.indexOf('.login-card'));
+    expect(APP_CSS.indexOf('.login-card')).toBeLessThan(APP_CSS.indexOf('.series-table'));
   });
 });

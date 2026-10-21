@@ -15,29 +15,50 @@ import { pathToFileURL } from 'node:url';
 
 import * as ts from 'typescript';
 
-import { HealthReportSchema, OverviewSchema } from '../../contract/api.js';
+import {
+  HealthReportSchema,
+  OverviewSchema,
+  SeriesDetailSchema,
+  SeriesVersionDetailSchema,
+} from '../../contract/api.js';
 import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { createWebApp, type WebRequest, type WebResponse } from './app.js';
 import type { AuthOutcome } from './auth/login.js';
 import { MemorySessionStore } from './auth/session.js';
+import { createMemorySeriesGateway } from './series/gateway.js';
 
 const DEMO_OPERATOR = 'operator';
 const DEMO_PASSWORD = 'preview';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
-function readClientModule(name: string): string | null {
-  if (name !== 'login' && name !== 'shell' && name !== 'behaviours') return null;
+function transpile(relativePath: string, label: string): string | null {
   let source: string;
   try {
-    source = readFileSync(new URL('./client/' + name + '.ts', import.meta.url), 'utf8');
+    source = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
   } catch {
     return null;
   }
   return ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-    fileName: name + '.ts',
+    fileName: label + '.ts',
   }).outputText;
+}
+
+function readClientModule(name: string): string | null {
+  if (name !== 'login' && name !== 'shell' && name !== 'behaviours' && name !== 'series-editor') {
+    return null;
+  }
+  const file = name === 'series-editor' ? 'seriesEditor' : name;
+  return transpile('./client/' + file + '.ts', name);
+}
+
+/** The enhancer's shared rules, served from the same source the server uses. */
+function readSharedModule(path: string): string | null {
+  if (path !== 'format.js' && path !== 'series/commit.js' && path !== 'series/fields.js') {
+    return null;
+  }
+  return transpile('./' + path.replace(/\.js$/, '.ts'), path.replace(/[^a-z0-9]+/gi, '-'));
 }
 
 function demoAuthenticate(input: {
@@ -47,6 +68,19 @@ function demoAuthenticate(input: {
   return input.username === DEMO_OPERATOR && input.password === DEMO_PASSWORD
     ? { kind: 'authenticated', username: DEMO_OPERATOR }
     : { kind: 'rejected' };
+}
+
+/** S-03/S-04 demo storage: the frozen fixture series, editable in memory only. */
+function demoSeriesGateway(): ReturnType<typeof createMemorySeriesGateway> {
+  const detail = SeriesDetailSchema.parse(FIXTURES['series.get']);
+  return createMemorySeriesGateway({
+    detail,
+    versions: [SeriesVersionDetailSchema.parse(FIXTURES['series.versions.get'])],
+    projects: [
+      { id: '22222222-2222-4222-8222-111111111111', pins: { SB: 3, IM: 3, NA: 3, TC: 3 } },
+    ],
+    inFlightBatches: detail.in_flight_batches,
+  });
 }
 
 export interface AuthPreviewOptions {
@@ -62,7 +96,8 @@ export function createAuthPreviewHandler(
     overview: OverviewSchema.parse(FIXTURES['overview.get']),
     health: HealthReportSchema.parse(FIXTURES['health.report']),
     now: options.now ?? ((): number => Date.now()),
-    assets: { readClientModule },
+    series: demoSeriesGateway(),
+    assets: { readClientModule, readSharedModule },
   });
 }
 

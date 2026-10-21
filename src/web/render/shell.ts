@@ -82,7 +82,17 @@ export interface ShellModel {
   readonly content: string;
   readonly aside?: { readonly label: string; readonly content: string };
   readonly footer?: string;
-  readonly assets: { readonly stylesHref: string; readonly scriptHref?: string };
+  readonly assets: {
+    readonly stylesHref: string;
+    readonly scriptHref?: string;
+    /** Surface modules that must load after the shell module. */
+    readonly extraScripts: readonly string[];
+  };
+  /**
+   * A message the surface earned before this render (a save, a state change).
+   * §8.5: written into `#live-status` and announced once by the client module.
+   */
+  readonly liveStatus?: string;
 }
 
 export interface ShellInput {
@@ -98,7 +108,12 @@ export interface ShellInput {
   readonly footer?: string;
   readonly now?: number;
   readonly documentTitle?: string;
-  readonly assets?: { readonly stylesHref?: string; readonly scriptHref?: string };
+  readonly assets?: {
+    readonly stylesHref?: string;
+    readonly scriptHref?: string;
+    readonly extraScripts?: readonly string[];
+  };
+  readonly liveStatus?: string;
 }
 
 const DEFAULT_STYLES = '/assets/app.css';
@@ -136,7 +151,9 @@ export function buildShellModel(input: ShellInput): ShellModel {
     assets: {
       stylesHref: input.assets?.stylesHref ?? DEFAULT_STYLES,
       scriptHref: input.assets?.scriptHref ?? DEFAULT_SCRIPT,
+      extraScripts: input.assets?.extraScripts ?? [],
     },
+    ...(input.liveStatus === undefined ? {} : { liveStatus: input.liveStatus }),
   };
 }
 
@@ -407,10 +424,12 @@ export function renderShell(model: ShellModel): string {
       ? ''
       : '<footer class="workspace-footer">' + model.footer + '</footer>';
 
-  const script =
-    model.assets.scriptHref === undefined
-      ? ''
-      : '<script type="module" src="' + escapeAttr(model.assets.scriptHref) + '"></script>';
+  const scripts = [
+    ...(model.assets.scriptHref === undefined ? [] : [model.assets.scriptHref]),
+    ...model.assets.extraScripts,
+  ]
+    .map((href) => '<script type="module" src="' + escapeAttr(href) + '"></script>')
+    .join('');
 
   return (
     '<!doctype html>' +
@@ -442,8 +461,10 @@ export function renderShell(model: ShellModel): string {
     footer +
     '</div>' +
     '</main>' +
-    script +
-    '<div id="live-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>' +
+    scripts +
+    '<div id="live-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"' +
+    (model.liveStatus === undefined ? '' : ' data-message="' + escapeAttr(model.liveStatus) + '"') +
+    '></div>' +
     '<div id="live-alert" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>' +
     '</body>' +
     '</html>'

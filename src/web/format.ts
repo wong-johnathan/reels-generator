@@ -60,3 +60,51 @@ export function progressAnnouncement(input: {
     input.attention + (input.attention === 1 ? ' needs attention.' : ' need attention.');
   return input.complete + ' of ' + input.total + ' complete. ' + attention;
 }
+
+export interface AgeLabel {
+  /** Relative wording for a list cell (§9.6). */
+  readonly text: string;
+  /** The absolute timestamp as received, for the accessible name. */
+  readonly absolute: string;
+}
+
+/**
+ * §9.6: relative wording in lists, the absolute value in the accessible name.
+ * Rounding down keeps "2 h ago" from claiming more time has passed than has.
+ */
+export function describeAge(now: number, iso: string): AgeLabel {
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return { text: '—', absolute: iso };
+  const seconds = Math.max(0, Math.floor((now - parsed) / 1000));
+  let text: string;
+  if (seconds < 60) {
+    text = seconds + ' s ago';
+  } else if (seconds < 3_600) {
+    text = Math.floor(seconds / 60) + ' min ago';
+  } else if (seconds < 86_400) {
+    text = Math.floor(seconds / 3_600) + ' h ago';
+  } else {
+    const days = Math.floor(seconds / 86_400);
+    text = days + (days === 1 ? ' day ago' : ' days ago');
+  }
+  return { text, absolute: iso };
+}
+
+/** `2026-10-20T14:12:00.000Z` → `2026-10-20T14:12:00Z` for inline copy. */
+export function isoSeconds(iso: string): string {
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return iso;
+  return new Date(parsed).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * §9.6: plain integers, thousands separators only above 9,999, never `k`,
+ * never a rounding. Grouped manually so the output does not depend on the
+ * host's locale data.
+ */
+export function formatCount(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  const rounded = Math.trunc(value);
+  if (Math.abs(rounded) <= 9_999) return String(rounded);
+  return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}

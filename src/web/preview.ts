@@ -14,9 +14,17 @@ import { pathToFileURL } from 'node:url';
 
 import * as ts from 'typescript';
 
-import { HealthReportSchema, OverviewSchema, SessionInfoSchema } from '../../contract/api.js';
+import {
+  HealthReportSchema,
+  OverviewSchema,
+  SeriesDetailSchema,
+  SessionInfoSchema,
+} from '../../contract/api.js';
 import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { escapeHtml } from './render/html.js';
+import { renderSeriesEditor } from './render/seriesEditor.js';
+import { renderSeriesList } from './render/seriesList.js';
+import { profileToValues, valuesFromForm } from './series/fields.js';
 import { buildShellModel, renderShell, type ShellInput } from './render/shell.js';
 import { APP_CSS } from './styles/embedded.js';
 
@@ -61,7 +69,11 @@ const JS_HEADERS = {
   'cache-control': 'no-store',
 } as const;
 
-const CLIENT_MODULES = new Set(['shell', 'behaviours']);
+const CLIENT_MODULES = new Set(['shell', 'behaviours', 'series-editor']);
+const SERIES_MODULES = new Set(['fields', 'commit']);
+
+/** The fixture series the demo routes render. */
+const DEMO_SERIES_ID = '11111111-1111-4111-8111-111111111111';
 
 function json(status: number, body: unknown): PreviewResponse {
   return {
@@ -71,23 +83,44 @@ function json(status: number, body: unknown): PreviewResponse {
   };
 }
 
-function clientModule(name: string): PreviewResponse {
-  if (!CLIENT_MODULES.has(name)) {
-    return json(404, { error: { code: 'not_found', message: 'No preview module ' + name } });
-  }
+function transpiled(relativePath: string, label: string): PreviewResponse {
   let source: string;
   try {
-    source = readFileSync(new URL('./client/' + name + '.ts', import.meta.url), 'utf8');
+    source = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
   } catch {
     return json(404, {
-      error: { code: 'not_found', message: 'Preview serves client sources; run it from src' },
+      error: { code: 'not_found', message: 'Preview serves sources; run it from src' },
     });
   }
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-    fileName: name + '.ts',
+    fileName: label + '.ts',
   });
   return { status: 200, headers: JS_HEADERS, body: output.outputText };
+}
+
+function clientModule(name: string): PreviewResponse {
+  if (!CLIENT_MODULES.has(name)) {
+    return json(404, { error: { code: 'not_found', message: 'No preview module ' + name } });
+  }
+  const file = name === 'series-editor' ? 'seriesEditor' : name;
+  return transpiled('./client/' + file + '.ts', name);
+}
+
+/** The enhancer imports sibling modules; the preview serves them too. */
+function moduleFor(path: string): PreviewResponse {
+  if (path.startsWith('/assets/client/')) {
+    return clientModule(path.slice('/assets/client/'.length).replace(/\.js$/, ''));
+  }
+  if (path.startsWith('/assets/series/')) {
+    const name = path.slice('/assets/series/'.length).replace(/\.js$/, '');
+    if (!SERIES_MODULES.has(name)) {
+      return json(404, { error: { code: 'not_found', message: 'No preview module ' + name } });
+    }
+    return transpiled('./series/' + name + '.ts', name);
+  }
+  if (path === '/assets/format.js') return transpiled('./format.ts', 'format');
+  return json(404, { error: { code: 'not_found', message: 'No preview module for ' + path } });
 }
 
 /** Placeholder for the content region: F-04 owns the attention list itself. */
@@ -195,14 +228,116 @@ export function createPreviewHandler(options: PreviewOptions = {}) {
       };
     }
 
+    if (path === '/series' || path === '/series/new' || path.startsWith('/series/')) {
+      const detail = SeriesDetailSchema.parse(FIXTURES['series.get']);
+      const editorScripts = {
+        scriptHref: '/assets/client/shell.js',
+        extraScripts: ['/assets/client/series-editor.js'],
+      };
+
+      if (path === '/series') {
+        return {
+          status: 200,
+          headers: HTML_HEADERS,
+          body: renderShell(
+            buildShellModel({
+              ...base,
+              title: 'Series',
+              nav: 'series',
+              breadcrumbs: [{ label: 'Overview', href: '/' }, { label: 'Series' }],
+              content: renderSeriesList({
+                state: 'ready',
+                rows: [{ summary: detail, inFlightBatches: detail.in_flight_batches }],
+                now,
+              }),
+            }),
+          ),
+        };
+      }
+
+      if (path === '/series/new') {
+        const values = valuesFromForm({});
+        const parts = renderSeriesEditor({
+          mode: 'create',
+          status: 'active',
+          values,
+          initial: values,
+          changed: [],
+          errors: {},
+          createReady: false,
+          inFlightBatches: 0,
+          inFlightVideos: null,
+        });
+        return {
+          status: 200,
+          headers: HTML_HEADERS,
+          body: renderShell(
+            buildShellModel({
+              ...base,
+              title: 'New series',
+              nav: 'series',
+              breadcrumbs: [
+                { label: 'Overview', href: '/' },
+                { label: 'Series', href: '/series' },
+                { label: 'New series' },
+              ],
+              content: parts.main,
+              aside: { label: 'Version commit', content: parts.aside },
+              assets: editorScripts,
+            }),
+          ),
+        };
+      }
+
+      if (path !== '/series/' + DEMO_SERIES_ID) {
+        return json(404, { error: { code: 'not_found', message: 'No preview series ' + path } });
+      }
+
+      const values = {
+        ...profileToValues(detail.profile),
+        name: detail.name,
+        slug: detail.slug,
+      };
+      const parts = renderSeriesEditor({
+        mode: 'edit',
+        status: detail.status,
+        detail,
+        values,
+        initial: values,
+        changed: [],
+        errors: {},
+        inFlightBatches: detail.in_flight_batches,
+        inFlightVideos: null,
+      });
+      return {
+        status: 200,
+        headers: HTML_HEADERS,
+        body: renderShell(
+          buildShellModel({
+            ...base,
+            title: detail.name,
+            nav: 'series',
+            breadcrumbs: [
+              { label: 'Overview', href: '/' },
+              { label: 'Series', href: '/series' },
+              { label: detail.name },
+            ],
+            content: parts.main,
+            aside: { label: 'Version commit', content: parts.aside },
+            assets: editorScripts,
+          }),
+        ),
+      };
+    }
+
     if (path === '/assets/app.css') {
       return { status: 200, headers: CSS_HEADERS, body: APP_CSS };
     }
 
-    if (path.startsWith('/assets/client/')) {
-      const name = path.slice('/assets/client/'.length).replace(/\.js$/, '');
-      return clientModule(name);
+    if (path.startsWith('/assets/client/') || path.startsWith('/assets/series/')) {
+      return moduleFor(path);
     }
+    if (path === '/assets/format.js') return moduleFor(path);
 
     return json(404, { error: { code: 'not_found', message: 'No preview route for ' + path } });
   };

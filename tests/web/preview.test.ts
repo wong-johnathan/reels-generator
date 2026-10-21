@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPreviewHandler } from '../../src/web/preview.js';
+import { parseHtml, textOf } from './helpers/html.js';
 
 /**
  * F-01 preview: renders the shell against the frozen contract fixtures so the
@@ -27,6 +28,26 @@ describe('preview routes', () => {
     expect(response.status).toBe(200);
     expect(response.body).toContain('class="content-grid has-aside"');
     expect(response.body).toContain('class="workspace-footer"');
+  });
+
+  it('serves the series list and editor from the same demo gateway', () => {
+    const list = get('/series');
+    expect(list.status).toBe(200);
+    expect(list.body).toContain('class="tbl series-table"');
+    const editor = get('/series/11111111-1111-4111-8111-111111111111');
+    expect(editor.status).toBe(200);
+    expect(editor.body).toContain('Saving mints');
+    const create = get('/series/new');
+    expect(create.status).toBe(200);
+    expect(textOf(parseHtml(create.body))).toContain('This creates the series and mints v1.');
+  });
+
+  it('serves the editor client module as browser ESM', () => {
+    const response = get('/assets/client/series-editor.js');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toBe('text/javascript; charset=utf-8');
+    expect(response.body).toContain('initSeriesEditor');
+    expect(response.body).not.toContain('interface ');
   });
 
   it('serves the token stylesheet with the measured hex values', () => {

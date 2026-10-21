@@ -15,19 +15,42 @@
  */
 import type { z } from 'zod';
 
-import type { HealthReportSchema, OverviewSchema, SessionInfoSchema } from '../../contract/api.js';
+import type {
+  HealthReportSchema,
+  OverviewSchema,
+  SessionInfoSchema,
+  SeriesDetailSchema,
+} from '../../contract/api.js';
 import type { Authenticate, AuthOutcome } from './auth/login.js';
 import { guardRequest, LOGIN_PATH, safeNextPath } from './auth/guard.js';
 import { readSessionToken, serializeSessionCookie, type SessionStore } from './auth/session.js';
 import { escapeHtml } from './render/html.js';
 import { LOGIN_COPY, renderLoginPage } from './render/login.js';
 import { renderNotFoundPage } from './render/notFound.js';
-import { buildShellModel, renderShell } from './render/shell.js';
+import { renderSeriesEditor } from './render/seriesEditor.js';
+import { renderSeriesList } from './render/seriesList.js';
+import { buildShellModel, renderShell, type BreadcrumbItem, type NavKey } from './render/shell.js';
+import { savedAnnouncement } from './series/commit.js';
+import {
+  changedFields,
+  createReady,
+  profileToValues,
+  validateSeriesValues,
+  valuesFromForm,
+} from './series/fields.js';
+import {
+  SeriesArchivedError,
+  SeriesConflictError,
+  SeriesSlugTakenError,
+  type SeriesGateway,
+} from './series/gateway.js';
+import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
 type HealthReport = z.infer<typeof HealthReportSchema>;
 type SessionInfo = z.infer<typeof SessionInfoSchema>;
+type SeriesDetail = z.infer<typeof SeriesDetailSchema>;
 
 export interface WebAppDependencies {
   readonly sessions: SessionStore;
@@ -37,10 +60,18 @@ export interface WebAppDependencies {
   readonly now?: () => number;
   /** B-13's synchroniser token (contract `SessionInfo.csrf_token`). */
   readonly csrfToken?: () => string;
+  /** S-03/S-04 storage. Absent builds answer 503 rather than inventing data. */
+  readonly series?: SeriesGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
     readonly readClientModule?: (name: string) => string | null;
+    /**
+     * Returns browser ESM for a module the client enhancers import from
+     * `src/web` (e.g. `series/commit.js`), or null when absent. INT-01's dist
+     * reader serves the built `dist/src/web/<path>` file.
+     */
+    readonly readSharedModule?: (path: string) => string | null;
   };
 }
 
@@ -87,8 +118,19 @@ const NO_STORE = { 'cache-control': 'no-store' } as const;
 /** A login body is two short fields; anything larger is not a browser form. */
 const MAX_LOGIN_BODY_CHARS = 4096;
 
+/** A series profile is a few dozen short fields; 64 KiB is generous. */
+const MAX_FORM_BODY_CHARS = 65_536;
+
+const SLUG_TAKEN_MESSAGE = 'That slug is already used by another series.';
+const SAVE_FAILED_MESSAGE = 'The series could not be saved. Nothing was changed.';
+const CREATE_FAILED_MESSAGE = 'The series could not be created. Nothing was saved.';
+
+/** Loaded after the shell module on both S-04 pages. */
+const SERIES_SCRIPTS: readonly string[] = ['/assets/client/series-editor.js'];
+
 /** Client module names are identifiers we ship, never a path from the wire. */
 const CLIENT_MODULE_NAME = /^[a-z0-9-]+$/;
+const SHARED_MODULE_NAME = /^[a-z0-9-]+$/;
 
 function headerValue(
   headers: Readonly<Record<string, string | undefined>> | undefined,
@@ -164,6 +206,7 @@ export function createWebApp(
   const now = deps.now ?? ((): number => Date.now());
   const css = deps.assets?.css ?? APP_CSS;
   const readClientModule = deps.assets?.readClientModule ?? ((): string | null => null);
+  const readSharedModule = deps.assets?.readSharedModule ?? ((): string | null => null);
   const csrfToken = deps.csrfToken ?? ((): string => '');
 
   return async function handle(request: WebRequest): Promise<WebResponse> {
@@ -221,6 +264,25 @@ export function createWebApp(
         ? json(404, 'not_found', 'No client module ' + name)
         : { status: 200, headers: { ...JS_HEADERS }, body: source };
     }
+    // The S-04 enhancer imports the shared rules it must not fork (F-03). The
+    // name is an identifier from a fixed set, never a path from the wire.
+    if (pathname === '/assets/format.js' || pathname.startsWith('/assets/series/')) {
+      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
+      const requested =
+        pathname === '/assets/format.js' ? 'format.js' : pathname.slice('/assets/series/'.length);
+      if (!requested.endsWith('.js'))
+        return json(404, 'not_found', 'No shared module ' + requested);
+      const shared = pathname === '/assets/format.js' ? 'format.js' : 'series/' + requested;
+      const bare = shared.endsWith('.js') ? shared.slice(0, -'.js'.length) : shared;
+      const leaf = bare.startsWith('series/') ? bare.slice('series/'.length) : bare;
+      if (!SHARED_MODULE_NAME.test(leaf)) {
+        return json(404, 'not_found', 'No shared module ' + shared);
+      }
+      const source = readSharedModule(shared);
+      return source === null
+        ? json(404, 'not_found', 'No shared module ' + shared)
+        : { status: 200, headers: { ...JS_HEADERS }, body: source };
+    }
 
     if (pathname === LOGIN_PATH) {
       if (effective === 'GET') {
@@ -250,6 +312,16 @@ export function createWebApp(
       return methodNotAllowed('GET, HEAD, POST');
     }
 
+    if (pathname === '/series' || pathname.startsWith('/series/')) {
+      return seriesRoutes({
+        effective,
+        pathname,
+        search: target.searchParams,
+        body: input.body,
+        session: sessionInfo(record),
+      });
+    }
+
     if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
 
     if (pathname === '/') {
@@ -274,6 +346,356 @@ export function createWebApp(
     // app's own chrome-free system surface (SY-3). Unauthenticated requests
     // never reach here — the guard sent them to /login.
     return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+  }
+
+  // ── S-03 / S-04 (US-008, US-010, R-001, R-002) ───────────────────────────
+
+  function page(input: {
+    readonly title: string;
+    readonly nav: NavKey;
+    readonly breadcrumbs: readonly BreadcrumbItem[];
+    readonly content: string;
+    readonly aside?: { readonly label: string; readonly content: string };
+    readonly session: SessionInfo;
+    readonly scripts?: readonly string[];
+    readonly liveStatus?: string;
+  }): string {
+    const assets =
+      input.scripts === undefined
+        ? undefined
+        : { scriptHref: '/assets/client/shell.js', extraScripts: input.scripts };
+    return renderShell(
+      buildShellModel({
+        title: input.title,
+        nav: input.nav,
+        overview: deps.overview,
+        ...(deps.health === undefined ? {} : { health: deps.health }),
+        session: input.session,
+        breadcrumbs: input.breadcrumbs,
+        content: input.content,
+        ...(input.aside === undefined ? {} : { aside: input.aside }),
+        ...(assets === undefined ? {} : { assets }),
+        ...(input.liveStatus === undefined ? {} : { liveStatus: input.liveStatus }),
+        now: now(),
+      }),
+    );
+  }
+
+  function seriesError(session: SessionInfo): WebResponse {
+    return html(
+      page({
+        title: 'Series',
+        nav: 'series',
+        breadcrumbs: [{ label: 'Overview', href: '/' }, { label: 'Series' }],
+        content: renderSeriesList({ state: 'error', rows: [], now: now() }),
+        session,
+      }),
+      503,
+    );
+  }
+
+  function initialValuesFor(detail: SeriesDetail): Record<string, string> {
+    return { ...profileToValues(detail.profile), name: detail.name, slug: detail.slug };
+  }
+
+  async function editModel(
+    gateway: SeriesGateway,
+    detail: SeriesDetail,
+    input: {
+      readonly values?: Record<string, string>;
+      readonly errors?: Readonly<Record<string, string>>;
+      readonly conflict?: SeriesEditorModel['conflict'];
+      readonly savedVersion?: number;
+      readonly unchanged?: boolean;
+      readonly saveError?: string;
+    },
+  ): Promise<SeriesEditorModel> {
+    const initial = initialValuesFor(detail);
+    const values = input.values ?? initial;
+    const inFlightVideos =
+      gateway.inFlightVideos === undefined ? null : await gateway.inFlightVideos(detail.id);
+    return {
+      mode: 'edit',
+      status: detail.status,
+      detail,
+      values,
+      initial,
+      changed: changedFields(initial, values),
+      errors: input.errors ?? {},
+      ...(input.conflict === undefined ? {} : { conflict: input.conflict }),
+      ...(input.savedVersion === undefined ? {} : { savedVersion: input.savedVersion }),
+      ...(input.unchanged === undefined ? {} : { unchanged: input.unchanged }),
+      ...(input.saveError === undefined ? {} : { saveError: input.saveError }),
+      inFlightBatches: detail.in_flight_batches,
+      inFlightVideos,
+    };
+  }
+
+  async function renderEditPage(
+    gateway: SeriesGateway,
+    seriesId: string,
+    input: {
+      readonly session: SessionInfo;
+      readonly values?: Record<string, string>;
+      readonly errors?: Readonly<Record<string, string>>;
+      readonly conflict?: SeriesEditorModel['conflict'];
+      readonly savedVersion?: number;
+      readonly unchanged?: boolean;
+      readonly saveError?: string;
+      readonly status?: number;
+    },
+  ): Promise<WebResponse> {
+    let detail: SeriesDetail | null;
+    try {
+      detail = await gateway.get(seriesId);
+    } catch {
+      return json(503, 'not_ready', 'Series storage is unavailable');
+    }
+    if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+
+    const model = await editModel(gateway, detail, input);
+    const parts = renderSeriesEditor(model);
+    const body = page({
+      title: detail.name,
+      nav: 'series',
+      breadcrumbs: [
+        { label: 'Overview', href: '/' },
+        { label: 'Series', href: '/series' },
+        { label: detail.name },
+      ],
+      content: parts.main,
+      aside: { label: 'Version commit', content: parts.aside },
+      session: input.session,
+      scripts: SERIES_SCRIPTS,
+      ...(model.savedVersion === undefined || model.savedVersion !== model.detail?.current_version
+        ? {}
+        : {
+            liveStatus: savedAnnouncement({
+              version: model.savedVersion,
+              inFlightBatches: model.inFlightBatches ?? null,
+              inFlightVideos: model.inFlightVideos ?? null,
+            }),
+          }),
+    });
+    return html(body, input.status ?? 200);
+  }
+
+  function createEditorModel(input: {
+    readonly values?: Record<string, string>;
+    readonly errors?: Readonly<Record<string, string>>;
+    readonly saveError?: string;
+  }): SeriesEditorModel {
+    const initial = valuesFromForm({});
+    const values = input.values ?? initial;
+    return {
+      mode: 'create',
+      status: 'active',
+      values,
+      initial,
+      changed: [],
+      errors: input.errors ?? {},
+      createReady: createReady(values),
+      inFlightBatches: 0,
+      ...(input.saveError === undefined ? {} : { saveError: input.saveError }),
+    };
+  }
+
+  function renderCreatePage(input: {
+    readonly session: SessionInfo;
+    readonly values?: Record<string, string>;
+    readonly errors?: Readonly<Record<string, string>>;
+    readonly saveError?: string;
+    readonly status?: number;
+  }): WebResponse {
+    const model = createEditorModel(input);
+    const parts = renderSeriesEditor(model);
+    return html(
+      page({
+        title: 'New series',
+        nav: 'series',
+        breadcrumbs: [
+          { label: 'Overview', href: '/' },
+          { label: 'Series', href: '/series' },
+          { label: 'New series' },
+        ],
+        content: parts.main,
+        aside: { label: 'Version commit', content: parts.aside },
+        session: input.session,
+        scripts: SERIES_SCRIPTS,
+      }),
+      input.status ?? 200,
+    );
+  }
+
+  async function createSeries(
+    gateway: SeriesGateway,
+    body: string,
+    session: SessionInfo,
+  ): Promise<WebResponse> {
+    if (body.length > MAX_FORM_BODY_CHARS) {
+      return json(400, 'validation_failed', 'Series request is too large');
+    }
+    const values = valuesFromForm(parseFormEncoded(body));
+    const validation = validateSeriesValues(values, 'create', null);
+    if (validation.profile === null) {
+      return renderCreatePage({ session, values, errors: validation.errors, status: 422 });
+    }
+
+    try {
+      const created = await gateway.create({
+        name: (values['name'] ?? '').trim(),
+        slug: (values['slug'] ?? '').trim(),
+        profile: validation.profile,
+      });
+      return redirect('/series/' + encodeURIComponent(created.id) + '?saved=1');
+    } catch (error) {
+      if (error instanceof SeriesSlugTakenError) {
+        return renderCreatePage({
+          session,
+          values,
+          errors: { slug: SLUG_TAKEN_MESSAGE },
+          status: 422,
+        });
+      }
+      return renderCreatePage({ session, values, saveError: CREATE_FAILED_MESSAGE, status: 503 });
+    }
+  }
+
+  async function saveSeries(
+    gateway: SeriesGateway,
+    seriesId: string,
+    body: string,
+    session: SessionInfo,
+  ): Promise<WebResponse> {
+    if (body.length > MAX_FORM_BODY_CHARS) {
+      return json(400, 'validation_failed', 'Series request is too large');
+    }
+
+    let detail: SeriesDetail | null;
+    try {
+      detail = await gateway.get(seriesId);
+    } catch {
+      return json(503, 'not_ready', 'Series storage is unavailable');
+    }
+    if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+
+    // R-001-3: an archived series is read-only; the page states the reason.
+    if (detail.status === 'archived') {
+      return renderEditPage(gateway, seriesId, { session, status: 409 });
+    }
+
+    const form = parseFormEncoded(body);
+    const values = valuesFromForm(form);
+    const validation = validateSeriesValues(values, 'edit', detail.profile);
+    if (validation.profile === null) {
+      return renderEditPage(gateway, seriesId, {
+        session,
+        values,
+        errors: validation.errors,
+        status: 422,
+      });
+    }
+
+    const initial = initialValuesFor(detail);
+    if (changedFields(initial, values).length === 0) {
+      // Not an edit, so no version is minted (R-002-1).
+      return redirect('/series/' + encodeURIComponent(seriesId) + '?unchanged=1');
+    }
+
+    const revision = Number(form['revision'] ?? '');
+    try {
+      const updated = await gateway.update(seriesId, {
+        revision: Number.isFinite(revision) ? revision : 0,
+        name: (values['name'] ?? '').trim(),
+        profile: validation.profile,
+      });
+      return redirect(
+        '/series/' + encodeURIComponent(seriesId) + '?saved=' + updated.current_version,
+      );
+    } catch (error) {
+      if (error instanceof SeriesConflictError) {
+        return renderEditPage(gateway, seriesId, {
+          session,
+          values,
+          status: 409,
+          conflict: {
+            currentRevision: error.currentRevision,
+            yourRevision: Number.isFinite(revision) ? revision : 0,
+            currentVersion: error.currentVersion,
+            savedAt: error.savedAt,
+          },
+        });
+      }
+      if (error instanceof SeriesArchivedError) {
+        return renderEditPage(gateway, seriesId, { session, status: 409 });
+      }
+      return renderEditPage(gateway, seriesId, {
+        session,
+        values,
+        saveError: SAVE_FAILED_MESSAGE,
+        status: 503,
+      });
+    }
+  }
+
+  async function seriesRoutes(input: {
+    readonly effective: string;
+    readonly pathname: string;
+    readonly search: URLSearchParams;
+    readonly body: string;
+    readonly session: SessionInfo;
+  }): Promise<WebResponse> {
+    const gateway = deps.series;
+    if (gateway === undefined) return json(503, 'not_ready', 'Series storage is not mounted');
+
+    const { effective, pathname, body, session } = input;
+
+    if (pathname === '/series') {
+      if (effective === 'GET') {
+        try {
+          const rows = await loadSeriesRows(gateway);
+          return html(
+            page({
+              title: 'Series',
+              nav: 'series',
+              breadcrumbs: [{ label: 'Overview', href: '/' }, { label: 'Series' }],
+              content: renderSeriesList({
+                state: rows.length === 0 ? 'empty' : 'ready',
+                rows,
+                now: now(),
+              }),
+              session,
+            }),
+          );
+        } catch {
+          return seriesError(session);
+        }
+      }
+      return methodNotAllowed('GET, HEAD');
+    }
+
+    if (pathname === '/series/new') {
+      if (effective === 'GET') return renderCreatePage({ session });
+      if (effective === 'POST') return createSeries(gateway, body, session);
+      return methodNotAllowed('GET, HEAD, POST');
+    }
+
+    const seriesId = pathname.slice('/series/'.length);
+    if (seriesId.length === 0 || seriesId.includes('/')) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    if (effective === 'GET') {
+      const savedRaw = input.search.get('saved');
+      const saved = savedRaw === null ? Number.NaN : Number(savedRaw);
+      const unchanged = input.search.get('unchanged') === '1';
+      return renderEditPage(gateway, seriesId, {
+        session,
+        ...(Number.isFinite(saved) ? { savedVersion: saved } : {}),
+        ...(unchanged ? { unchanged: true } : {}),
+      });
+    }
+    if (effective === 'POST') return saveSeries(gateway, seriesId, body, session);
+    return methodNotAllowed('GET, HEAD, POST');
   }
 
   function sessionInfo(
