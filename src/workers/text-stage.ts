@@ -276,7 +276,11 @@ async function persistStoryboard(
         [
           job.projectId,
           scene.scene_no,
-          scene.position,
+          // The planner counts scenes from 0 (sceneNo() adds one to build S01),
+          // while `scene.position` is 1-based by schema: scene_position_check
+          // requires >= 1 and the checkpoint filter picks positions 1..3. Map at
+          // the boundary so neither convention has to be guessed.
+          sceneRowPosition(scene.position),
           scene.image_prompt,
           scene.camera_move,
           scene.caption_emphasis,
@@ -323,6 +327,11 @@ async function persistStoryboard(
  * mints the next job. A retryable failure leaves the stage `running`; a
  * terminal failure leaves it `failed`.
  */
+/** Domain scene positions are 0-based; stored positions are 1-based. */
+export function sceneRowPosition(planPosition: number): number {
+  return planPosition + 1;
+}
+
 /**
  * `runProviderAttempt` returns whatever the adapter produced. The text adapter
  * wraps the parsed document in a `TextResult` envelope, so the document itself is

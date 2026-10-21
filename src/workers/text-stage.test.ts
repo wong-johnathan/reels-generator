@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { unwrapTextDocument } from './text-stage.js';
+import { sceneRowPosition, unwrapTextDocument } from './text-stage.js';
 
 /**
  * `runProviderAttempt` hands the adapter's envelope to `onResult`. Reading the
@@ -29,5 +29,13 @@ describe('unwrapTextDocument', () => {
   it('throws on a non-object result', () => {
     expect(() => unwrapTextDocument(null)).toThrow(/no content envelope/);
     expect(() => unwrapTextDocument('a script')).toThrow(/no content envelope/);
+  });
+});
+
+describe('sceneRowPosition', () => {
+  it("maps the planner's 0-based position onto the 1-based row", () => {
+    // scene_position_check requires >= 1, and the checkpoint filter reads 1..3.
+    expect(sceneRowPosition(0)).toBe(1);
+    expect(sceneRowPosition(16)).toBe(17);
   });
 });
