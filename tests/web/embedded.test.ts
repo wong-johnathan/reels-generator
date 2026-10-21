@@ -10,6 +10,7 @@ import {
   seriesCss,
   shellCss,
   tokensCss,
+  narrationCss,
   workspaceCss,
 } from '../../src/web/styles/embedded.js';
 
@@ -48,7 +49,11 @@ describe('embedded stylesheets', () => {
     expect(workspaceCss).toBe(read('workspace.css'));
   });
 
-  it('is exactly what the generator renders from the four sources', () => {
+  it('mirrors narration.css exactly', () => {
+    expect(narrationCss).toBe(read('narration.css'));
+  });
+
+  it('is exactly what the generator renders from the seven sources', () => {
     const moduleText = readFileSync(
       new URL('../../src/web/styles/embedded.ts', import.meta.url),
       'utf8',
@@ -60,13 +65,14 @@ describe('embedded stylesheets', () => {
       { file: 'auth.css', exportName: 'authCss', content: read('auth.css') },
       { file: 'series.css', exportName: 'seriesCss', content: read('series.css') },
       { file: 'workspace.css', exportName: 'workspaceCss', content: read('workspace.css') },
+      { file: 'narration.css', exportName: 'narrationCss', content: read('narration.css') },
     ]);
     expect(moduleText).toBe(expected);
   });
 
-  it('bundles the layers in cascade order: tokens, base, shell, auth, series, workspace', () => {
+  it('bundles the layers in cascade order: tokens, base, shell, auth, series, workspace, narration', () => {
     expect(APP_CSS).toBe(
-      [tokensCss, baseCss, shellCss, authCss, seriesCss, workspaceCss].join('\n'),
+      [tokensCss, baseCss, shellCss, authCss, seriesCss, workspaceCss, narrationCss].join('\n'),
     );
     expect(APP_CSS.indexOf('--surface-app')).toBeLessThan(APP_CSS.indexOf('box-sizing'));
     expect(APP_CSS.indexOf('box-sizing')).toBeLessThan(APP_CSS.indexOf('.status-strip'));
@@ -74,5 +80,6 @@ describe('embedded stylesheets', () => {
     expect(APP_CSS.indexOf('.login-card')).toBeLessThan(APP_CSS.indexOf('.series-table'));
     expect(APP_CSS.indexOf('.series-table')).toBeLessThan(APP_CSS.indexOf('.stage-rail'));
     expect(APP_CSS.indexOf('.stage-rail')).toBeLessThan(APP_CSS.indexOf('.attention-row'));
+    expect(APP_CSS.indexOf('.attention-row')).toBeLessThan(APP_CSS.indexOf('.narration-grid'));
   });
 });

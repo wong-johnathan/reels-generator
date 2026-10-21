@@ -1,7 +1,8 @@
 // GENERATED FILE — do not edit by hand.
 //
 // Source of truth: src/web/styles/tokens.css, base.css, shell.css, auth.css,
-// series.css and workspace.css (UI_SPEC §2, §4, §6.1, §6.2, §6.5, §7).
+// series.css, workspace.css and narration.css (UI_SPEC §2, §4, §6.1, §6.2, §6.5,
+// §7, §9.6).
 // Regenerate with `npx tsx scripts/generate-embedded-css.ts`;
 // tests/web/embedded.test.ts fails the build if this file and the
 // stylesheets disagree.
@@ -2716,4 +2717,511 @@ export const workspaceCss = String.raw`/*
   }
 }
 `;
-export const APP_CSS = [tokensCss, baseCss, shellCss, authCss, seriesCss, workspaceCss].join('\n');
+
+/** narration.css */
+export const narrationCss = String.raw`/*
+ * S-14 Narration & timing — US-021, US-022, R-009-3/4; UI_SPEC §2 tokens,
+ * §3.2 four-channel states (the chip is the shared renderChip), §7.1/§7.2 bands,
+ * §9.6 number formatting.
+ *
+ * No raw colour: every value comes from tokens.css. The word row that follows
+ * playback uses --surface-selected plus an inset accent edge, so the active
+ * word is visible in greyscale as well as in colour. Nothing animates beyond a
+ * single transition token, and prefers-reduced-motion zeroes those in tokens.
+ */
+
+.narration {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-6) 0 var(--s-8);
+}
+
+.narration-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.narration-head h3 {
+  margin: 0;
+  font-size: var(--t-60);
+  line-height: var(--lh-60);
+  font-weight: var(--fw-semibold);
+}
+
+.narration-summary,
+.narration-detail,
+.narration-coverage,
+.narration-transport {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.narration-detail {
+  color: var(--text-tertiary);
+}
+
+.narration-stale {
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  border-left: 3px solid var(--stale);
+  border-radius: var(--r-2);
+  background: var(--surface-stale-tint);
+  color: var(--text-primary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.narration-notice {
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-3);
+  background: var(--surface-raised);
+}
+
+.narration-notice p {
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.narration-notice[data-notice='success'] {
+  border-color: var(--success);
+  background: var(--surface-success-tint);
+}
+
+.narration-notice[data-notice='error'] {
+  border-color: var(--danger);
+  background: var(--surface-danger-tint);
+}
+
+.narration-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-8);
+  align-items: start;
+}
+
+.narration-player,
+.narration-band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-panel);
+}
+
+.narration-player h4,
+.narration-band h4,
+.narration-timings h4,
+.narration-provenance h4,
+.narration-accept h4,
+.narration-spend h4 {
+  margin: 0;
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.narration-audio {
+  width: 100%;
+  height: var(--target-review);
+  color-scheme: dark;
+}
+
+.narration-transport {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.narration-transport-sep {
+  color: var(--text-tertiary);
+}
+
+.narration-transcript-link {
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.narration-transcript-link a {
+  color: var(--text-link);
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+}
+
+.narration-note,
+.narration-unlock,
+.narration-empty,
+.narration-words-empty {
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-secondary);
+}
+
+.narration-reason {
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-secondary);
+}
+
+.narration-reason[role='note'] {
+  color: var(--text-secondary);
+}
+
+.narration-empty-action {
+  margin: 0;
+}
+
+.narration-band-dl,
+.narration-provenance-dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+}
+
+.narration-kv {
+  display: contents;
+}
+
+.narration-band-dl dt,
+.narration-provenance-dl dt {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.narration-band-dl dd,
+.narration-provenance-dl dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  overflow-wrap: anywhere;
+}
+
+.narration-verdict {
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-semibold);
+}
+
+.narration-verdict[data-verdict='within'] {
+  color: var(--success);
+}
+
+.narration-verdict[data-verdict='outside'] {
+  color: var(--danger);
+}
+
+.narration-out-of-band {
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--danger);
+  border-left-width: 4px;
+  border-radius: var(--r-2);
+  background: var(--surface-danger-tint);
+}
+
+.narration-out-of-band-sentence {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.narration-out-of-band-action {
+  margin: var(--s-4) 0 0;
+}
+
+.narration-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-inset);
+}
+
+.narration-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.narration-words {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.narration-words caption {
+  padding: var(--s-4) var(--s-5);
+  text-align: left;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.narration-words thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky-head);
+  padding: var(--s-3) var(--s-5);
+  text-align: left;
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.narration-words tbody th,
+.narration-words tbody td {
+  padding: var(--s-2) var(--s-5);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  font-weight: var(--fw-regular);
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.narration-words tbody th {
+  font-family: var(--font-ui);
+  font-weight: var(--fw-semibold);
+}
+
+.narration-words tbody .narration-time,
+.narration-words tbody .narration-span {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  width: 1%;
+  white-space: nowrap;
+}
+
+.narration-words tbody tr {
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-standard);
+}
+
+.narration-words tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.narration-words tbody tr[data-active='true'] {
+  background: var(--surface-selected);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.narration-words tbody tr[data-active='true'] .narration-word {
+  color: var(--accent);
+}
+
+.narration-monotonic {
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--r-2);
+  background: var(--surface-warning-tint);
+  color: var(--text-primary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.narration-timings,
+.narration-provenance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.narration-provenance-dl {
+  padding: var(--s-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-panel);
+}
+
+.narration-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.narration-accept,
+.narration-spend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 720px;
+}
+
+.narration-accept-button,
+.narration-rerun-button,
+.narration-rerun-confirm {
+  min-height: var(--target-review);
+  justify-content: center;
+}
+
+.narration-accepted {
+  margin: 0;
+  color: var(--success);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.narration-rerun-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--target-review);
+  width: fit-content;
+  list-style: none;
+  cursor: pointer;
+}
+
+.narration-rerun-summary::-webkit-details-marker {
+  display: none;
+}
+
+.narration-rerun-summary::before {
+  content: '▸';
+  color: var(--text-tertiary);
+}
+
+.narration-rerun[open] > .narration-rerun-summary::before {
+  content: '▾';
+}
+
+.narration-rerun-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+  padding: var(--s-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-raised);
+}
+
+.narration-rerun-scope {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-secondary);
+}
+
+.narration-rerun-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.narration-rerun-form label {
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--text-tertiary);
+}
+
+.narration-rerun-form input {
+  min-height: var(--target-review);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--t-40);
+}
+
+.narration-rerun-cancel {
+  align-self: flex-start;
+  min-height: var(--target-review);
+}
+
+/* §7.1: below 768 px every spend/approval control is absent, with one line. */
+.narration-band-note {
+  display: none;
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 1023px) {
+  .narration-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-6);
+  }
+
+  .narration {
+    padding-top: var(--s-5);
+  }
+}
+
+@media (max-width: 767px) {
+  .narration-accept,
+  .narration-spend {
+    display: none;
+  }
+
+  .narration-band-note {
+    display: block;
+  }
+
+  .narration-actions {
+    gap: var(--s-4);
+  }
+
+  .narration-table-wrap {
+    max-height: 280px;
+  }
+
+  .narration-words tbody th,
+  .narration-words tbody td {
+    padding: var(--s-2) var(--s-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .narration-player,
+  .narration-band {
+    padding: var(--s-5);
+  }
+
+  .narration-head h3 {
+    font-size: var(--t-50);
+    line-height: var(--lh-50);
+  }
+}
+`;
+export const APP_CSS = [
+  tokensCss,
+  baseCss,
+  shellCss,
+  authCss,
+  seriesCss,
+  workspaceCss,
+  narrationCss,
+].join('\n');
