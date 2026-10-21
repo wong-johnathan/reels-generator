@@ -6,6 +6,7 @@ Every command and capture below was run in this worktree on 2026-10-21 (UTC).
 ## What was built
 
 ### S-16 — Export & provenance (US-026, R-014-1, R-002-4, R-013-1)
+
 - `src/web/provenance/model.ts` — pure view model: package state
   (`not_eligible` / `not_built` / `building` / `built` / `stale` / `failed` /
   `missing_files` / `blocked`), the five-file row list with kind, size, full
@@ -28,6 +29,7 @@ Every command and capture below was run in this worktree on 2026-10-21 (UTC).
   when the gateway or its `build` seam is not mounted; POST elsewhere → 405.
 
 ### S-19 — Failures & health (US-011/012/013, R-008-3, R-011-2, R-012-4, R-018)
+
 - `src/web/health/model.ts` — provider rows (key presence, env-var name,
   qualification, idempotency, note, one structural state), qualification lines
   (`PASS <time>` / `NOT RUN`), queue counts, disk percent + headroom warning,
@@ -48,6 +50,7 @@ Every command and capture below was run in this worktree on 2026-10-21 (UTC).
   shell degraded banner is suppressed on `/health` because S-19 owns the block.
 
 ### S-21 — Settings (US-004, US-012, R-015-5, C-19)
+
 - `src/web/settings/model.ts` + `src/web/render/settings.ts` — read-only table of
   provider, key presence + env-var name, qualification, idempotency and note;
   `N of M keys present. Absent: … Set it/them in .env and restart.`; explicit
@@ -55,6 +58,7 @@ Every command and capture below was run in this worktree on 2026-10-21 (UTC).
 - `src/web/app.ts` — `GET /settings` (503 when ops is absent/throwing).
 
 ### Styling and wiring
+
 - `src/web/styles/operations.css` — tokens only, no raw colour; export grid
   two-column ≥1024 and single below; provider grid 3 columns ≥1200, 2 at
   768–1199, 1 below; 44 px file rows and download targets, 36 px attempt rows;

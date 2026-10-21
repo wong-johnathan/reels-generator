@@ -12,15 +12,15 @@
 
 ## Result
 
-| Metric | Value |
-|---|---|
-| Scenes generated | **17 / 17**, 0 failures |
-| Wall-clock | 518.0 s total (30.5 s/scene including the rate-limit sleep) |
-| Per-call generation time | 15.6 s – 35.4 s (median ≈ 25 s) |
-| Off-model scenes | **0** |
-| Verifiable on face/design | 11 of 17 (6 are back views, wide shots or hands-only) |
-| Contradicting the reference | 0 of the 6 partially-verifiable scenes |
-| Text/lettering leaked | 1 minor: scene 07 (ticket) has tiny illegible printed marks; scene 03 (control panel) has label-like marks |
+| Metric                      | Value                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Scenes generated            | **17 / 17**, 0 failures                                                                                    |
+| Wall-clock                  | 518.0 s total (30.5 s/scene including the rate-limit sleep)                                                |
+| Per-call generation time    | 15.6 s – 35.4 s (median ≈ 25 s)                                                                            |
+| Off-model scenes            | **0**                                                                                                      |
+| Verifiable on face/design   | 11 of 17 (6 are back views, wide shots or hands-only)                                                      |
+| Contradicting the reference | 0 of the 6 partially-verifiable scenes                                                                     |
+| Text/lettering leaked       | 1 minor: scene 07 (ticket) has tiny illegible printed marks; scene 03 (control panel) has label-like marks |
 
 **First-pass judgement (vision inspection of `drift-contact-sheet.png`):** the protagonist is recognisably the same character in every frame. Hair (dark brown low bun), round thin glasses, olive utility jacket with epaulets and collar, and dark trousers hold across all 17. The scar is legible in the close and medium front shots and simply not resolvable in wide, back or profile shots.
 

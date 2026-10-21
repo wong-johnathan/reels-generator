@@ -62,5 +62,7 @@ const outcome = await runProviderAttempt(
   },
 );
 
-process.stdout.write(`OUTCOME ${JSON.stringify({ status: outcome.status, charge: outcome.charge })}\n`);
+process.stdout.write(
+  `OUTCOME ${JSON.stringify({ status: outcome.status, charge: outcome.charge })}\n`,
+);
 await pool.end();

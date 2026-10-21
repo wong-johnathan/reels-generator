@@ -34,22 +34,22 @@ the server render carries the C-10 reason in `aria-describedby`.
 
 ## Acceptance mapping
 
-| Criterion | Where | Result |
-|---|---|---|
-| R-005-2 mandatory script approval before any image/TTS call | `approvalView` (`src/web/script/model.ts`), `tests/web/script-model.test.ts` (5 tests), `tests/web/script-page.test.ts` (gate + `aria-describedby` + hidden control) | PASS |
-| R-006-1 show expected invalidation before regeneration | `src/web/script/impact.ts`, `tests/web/script-impact.test.ts` (11 tests), `tests/web/script-client.test.ts` (preview + two commits) | PASS |
-| R-006-2 exact matrix wording, conditional reframe, C-01/C-05/C-07 | `readyImpact`: stale rows, survives, calls, `conditional`, `blockers`, `C07_FAILED`; impact tests (ready, blockers, pending/reframable/not_reframable, failed) | PASS |
-| R-003-2 8-gram result operator-visible, reference text never echoed | `eightGramView`; model tests assert FAIL wording and that a reference body after `:` is dropped | PASS |
-| R-027-3 / C-10 citation block with the exact counts | `approvalView` C-10 sentence, `claimsView` statuses (`sourced`, `unsourced`, `url_unreachable`, `acknowledged_unsourced`, `non_factual`); model + page tests | PASS |
-| C-09 unlock sentence before the commit | `approvalView.unlockLine` (`17 image calls and 1 TTS call`), page test | PASS |
-| C-11 word budget vs 228 / 216–239 | `wordBudgetView`: `228 words → 75.1 s @ 3.035 w/s`, `band 216–239 words (71.2–78.7 s)`, warning copy out of band; `within_band` is read, never recomputed | PASS |
-| AX-02 focus order status → budget → editor → claims → approval → impact | DOM order asserted in `script-page.test.ts`; CSS grid places the impact column visually right at ≥1101 px and below at ≤1100 px | PASS |
-| AX-04 spend action second, never default focus, disabled until preview rendered | `impact.ts` `canApply`/`canRegenerate`; client tests; `script-styles.test.ts` 44 px stacked commits | PASS |
-| AX-11 disabled reason is visible text wired by `aria-describedby` | page test for the blocked draft (`aria-describedby="script-approve-reason"`) | PASS |
-| UC-05/IP-01 persistence: the panel collapses to the rail ribbon after commit | client test "paints the stale rail and ribbon" (SB/NA/TC/RE `data-state="stale"`, ribbon revealed) and Chromium `evidence/f05/after-apply-1280.png` | PASS |
-| W-05 measurements: 40 px status and budget bars, 68ch editor, 56 px claim rows, 56 px approval block, 360 px sticky impact column | `src/web/styles/workspace.css` + `tests/web/script-styles.test.ts` (7 tests) | PASS |
-| States: no script, drafting, schema failure, 8-gram hit, out-of-band, blocked citations, approved, 409 | `renderScriptReview` (empty / drafting / schema failure), model+page tests, `initScriptReview` conflict banner test | PASS (409 "Compare" deferred — see gaps) |
-| Responsive: no horizontal scroll at 390 px, impact stacked | Chromium 1280 and 390 (`evidence/f05/*.png`); `scrollWidth == innerWidth` at both | PASS |
+| Criterion                                                                                                                         | Where                                                                                                                                                                | Result                                   |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| R-005-2 mandatory script approval before any image/TTS call                                                                       | `approvalView` (`src/web/script/model.ts`), `tests/web/script-model.test.ts` (5 tests), `tests/web/script-page.test.ts` (gate + `aria-describedby` + hidden control) | PASS                                     |
+| R-006-1 show expected invalidation before regeneration                                                                            | `src/web/script/impact.ts`, `tests/web/script-impact.test.ts` (11 tests), `tests/web/script-client.test.ts` (preview + two commits)                                  | PASS                                     |
+| R-006-2 exact matrix wording, conditional reframe, C-01/C-05/C-07                                                                 | `readyImpact`: stale rows, survives, calls, `conditional`, `blockers`, `C07_FAILED`; impact tests (ready, blockers, pending/reframable/not_reframable, failed)       | PASS                                     |
+| R-003-2 8-gram result operator-visible, reference text never echoed                                                               | `eightGramView`; model tests assert FAIL wording and that a reference body after `:` is dropped                                                                      | PASS                                     |
+| R-027-3 / C-10 citation block with the exact counts                                                                               | `approvalView` C-10 sentence, `claimsView` statuses (`sourced`, `unsourced`, `url_unreachable`, `acknowledged_unsourced`, `non_factual`); model + page tests         | PASS                                     |
+| C-09 unlock sentence before the commit                                                                                            | `approvalView.unlockLine` (`17 image calls and 1 TTS call`), page test                                                                                               | PASS                                     |
+| C-11 word budget vs 228 / 216–239                                                                                                 | `wordBudgetView`: `228 words → 75.1 s @ 3.035 w/s`, `band 216–239 words (71.2–78.7 s)`, warning copy out of band; `within_band` is read, never recomputed            | PASS                                     |
+| AX-02 focus order status → budget → editor → claims → approval → impact                                                           | DOM order asserted in `script-page.test.ts`; CSS grid places the impact column visually right at ≥1101 px and below at ≤1100 px                                      | PASS                                     |
+| AX-04 spend action second, never default focus, disabled until preview rendered                                                   | `impact.ts` `canApply`/`canRegenerate`; client tests; `script-styles.test.ts` 44 px stacked commits                                                                  | PASS                                     |
+| AX-11 disabled reason is visible text wired by `aria-describedby`                                                                 | page test for the blocked draft (`aria-describedby="script-approve-reason"`)                                                                                         | PASS                                     |
+| UC-05/IP-01 persistence: the panel collapses to the rail ribbon after commit                                                      | client test "paints the stale rail and ribbon" (SB/NA/TC/RE `data-state="stale"`, ribbon revealed) and Chromium `evidence/f05/after-apply-1280.png`                  | PASS                                     |
+| W-05 measurements: 40 px status and budget bars, 68ch editor, 56 px claim rows, 56 px approval block, 360 px sticky impact column | `src/web/styles/workspace.css` + `tests/web/script-styles.test.ts` (7 tests)                                                                                         | PASS                                     |
+| States: no script, drafting, schema failure, 8-gram hit, out-of-band, blocked citations, approved, 409                            | `renderScriptReview` (empty / drafting / schema failure), model+page tests, `initScriptReview` conflict banner test                                                  | PASS (409 "Compare" deferred — see gaps) |
+| Responsive: no horizontal scroll at 390 px, impact stacked                                                                        | Chromium 1280 and 390 (`evidence/f05/*.png`); `scrollWidth == innerWidth` at both                                                                                    | PASS                                     |
 
 ## Tests run (real output)
 
@@ -82,7 +82,7 @@ stubbed `fetch` (bundled with esbuild): one preview POST, then `POST …/script`
 ## Decisions and contract gaps (for INT-01 / QA)
 
 1. **Regeneration endpoint.** The contract has no "regenerate stale stages" route. The second
-   commit saves the revision and then calls `retry.run` at the *first* stage the server reported
+   commit saves the revision and then calls `retry.run` at the _first_ stage the server reported
    invalidated (`POST /api/videos/:id/stages/:stage/retry {confirm_scope:true}`), which the
    contract summaries as retrying a "failed/stale stage with its computed scope". If B-03 exposes
    a dedicated re-run route, swap it in `ScriptApi.save`'s caller only.
@@ -103,7 +103,7 @@ stubbed `fetch` (bundled with esbuild): one preview POST, then `POST …/script`
    failure panel names both as `—` and says so rather than inventing them.
 7. **After a committed revision** the client reloads the page (800 ms after the announcement):
    word count, claims and the 8-gram result are server-decided and must not be re-derived in the
-   browser. The rail is repainted from `video.get` *before* the reload, which is what the
+   browser. The rail is repainted from `video.get` _before_ the reload, which is what the
    Chromium evidence captures.
 8. **Stale ribbon ownership.** F-04 built the rail ribbon; F-05 supplies the post-commit repaint
    path by extracting `src/web/workspace/railDom.ts` and calling it from both enhancers, so SSE

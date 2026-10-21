@@ -29,7 +29,13 @@ import { renderNotFoundPage } from './render/notFound.js';
 import { renderOverview } from './render/overview.js';
 import { renderSeriesEditor } from './render/seriesEditor.js';
 import { renderSeriesList } from './render/seriesList.js';
-import { buildShellModel, degradedNotices, renderShell, type BreadcrumbItem, type NavKey } from './render/shell.js';
+import {
+  buildShellModel,
+  degradedNotices,
+  renderShell,
+  type BreadcrumbItem,
+  type NavKey,
+} from './render/shell.js';
 import { renderWorkspace } from './render/workspace.js';
 import { renderScriptReview, SCRIPT_REVIEW_SCRIPTS } from './render/scriptReview.js';
 import { renderSceneDetail } from './render/sceneDetail.js';
@@ -556,7 +562,8 @@ export function createWebApp(
     ) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
-    const isCommit = isRelease || isApprove || isReplace || isAudioCommit || isRenderCommit || isExportBuild;
+    const isCommit =
+      isRelease || isApprove || isReplace || isAudioCommit || isRenderCommit || isExportBuild;
     if (input.method !== 'GET' && !isCommit) return methodNotAllowed('GET, HEAD');
 
     let detail: VideoDetail;

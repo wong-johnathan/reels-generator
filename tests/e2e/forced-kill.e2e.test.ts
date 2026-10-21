@@ -169,7 +169,9 @@ describe.skipIf(!hasDatabase)('QA e2e #1 — forced kill mid-call (US-013, R-012
   async function seedImageJob(pool: Pool): Promise<string> {
     seeded = await seedProject(pool);
     // seedProject adds a running "T" job; cancel it so the scan sees only this test's job.
-    await pool.query(`UPDATE job SET status = 'cancelled' WHERE project_id = $1`, [seeded.projectId]);
+    await pool.query(`UPDATE job SET status = 'cancelled' WHERE project_id = $1`, [
+      seeded.projectId,
+    ]);
     const job = await pool.query<{ id: string }>(
       `INSERT INTO job (project_id, stage, status) VALUES ($1, 'IM', 'queued') RETURNING id`,
       [seeded.projectId],

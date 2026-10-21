@@ -12,17 +12,20 @@ fdf3480 F-07, d8f9804 F-08, b5cde71 F-09, 250973a (ignore `.worktrees/`), and th
 ## Resolutions
 
 ### 1. B-05 research adapter — src/adapters/rate-limit.ts, rate-limit.test.ts
+
 Sides: B-12 (HEAD) vs B-05.
 Resolution: kept HEAD (B-12). Rationale: B-12 is the later, already-integrated backend
 base; the rate-limit surface is identical in shape and B-05 adds no new behaviour there.
 
 ### 2. B-14 series CRUD — package.json, package-lock.json
+
 Sides: B-12/B-14 dependency sets.
 Resolution: unified union. deps: bullmq, hash-wasm, ioredis, pg, zod; devDeps:
 @eslint/js, @types/node, @types/pg, eslint, prettier, tsx, typescript,
 typescript-eslint, vitest, yaml. Lock regenerated/resolved to valid JSON.
 
 ### 3. B-15 per-scene replace — src/db/repositories/assets.ts
+
 Sides: HEAD exports vs B-15 tail (`B-15 — per-scene replace (US-020, RULINGS L-2)`).
 Resolution: kept HEAD file up to the B-15 marker, appended the B-15 tail (the one
 path that may move an asset + the replace query). No textual conflict survived.
@@ -30,13 +33,16 @@ path that may move an asset + the replace query). No textual conflict survived.
 ### 4. F-05 script review — no conflict (clean merge onto F-04).
 
 ### 5. F-06 storyboard review + scene grid — src/web/app.ts, authPreview.ts, embedded.ts, workspace.css
+
 Sides: F-05 (script) vs F-06 (scenes), both off F-04.
 Resolution: F-06 taken as base (`--theirs`), then F-05's script-review handling
 re-applied on top (client module `script-review` + shared `script/impact.js`,
 `script/model.js`, `workspace/railDom.js`). workspace.css combined (F-05 append
-+ F-06 mid-file hunk), `embedded.ts` regenerated from sources.
+
+- F-06 mid-file hunk), `embedded.ts` regenerated from sources.
 
 ### 6. F-07 narration + timing tab — src/web/app.ts, authPreview.ts
+
 Sides: F-05+F-06 (HEAD) vs F-07 (narration), both off F-04.
 Resolution: kept HEAD's method-aware videoRoutes, added F-07's narration pieces:
 `narration?: NarrationGateway`, `/assets/narration/` shared root, `isAudioCommit`
@@ -45,6 +51,7 @@ limit (>3) discarded in favour of HEAD's (>4), which already accommodates the
 3-segment audio route.
 
 ### 7. F-08 render + QC panel — app.ts, authPreview.ts, embed.ts, embedded.ts, embedded.test.ts, generate-embedded-css.ts
+
 Sides: F-05..F-07 (HEAD) vs F-08 (render/QC).
 Resolution: kept HEAD, added F-08's `render?: RenderGateway`, `isRenderCommit`
 (POST render/approve), render tab, `bodyBytes?: Uint8Array` on WebResponse.
@@ -54,6 +61,7 @@ via `bodyBytes`. Kept BOTH — the server writes `bodyBytes` when present, and
 special-cases `audio/*` content-type through `Buffer.from(body, 'latin1')`.
 
 ### 8. F-09 export package + health/settings — app.ts, authPreview.ts, render/workspace.ts, embed.ts, embedded.ts, embedded.test.ts, generate-embedded-css.ts
+
 Sides: F-05..F-08 (HEAD) vs F-09 (ops/export/settings), F-09 off F-04.
 Resolution: kept HEAD, added F-09's `exportPackage?`/`ops?` gates, top-level
 `/health` + `/settings` routes, export tab + POST build, health/settings pages,

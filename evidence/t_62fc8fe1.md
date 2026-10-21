@@ -36,6 +36,7 @@ page still renders, the player still plays and the forms still post.
 ## Files
 
 New:
+
 - `src/web/narration/model.ts` — view model (state, band, tolerance, words, accept/re-run affordances)
 - `src/web/narration/gateway.ts` — `audio.get` / `audio.rerun` / `audio.accept` + in-memory twin
 - `src/web/narration/notice.ts` — `?notice=` token → notice copy
@@ -45,6 +46,7 @@ New:
 - `tests/web/narration-model.test.ts`, `narration-page.test.ts`, `narration-client.test.ts`, `narration-styles.test.ts`, `app-narration.test.ts`
 
 Modified:
+
 - `src/web/app.ts` — audio routes, POST commits, CSP `media-src`, scripts, tab guard
 - `src/web/render/workspace.ts` — `renderWorkspace(detail, tab, options)` seam for a prebuilt panel
 - `src/web/authPreview.ts` — S-14 demo gateway + session-guarded, range-capable silent WAV at the fixture asset URL
@@ -84,15 +86,15 @@ prettier --check        clean (touched files)
 
 Browser checks against `authPreview` (desktop 1280, review-lite 900, phone 390):
 
-| Check | Result |
-| --- | --- |
-| Panel renders take with band + provenance | yes — screenshot `narration-1280.png` |
-| `<audio>` duration from real bytes | 75.1 s, `readyState 4` |
-| Play via native control | `currentTime` advances, no autoplay before the click |
-| Word highlight follows playback | last started word stays active between words (`aria-current` set) |
-| Click a word row | seeks (`0.22 s`), highlight + transport readout move (`00:00.2`) |
-| Re-run disclosure | scope + reason field + 44 px confirm, screenshot `narration-1280-rerun.png` |
-| Re-run POST | redirects to `?notice=rerun-queued`, page flips to `running` with "Already running" guard — `narration-1280-running.png` |
-| 900 px | single column, accept visible (spec: approvals available at 768–1023) |
-| 390 px | single column, no horizontal scroll, accept/re-run absent, "Approvals need a screen 1024 px or wider" line shown — `narration-390.png`, `narration-390-note.png` |
-| A11y | `role="status"` notices, table caption, `scope="col"`, audio label, disabled controls keep their reason text |
+| Check                                     | Result                                                                                                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Panel renders take with band + provenance | yes — screenshot `narration-1280.png`                                                                                                                            |
+| `<audio>` duration from real bytes        | 75.1 s, `readyState 4`                                                                                                                                           |
+| Play via native control                   | `currentTime` advances, no autoplay before the click                                                                                                             |
+| Word highlight follows playback           | last started word stays active between words (`aria-current` set)                                                                                                |
+| Click a word row                          | seeks (`0.22 s`), highlight + transport readout move (`00:00.2`)                                                                                                 |
+| Re-run disclosure                         | scope + reason field + 44 px confirm, screenshot `narration-1280-rerun.png`                                                                                      |
+| Re-run POST                               | redirects to `?notice=rerun-queued`, page flips to `running` with "Already running" guard — `narration-1280-running.png`                                         |
+| 900 px                                    | single column, accept visible (spec: approvals available at 768–1023)                                                                                            |
+| 390 px                                    | single column, no horizontal scroll, accept/re-run absent, "Approvals need a screen 1024 px or wider" line shown — `narration-390.png`, `narration-390-note.png` |
+| A11y                                      | `role="status"` notices, table caption, `scope="col"`, audio label, disabled controls keep their reason text                                                     |

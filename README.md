@@ -19,27 +19,27 @@ topic → research → script → storyboard → images → narration → timing
 ```
 
 - **Approval gates.** Script approval is mandatory before any image or TTS call. Final approval is mandatory before export. Rejecting a gate rewinds to the named stage without firing billable calls downstream.
-- **Staleness, not silence.** Editing anything shows, *before* you commit, exactly what goes stale and what a regeneration would cost in calls (`image calls: 0 · TTS calls: 1 · render passes: 1`). Completed assets survive every edit they don't invalidate.
+- **Staleness, not silence.** Editing anything shows, _before_ you commit, exactly what goes stale and what a regeneration would cost in calls (`image calls: 0 · TTS calls: 1 · render passes: 1`). Completed assets survive every edit they don't invalidate.
 - **Per-stage pins.** A series can be edited mid-project. Each stage records the series version it ran under, so a mid-batch edit never retroactively changes already-generated media.
 - **Batches of up to 30.** Each video is independently reviewable, independently retryable and independently failable. Retrying a failed video re-runs only its uncompleted stages and re-bills nothing already done.
-- **Crash safety.** A provider attempt row is committed *before* the socket opens. After a hard kill mid-call the reconciler marks the attempt `unknown_charge` and refuses to reissue it — deliberately preferring one manual operator action over a possible double charge, because none of the providers offer idempotency keys.
+- **Crash safety.** A provider attempt row is committed _before_ the socket opens. After a hard kill mid-call the reconciler marks the attempt `unknown_charge` and refuses to reissue it — deliberately preferring one manual operator action over a possible double charge, because none of the providers offer idempotency keys.
 - **Export.** A ZIP per batch with the MP4s, `.srt`/`.vtt` captions derived from word timings, `manifest.csv`, and a source manifest for factual-mode claims.
 
 Doubles as a design-document repo: the full PRD, architecture, UX/UI specs, build plan and QA report live at the root — see [Docs](#docs).
 
 ## Stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Runtime | Node.js 20 / TypeScript | matches the operator's stack; one language across web and workers |
-| API + UI | `node:http` server, server-rendered HTML | LAN tool, no SPA build step, no client state to keep in sync; only 5 runtime dependencies |
-| Data | PostgreSQL (+ `pgvector` for topic dedupe), Redis (BullMQ), MinIO | one durable store, one queue, one object store — all in Compose |
-| Text & research | DeepSeek chat + `/v1/tools/search`, `/v1/tools/fetch` | cheap reasoning, native search with rerank scores |
-| Images | `gemini-nano-banana-2.1` (9:16, 1K) | holds a character across scenes via reference images |
-| Voice | ElevenLabs `convert-with-timestamps` | character-level alignment, grouped into word timings locally |
-| Dedupe embeddings | bundled CPU-only ONNX MiniLM | no fourth API key, no GPU, no per-call cost |
-| Render | FFmpeg, baked into the worker image | free, deterministic, CPU-only |
-| Deploy | one `compose.yaml`, images built in CI and pulled by digest | the NAS never builds |
+| Layer             | Choice                                                            | Why                                                                                       |
+| ----------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Runtime           | Node.js 20 / TypeScript                                           | matches the operator's stack; one language across web and workers                         |
+| API + UI          | `node:http` server, server-rendered HTML                          | LAN tool, no SPA build step, no client state to keep in sync; only 5 runtime dependencies |
+| Data              | PostgreSQL (+ `pgvector` for topic dedupe), Redis (BullMQ), MinIO | one durable store, one queue, one object store — all in Compose                           |
+| Text & research   | DeepSeek chat + `/v1/tools/search`, `/v1/tools/fetch`             | cheap reasoning, native search with rerank scores                                         |
+| Images            | `gemini-nano-banana-2.1` (9:16, 1K)                               | holds a character across scenes via reference images                                      |
+| Voice             | ElevenLabs `convert-with-timestamps`                              | character-level alignment, grouped into word timings locally                              |
+| Dedupe embeddings | bundled CPU-only ONNX MiniLM                                      | no fourth API key, no GPU, no per-call cost                                               |
+| Render            | FFmpeg, baked into the worker image                               | free, deterministic, CPU-only                                                             |
+| Deploy            | one `compose.yaml`, images built in CI and pulled by digest       | the NAS never builds                                                                      |
 
 No GPU is used anywhere. Rendering is CPU-only and one render runs at a time by default.
 
@@ -47,10 +47,10 @@ No GPU is used anywhere. Rendering is CPU-only and one render runs at a time by 
 
 `int/t_58f603ef` is the integrated Milestone A branch. QA's verdict is **not release-ready**, on two specific grounds:
 
-| # | Open item | Why it's open |
-|---|---|---|
-| D1 | Render wall-time + peak RAM on the DS923+ | measured on a dev container (1K: 200.5 s / 1,066 MB; 2K: 206.3 s / 1,257 MB) — the acceptance criterion names the NAS |
-| D2 | 17-scene character-drift eyeball | **run: 17/17 generated, 0 off-model** — awaiting the operator's own confirmation of the contact sheet |
+| #   | Open item                                 | Why it's open                                                                                                         |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| D1  | Render wall-time + peak RAM on the DS923+ | measured on a dev container (1K: 200.5 s / 1,066 MB; 2K: 206.3 s / 1,257 MB) — the acceptance criterion names the NAS |
+| D2  | 17-scene character-drift eyeball          | **run: 17/17 generated, 0 off-model** — awaiting the operator's own confirmation of the contact sheet                 |
 
 Everything else in Milestone A is verified: lint, types, build, **1,614/1,614 tests on a real Postgres with 0 skips**, and a genuine forced-kill e2e (SIGKILL between provider call and asset write → exactly one billable request, attempt recorded `unknown_charge`).
 
@@ -125,17 +125,17 @@ npm test           # tests only; DB-dependent suites skip without TEST_DATABASE_
 
 ## Docs
 
-| File | What it is |
-|---|---|
-| [`PRD.md`](PRD.md) | 39 requirements (28 P0), numeric acceptance criteria, rev 2.4 |
-| [`TECH_DESIGN.md`](TECH_DESIGN.md) | services, 22 tables, state machine, adapter contracts, FFmpeg pipeline, deployment |
-| [`UX_SPEC.md`](UX_SPEC.md) | 21 screens, 14 interaction patterns, wireframes, accessibility requirements |
-| [`UI_SPEC.md`](UI_SPEC.md) | design system, components, 52 audited contrast pairs |
-| [`LEAD_PLAN.md`](LEAD_PLAN.md) | task breakdown, dependency order, session estimates |
-| [`QA_REPORT.md`](QA_REPORT.md) | independent verification, per-requirement verdicts, defects |
-| [`RULINGS.md`](RULINGS.md) | design and scope rulings with reasoning |
-| [`QUALIFICATION_RESULTS.md`](QUALIFICATION_RESULTS.md) | measured provider behaviour (timings, credits, precision) |
-| [`BACKLOG.md`](BACKLOG.md) | 38 user stories with traceability to requirements |
+| File                                                   | What it is                                                                         |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [`PRD.md`](PRD.md)                                     | 39 requirements (28 P0), numeric acceptance criteria, rev 2.4                      |
+| [`TECH_DESIGN.md`](TECH_DESIGN.md)                     | services, 22 tables, state machine, adapter contracts, FFmpeg pipeline, deployment |
+| [`UX_SPEC.md`](UX_SPEC.md)                             | 21 screens, 14 interaction patterns, wireframes, accessibility requirements        |
+| [`UI_SPEC.md`](UI_SPEC.md)                             | design system, components, 52 audited contrast pairs                               |
+| [`LEAD_PLAN.md`](LEAD_PLAN.md)                         | task breakdown, dependency order, session estimates                                |
+| [`QA_REPORT.md`](QA_REPORT.md)                         | independent verification, per-requirement verdicts, defects                        |
+| [`RULINGS.md`](RULINGS.md)                             | design and scope rulings with reasoning                                            |
+| [`QUALIFICATION_RESULTS.md`](QUALIFICATION_RESULTS.md) | measured provider behaviour (timings, credits, precision)                          |
+| [`BACKLOG.md`](BACKLOG.md)                             | 38 user stories with traceability to requirements                                  |
 
 `PRD_HASHES.md` is the single authoritative hash source for every artifact.
 
