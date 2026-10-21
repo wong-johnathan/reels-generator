@@ -21,6 +21,7 @@
 import { assertImageQualified } from '../adapters/image-qualification.js';
 import type { ImageGenerateResult } from '../adapters/image.js';
 import {
+  assetKeyContextFor,
   findOrphanedSceneImages,
   replaceSceneImage,
   type SceneImageReplacementResult,
@@ -43,7 +44,8 @@ import {
 } from '../domain/generation-run.js';
 import { computeInvalidation, ruleFor, type CallCounts } from './invalidation.js';
 import type { StageState, VideoState } from '../shared/index.js';
-import { objectKeyFor, sha256Hex } from '../storage/object-store.js';
+import { assetObjectKey, sceneImageName } from '../storage/object-key.js';
+import { sha256Hex } from '../storage/object-store.js';
 import {
   buildImageRequest,
   currentSeriesVersionId,
@@ -360,13 +362,20 @@ export async function runSceneReplace(
 
   let persisted: SceneImageReplacementResult;
   try {
-    await deps.blobs.put(objectKeyFor(contentSha256), result.image_bytes, result.mime_type);
+    const keyCtx = await assetKeyContextFor(deps.pool, job.projectId);
+    const objectKey = assetObjectKey({
+      seriesSlug: keyCtx.seriesSlug,
+      batchOrdinal: keyCtx.batchOrdinal,
+      name: sceneImageName(scene.scene_no),
+    });
+    await deps.blobs.put(objectKey, result.image_bytes, result.mime_type);
     persisted = await replaceSceneImage(deps.pool, {
       projectId: job.projectId,
       stage: 'IM',
       sceneId: scene.id,
       kind: 'image',
       contentSha256,
+      objectKey,
       objectSizeBytes: result.image_bytes.byteLength,
       mimeType: result.mime_type,
       width: result.width,

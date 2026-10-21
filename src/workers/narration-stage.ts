@@ -32,7 +32,12 @@ import {
   type TtsConvertResult,
 } from '../adapters/tts.js';
 import { withTransaction } from '../db/client.js';
-import { insertAsset, linkAssetToProject, type AssetRow } from '../db/repositories/assets.js';
+import {
+  assetKeyContextFor,
+  insertAsset,
+  linkAssetToProject,
+  type AssetRow,
+} from '../db/repositories/assets.js';
 import { recordPendingRunProviderRequestId } from '../db/repositories/generation-runs.js';
 import {
   applyStageEvent,
@@ -47,7 +52,12 @@ import {
   type WordTiming,
 } from '../domain/word-timing.js';
 import { runProviderAttempt, type AttemptOutcome, type AttemptResultRef } from './attempt.js';
-import { jsonBytes, objectKeyFor, sha256Hex, type AssetBlobStore } from './asset-store.js';
+import {
+  assetObjectKey,
+  NARRATION_ALIGNMENT_OBJECT_NAME,
+  NARRATION_OBJECT_NAME,
+} from '../storage/object-key.js';
+import { jsonBytes, sha256Hex, type AssetBlobStore } from './asset-store.js';
 
 /** The alignment sidecar's versioned schema (R-004's versioning rule, applied locally). */
 export const NARRATION_ALIGNMENT_SCHEMA_VERSION = 'narration-alignment.v1';
@@ -232,14 +242,23 @@ async function persistTake(
   });
   const timings = deriveWordTimings(converted.alignment, { script: request.text });
 
+  const keyCtx = await assetKeyContextFor(deps.pool, input.projectId);
   const audioSha = sha256Hex(converted.audio);
-  const audioKey = objectKeyFor(audioSha);
+  const audioKey = assetObjectKey({
+    seriesSlug: keyCtx.seriesSlug,
+    batchOrdinal: keyCtx.batchOrdinal,
+    name: NARRATION_OBJECT_NAME,
+  });
   const alignmentSha = sha256Hex(jsonBytes(document));
-  const alignmentKey = objectKeyFor(alignmentSha);
+  const alignmentKey = assetObjectKey({
+    seriesSlug: keyCtx.seriesSlug,
+    batchOrdinal: keyCtx.batchOrdinal,
+    name: NARRATION_ALIGNMENT_OBJECT_NAME,
+  });
 
   // Object first, row second: a crash between them leaves an unreferenced
-  // content-addressed blob (the §3.4 reconciliation reports it), never a row
-  // whose bytes are missing.
+  // object (the §3.4 reconciliation reports it), never a row whose bytes are
+  // missing.
   await deps.blobs.put(audioKey, converted.audio, 'audio/wav');
   await deps.blobs.put(alignmentKey, jsonBytes(document), 'application/json');
 
@@ -251,6 +270,7 @@ async function persistTake(
         sceneId: input.sceneId ?? null,
         kind: 'audio',
         contentSha256: audioSha,
+        objectKey: audioKey,
         objectSizeBytes: converted.audio.byteLength,
         mimeType: 'audio/wav',
         seriesVersionId: input.seriesVersionId ?? null,
@@ -269,6 +289,7 @@ async function persistTake(
       sceneId: input.sceneId ?? null,
       kind: 'sidecar',
       contentSha256: alignmentSha,
+      objectKey: alignmentKey,
       objectSizeBytes: jsonBytes(document).byteLength,
       mimeType: 'application/json',
       seriesVersionId: input.seriesVersionId ?? null,

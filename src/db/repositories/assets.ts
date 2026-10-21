@@ -16,7 +16,6 @@
  */
 import type { Pool } from 'pg';
 
-import { objectKeyFor } from '../../storage/object-store.js';
 import { withTransaction, type Queryable } from '../client.js';
 
 export type AssetStage = 'IM' | 'NA' | 'RE' | 'QC' | 'EX' | 'MUSIC' | 'POSTER' | 'DERIV' | 'REF';
@@ -58,6 +57,9 @@ export interface NewAssetProvenance {
   readonly sceneId?: string | null;
   readonly kind: AssetKind;
   readonly contentSha256: string;
+  /** The readable object key the bytes are stored under (D-F), e.g.
+   * `<series-slug>/batch-0001/scenes/S07.png`. Unique; the dedupe target. */
+  readonly objectKey: string;
   readonly objectSizeBytes?: number | null;
   readonly mimeType?: string | null;
   readonly width?: number | null;
@@ -80,14 +82,14 @@ export interface AssetUpsertResult {
   readonly created: boolean;
 }
 
-function insertParams(input: NewAssetProvenance, objectKey: string): unknown[] {
+function insertParams(input: NewAssetProvenance): unknown[] {
   return [
     input.projectId,
     input.stage,
     input.sceneId ?? null,
     input.kind,
     input.contentSha256,
-    objectKey,
+    input.objectKey,
     input.objectSizeBytes ?? null,
     input.mimeType ?? null,
     input.width ?? null,
@@ -108,14 +110,15 @@ function insertParams(input: NewAssetProvenance, objectKey: string): unknown[] {
 }
 
 /**
- * Insert the asset row, or return the row that already owns this content hash.
- * The object key is derived, never supplied: R-026-2 is a pure function.
+ * Insert the asset row, or return the row that already owns this object key.
+ * The key is supplied by the caller (readable path, D-F), never derived here:
+ * the same path is the conflict target, so a re-render or re-store under the
+ * same path resolves to the existing row.
  */
 export async function insertOrReuseAsset(
   db: Queryable,
   input: NewAssetProvenance,
 ): Promise<AssetUpsertResult> {
-  const objectKey = objectKeyFor(input.contentSha256);
   const inserted = await db.query<AssetRow>(
     'INSERT INTO asset (project_id, stage, scene_id, kind, content_sha256, object_key, ' +
       'object_size_bytes, mime_type, width, height, series_version_id, provider, model, seed, ' +
@@ -123,23 +126,25 @@ export async function insertOrReuseAsset(
       'retention_eligible_at) ' +
       'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, ' +
       '$17, $18, $19, $20) ' +
-      'ON CONFLICT (content_sha256) DO NOTHING ' +
+      'ON CONFLICT (object_key) DO NOTHING ' +
       'RETURNING ' +
       ASSET_COLUMNS,
-    insertParams(input, objectKey),
+    insertParams(input),
   );
   const created = inserted.rows[0];
   if (created !== undefined) return { asset: created, created: true };
 
+  // The conflict target is the object key, so the dedupe hit is looked up by
+  // key — exact, not "newest by hash", because the hash is no longer unique.
   const existing = await db.query<AssetRow>(
-    'SELECT ' + ASSET_COLUMNS + ' FROM asset WHERE content_sha256 = $1',
-    [input.contentSha256],
+    'SELECT ' + ASSET_COLUMNS + ' FROM asset WHERE object_key = $1',
+    [input.objectKey],
   );
   const row = existing.rows[0];
   if (row === undefined) {
     throw new Error(
-      'asset ' +
-        input.contentSha256 +
+      'asset at object key ' +
+        input.objectKey +
         ' conflicted but no row is visible: the transaction isolation level hides it',
     );
   }
@@ -254,6 +259,8 @@ export interface NewAsset {
   readonly sceneId?: string | null;
   readonly kind: AssetKind;
   readonly contentSha256: string;
+  /** The readable object key the bytes are stored under (D-F). Unique. */
+  readonly objectKey: string;
   readonly objectSizeBytes: number;
   readonly mimeType: string;
   readonly width?: number | null;
@@ -285,9 +292,9 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
        (project_id, stage, scene_id, kind, content_sha256, object_key, object_size_bytes,
         mime_type, width, height, series_version_id, provider, model, seed, provider_request_id,
         prompt_hash, prompt_text, rights_metadata, generation_run_id, retention_eligible_at)
-     VALUES ($1, $2, $3, $4, $5, 'sha256:' || $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
              $15, $16, $17::jsonb, $18, $19)
-     ON CONFLICT (content_sha256) DO NOTHING
+     ON CONFLICT (object_key) DO NOTHING
      RETURNING ${ASSET_COLUMNS}`,
     [
       input.projectId,
@@ -295,6 +302,7 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
       input.sceneId ?? null,
       input.kind,
       input.contentSha256,
+      input.objectKey,
       input.objectSizeBytes,
       input.mimeType,
       input.width ?? null,
@@ -314,13 +322,15 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
   const created = inserted.rows[0];
   if (created !== undefined) return { row: created, created: true };
 
+  // The conflict target is the object key, so the dedupe hit is looked up by
+  // key — exact, because the hash is no longer unique.
   const existing = await db.query<AssetRow>(
-    `SELECT ${ASSET_COLUMNS} FROM asset WHERE content_sha256 = $1`,
-    [input.contentSha256],
+    `SELECT ${ASSET_COLUMNS} FROM asset WHERE object_key = $1`,
+    [input.objectKey],
   );
   const row = existing.rows[0];
   if (row === undefined) {
-    throw new Error(`asset ${input.contentSha256} was neither inserted nor found (R-026 dedupe)`);
+    throw new Error(`asset at object key ${input.objectKey} was neither inserted nor found`);
   }
   return { row, created: false };
 }
@@ -328,6 +338,34 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
 export async function findAssetById(db: Queryable, id: string): Promise<AssetRow | null> {
   const result = await db.query<AssetRow>(`SELECT ${ASSET_COLUMNS} FROM asset WHERE id = $1`, [id]);
   return result.rows[0] ?? null;
+}
+
+/**
+ * The readable-path half of an asset key for one project: its series slug and
+ * its batch's stored ordinal. Every asset writer resolves these once and passes
+ * the derived object key into `insertAsset`/`insertOrReuseAsset` — the key is
+ * never derived from the bytes, so the folder is stable even if the batch is
+ * re-numbered elsewhere.
+ */
+export async function assetKeyContextFor(
+  db: Queryable,
+  projectId: string,
+): Promise<{ readonly seriesSlug: string; readonly batchOrdinal: number }> {
+  const result = await db.query<{ slug: string; ordinal: number }>(
+    `SELECT s.slug, b.ordinal
+       FROM project p
+       JOIN series s ON s.id = p.series_id
+       JOIN batch b ON b.id = p.batch_id
+      WHERE p.id = $1`,
+    [projectId],
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(
+      `project ${projectId} has no series/batch, so its assets cannot be given a readable key`,
+    );
+  }
+  return { seriesSlug: row.slug, batchOrdinal: Number(row.ordinal) };
 }
 
 /**

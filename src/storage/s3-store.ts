@@ -10,11 +10,11 @@
  * bucket name is a path segment (`http://minio:9000/<bucket>/<key>`), not a
  * virtual-host prefix.
  *
- * The object key is enforced exactly as the in-memory store enforces it: a
- * caller that hashes one thing and stores another fails with
- * `ObjectKeyMismatchError` rather than writing an object nothing can reach.
- * `get()` maps an S3 404 to `null` (the port's "absent" contract) and lets any
- * other error propagate, so a network failure is never mistaken for absence.
+ * Object keys are readable paths (deviation D-F), so `put()` does not derive or
+ * verify the key against the bytes — a re-render may write different bytes under
+ * the same path, and the S3 object is simply overwritten. `get()` maps an S3
+ * 404 to `null` (the port's "absent" contract) and lets any other error
+ * propagate, so a network failure is never mistaken for absence.
  */
 import {
   CreateBucketCommand,
@@ -26,9 +26,6 @@ import {
 } from '@aws-sdk/client-s3';
 
 import {
-  objectKeyFor,
-  sha256Hex,
-  ObjectKeyMismatchError,
   type ContentAddressedStore,
   type ObjectBucketStore,
   type PutResult,
@@ -112,7 +109,7 @@ function isS3NotFound(error: unknown): boolean {
   );
 }
 
-/** Content-addressed blobs in an S3/MinIO bucket (`sha256:<64 hex>` keys). */
+/** Blobs in an S3/MinIO bucket, addressed by readable path (D-F). */
 export class S3ContentAddressedStore implements ContentAddressedStore {
   constructor(
     private readonly client: S3Client,
@@ -120,10 +117,7 @@ export class S3ContentAddressedStore implements ContentAddressedStore {
   ) {}
 
   async put(objectKey: string, bytes: Uint8Array, mimeType: string): Promise<PutResult> {
-    const expected = objectKeyFor(sha256Hex(bytes));
-    if (expected !== objectKey) throw new ObjectKeyMismatchError(objectKey, expected);
-    // R-026: same key ⇒ same bytes, so an existing object is a dedupe hit.
-    if (await this.has(objectKey)) return { created: false };
+    const had = await this.has(objectKey);
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -132,7 +126,7 @@ export class S3ContentAddressedStore implements ContentAddressedStore {
         ContentType: mimeType,
       }),
     );
-    return { created: true };
+    return { created: !had };
   }
 
   async get(objectKey: string): Promise<StoredObject | null> {

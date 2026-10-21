@@ -8,7 +8,7 @@ import {
 } from '../../../tests/helpers/pg.js';
 import { insertAsset, seedProject, sha256For } from '../../../tests/helpers/web-gateway-seed.js';
 import { runMigrations } from '../../db/runner.js';
-import { InMemoryContentAddressedStore, objectKeyFor } from '../../storage/object-store.js';
+import { InMemoryContentAddressedStore } from '../../storage/object-store.js';
 import { createPostgresDownloadGateway, downloadFilename } from './postgres.js';
 
 const hasDatabase = testDatabaseUrl() !== null;
@@ -65,7 +65,7 @@ describe.skipIf(!hasDatabase)(
       });
 
       const blobs = new InMemoryContentAddressedStore();
-      await blobs.put(objectKeyFor(contentSha256), bytes, 'video/mp4');
+      await blobs.put('sha256:' + contentSha256, bytes, 'video/mp4');
       const gateway = createPostgresDownloadGateway(db.pool, blobs);
 
       const file = await gateway.download(projectId);
@@ -92,7 +92,7 @@ describe.skipIf(!hasDatabase)(
       });
 
       const blobs = new InMemoryContentAddressedStore();
-      await blobs.put(objectKeyFor(contentSha256), bytes, 'video/mp4');
+      await blobs.put('sha256:' + contentSha256, bytes, 'video/mp4');
       const gateway = createPostgresDownloadGateway(db.pool, blobs);
 
       const file = await gateway.download(projectId);

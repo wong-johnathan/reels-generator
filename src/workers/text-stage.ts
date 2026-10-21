@@ -36,7 +36,12 @@ import {
   beginStage,
   setProjectCurrentStage,
 } from '../db/repositories/stage-state.js';
-import { jsonBytes, objectKeyFor, sha256Hex, type AssetBlobStore } from './asset-store.js';
+import {
+  assetObjectKey,
+  SCRIPT_OBJECT_NAME,
+  STORYBOARD_OBJECT_NAME,
+} from '../storage/object-key.js';
+import { jsonBytes, sha256Hex, type AssetBlobStore } from './asset-store.js';
 import { runProviderAttempt, type AttemptOutcome } from './attempt.js';
 
 /** The sidecar document that carries the storyboard's word ranges to TC. */
@@ -81,6 +86,8 @@ export type TextStageResult =
 interface SeriesContext {
   readonly seriesId: string;
   readonly seriesVersionId: string;
+  readonly seriesSlug: string;
+  readonly batchOrdinal: number;
   readonly niche: unknown;
   readonly mode: string;
   readonly targetDurationS: number;
@@ -93,11 +100,14 @@ async function loadSeriesContext(pool: Pool, projectId: string): Promise<SeriesC
     mode: string;
     series_version_id: string;
     snapshot: unknown;
+    slug: string;
+    ordinal: number;
   }>(
-    `SELECT p.series_id, s.niche, s.mode, v.id AS series_version_id, v.snapshot
+    `SELECT p.series_id, s.niche, s.mode, v.id AS series_version_id, v.snapshot, s.slug, b.ordinal
        FROM project p
        JOIN series s ON s.id = p.series_id
        JOIN series_version v ON v.id = s.current_version_id
+       JOIN batch b ON b.id = p.batch_id
       WHERE p.id = $1`,
     [projectId],
   );
@@ -107,6 +117,8 @@ async function loadSeriesContext(pool: Pool, projectId: string): Promise<SeriesC
   return {
     seriesId: row.series_id,
     seriesVersionId: row.series_version_id,
+    seriesSlug: row.slug,
+    batchOrdinal: Number(row.ordinal),
     niche: row.niche,
     mode: row.mode,
     targetDurationS:
@@ -224,20 +236,55 @@ async function persistTopic(
 }
 
 async function persistScript(
-  pool: Pool,
-  projectId: string,
+  deps: TextStageDeps,
+  job: TextStageJob,
+  context: SeriesContext,
   content: ScriptDocument,
+  ref: { runId: string },
 ): Promise<void> {
   const wordCount = spokenNarration(content)
     .split(/\s+/)
     .filter((word) => word.length > 0).length;
-  await pool.query(
+  await deps.pool.query(
     `INSERT INTO script_revision
        (project_id, revision, content, schema_version, word_count, status, approved_at)
      VALUES ($1, 1, $2::jsonb, $3, $4, 'approved', now())
      ON CONFLICT (project_id, revision) DO NOTHING`,
-    [projectId, JSON.stringify(content), TEXT_SCHEMAS.script.version, wordCount],
+    [job.projectId, JSON.stringify(content), TEXT_SCHEMAS.script.version, wordCount],
   );
+
+  // The script is also written as a browsable `script.json` sidecar (D-F), so
+  // the operator can read the draft straight from the bucket.
+  const bytes = jsonBytes(content);
+  const sha = sha256Hex(bytes);
+  const key = assetObjectKey({
+    seriesSlug: context.seriesSlug,
+    batchOrdinal: context.batchOrdinal,
+    name: SCRIPT_OBJECT_NAME,
+  });
+  await deps.blobs.put(key, bytes, 'application/json');
+
+  await withTransaction(deps.pool, async (client) => {
+    const inserted = await insertAsset(client, {
+      projectId: job.projectId,
+      stage: 'NA', // borrowed asset stage: there is no SC asset column (frozen schema)
+      kind: 'sidecar',
+      contentSha256: sha,
+      objectKey: key,
+      objectSizeBytes: bytes.byteLength,
+      mimeType: 'application/json',
+      seriesVersionId: context.seriesVersionId,
+      provider: deps.text.provider,
+      model: deps.text.model,
+      rightsMetadata: { stage: 'SC', role: 'script' },
+      generationRunId: ref.runId,
+    });
+    await linkAssetToProject(client, {
+      assetId: inserted.row.id,
+      projectId: job.projectId,
+      role: 'script',
+    });
+  });
 }
 
 async function persistStoryboard(
@@ -292,7 +339,11 @@ async function persistStoryboard(
 
   const bytes = jsonBytes(document);
   const sha = sha256Hex(bytes);
-  const key = objectKeyFor(sha);
+  const key = assetObjectKey({
+    seriesSlug: context.seriesSlug,
+    batchOrdinal: context.batchOrdinal,
+    name: STORYBOARD_OBJECT_NAME,
+  });
   await deps.blobs.put(key, bytes, 'application/json');
 
   await withTransaction(deps.pool, async (client) => {
@@ -301,6 +352,7 @@ async function persistStoryboard(
       stage: 'NA', // borrowed asset stage: there is no SB asset column (frozen schema)
       kind: 'sidecar',
       contentSha256: sha,
+      objectKey: key,
       objectSizeBytes: bytes.byteLength,
       mimeType: 'application/json',
       seriesVersionId: context.seriesVersionId,
@@ -378,7 +430,7 @@ export async function runTextStage(
         if (stage === 'T') {
           await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));
         } else if (stage === 'SC') {
-          await persistScript(deps.pool, job.projectId, TEXT_SCHEMAS.script.schema.parse(document));
+          await persistScript(deps, job, context, TEXT_SCHEMAS.script.schema.parse(document), ref);
         } else {
           await persistStoryboard(
             deps,

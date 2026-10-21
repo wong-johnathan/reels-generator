@@ -29,6 +29,7 @@ import { z } from 'zod';
 
 import { withTransaction } from '../db/client.js';
 import {
+  assetKeyContextFor,
   findAssetById,
   insertOrReuseAsset,
   linkAssetToProject,
@@ -44,7 +45,16 @@ import {
 } from '../db/repositories/stage-state.js';
 import { applyProjectStatusTransition } from '../db/repositories/video-stages.js';
 import type { StageState } from '../shared/index.js';
-import { objectKeyFor, sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
+import {
+  assetObjectKey,
+  CAPTIONS_ASS_OBJECT_NAME,
+  CAPTIONS_SRT_OBJECT_NAME,
+  CAPTIONS_VTT_OBJECT_NAME,
+  RENDER_BENCHMARK_OBJECT_NAME,
+  RENDER_MANIFEST_OBJECT_NAME,
+  VIDEO_OBJECT_NAME,
+} from '../storage/object-key.js';
+import { sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
 import { buildRenderBenchmark } from './benchmark.js';
 import { buildCaptionDocuments } from './captions.js';
 import type { FfmpegRunner } from './ffmpeg.js';
@@ -359,6 +369,7 @@ async function storeAsset(
     kind: 'video' | 'caption' | 'sidecar';
     bytes: Uint8Array;
     mime: string;
+    objectKey: string;
     seriesVersionId: string | null;
     width?: number | null;
     height?: number | null;
@@ -367,7 +378,7 @@ async function storeAsset(
   },
 ): Promise<StoredFile> {
   const contentSha256 = sha256Hex(input.bytes);
-  const put = await blobs.put(objectKeyFor(contentSha256), input.bytes, input.mime);
+  const put = await blobs.put(input.objectKey, input.bytes, input.mime);
   void put;
   const stored = await withTransaction(pool, async (client) => {
     const inserted = await insertOrReuseAsset(client, {
@@ -375,6 +386,7 @@ async function storeAsset(
       stage: input.stage,
       kind: input.kind,
       contentSha256,
+      objectKey: input.objectKey,
       objectSizeBytes: input.bytes.byteLength,
       mimeType: input.mime,
       width: input.width ?? null,
@@ -433,6 +445,9 @@ export async function runRenderStage(
   try {
     const inputs = await loadRenderInputs(deps.pool, deps.blobs, job.projectId);
     const plan = planFromPersisted(inputs);
+    const keyCtx = await assetKeyContextFor(deps.pool, job.projectId);
+    const key = (name: string): string =>
+      assetObjectKey({ seriesSlug: keyCtx.seriesSlug, batchOrdinal: keyCtx.batchOrdinal, name });
 
     for (const scene of plan.scenes) {
       const stored = inputs.sceneBytes.get(scene.sceneNo)!;
@@ -485,6 +500,7 @@ export async function runRenderStage(
       kind: 'video',
       bytes: videoBytes,
       mime: 'video/mp4',
+      objectKey: key(VIDEO_OBJECT_NAME),
       seriesVersionId,
       width: plan.width,
       height: plan.height,
@@ -505,6 +521,7 @@ export async function runRenderStage(
       kind: 'caption',
       bytes: srtBytes,
       mime: 'application/x-subrip',
+      objectKey: key(CAPTIONS_SRT_OBJECT_NAME),
       seriesVersionId,
       rightsMetadata: { stage: 'RE', role: 'srt', video_asset_id: videoAsset.assetId },
       retentionEligibleAt,
@@ -515,6 +532,7 @@ export async function runRenderStage(
       kind: 'caption',
       bytes: vttBytes,
       mime: 'text/vtt',
+      objectKey: key(CAPTIONS_VTT_OBJECT_NAME),
       seriesVersionId,
       rightsMetadata: { stage: 'RE', role: 'vtt', video_asset_id: videoAsset.assetId },
       retentionEligibleAt,
@@ -525,6 +543,7 @@ export async function runRenderStage(
       kind: 'sidecar',
       bytes: assBytes,
       mime: 'text/x-ssa',
+      objectKey: key(CAPTIONS_ASS_OBJECT_NAME),
       seriesVersionId,
       rightsMetadata: { stage: 'RE', role: 'ass-source', video_asset_id: videoAsset.assetId },
       retentionEligibleAt,
@@ -535,6 +554,7 @@ export async function runRenderStage(
       kind: 'sidecar',
       bytes: manifestJson,
       mime: 'application/json',
+      objectKey: key(RENDER_MANIFEST_OBJECT_NAME),
       seriesVersionId,
       rightsMetadata: { stage: 'RE', role: 'render-manifest', video_asset_id: videoAsset.assetId },
       retentionEligibleAt,
@@ -545,6 +565,7 @@ export async function runRenderStage(
       kind: 'sidecar',
       bytes: benchmarkJson,
       mime: 'application/json',
+      objectKey: key(RENDER_BENCHMARK_OBJECT_NAME),
       seriesVersionId,
       rightsMetadata: {
         stage: 'RE',

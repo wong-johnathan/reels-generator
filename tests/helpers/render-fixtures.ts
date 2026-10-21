@@ -10,6 +10,7 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../../src/db/client.js';
 import {
+  assetKeyContextFor,
   insertOrReuseAsset,
   linkAssetToProject,
   type AssetKind,
@@ -17,11 +18,8 @@ import {
 } from '../../src/db/repositories/assets.js';
 import { FakeFfmpegRunner } from '../../src/render/fake-ffmpeg.js';
 import type { RenderManifest } from '../../src/render/render.js';
-import {
-  objectKeyFor,
-  sha256Hex,
-  type ContentAddressedStore,
-} from '../../src/storage/object-store.js';
+import { assetObjectKey } from '../../src/storage/object-key.js';
+import { sha256Hex, type ContentAddressedStore } from '../../src/storage/object-store.js';
 import { seedProject } from './fixtures.js';
 import { insertScenes, insertStageJob, insertVideoStage } from './stage-fixtures.js';
 
@@ -55,13 +53,21 @@ export async function storeAsset(
   input: StoredAssetInput,
 ): Promise<string> {
   const sha = sha256Hex(input.bytes);
-  await blobs.put(objectKeyFor(sha), input.bytes, input.mimeType);
+  const keyCtx = await assetKeyContextFor(pool, input.projectId);
+  const objectKey = assetObjectKey({
+    seriesSlug: keyCtx.seriesSlug,
+    batchOrdinal: keyCtx.batchOrdinal,
+    // Fixture seed keys are never asserted; the short hash keeps them unique.
+    name: `${input.role ?? input.kind}-${sha.slice(0, 12)}.bin`,
+  });
+  await blobs.put(objectKey, input.bytes, input.mimeType);
   const recorded = await withTransaction(pool, async (client) => {
     const inserted = await insertOrReuseAsset(client, {
       projectId: input.projectId,
       stage: input.stage,
       kind: input.kind,
       contentSha256: sha,
+      objectKey,
       objectSizeBytes: input.bytes.byteLength,
       mimeType: input.mimeType,
       width: input.width ?? null,

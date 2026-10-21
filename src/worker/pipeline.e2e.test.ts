@@ -196,14 +196,32 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
     expect(project.rows[0]!.status).toBe('COMPLETE');
     expect(project.rows[0]!.current_stage).toBe('QC');
 
-    // The video asset + its asset_ref link, with a non-trivial stored size.
-    const videoAsset = await db.pool.query<{ id: string; object_size_bytes: string }>(
-      `SELECT id, object_size_bytes FROM asset
+    // The video asset + its asset_ref link, with a non-trivial stored size, and
+    // a readable object path (D-F): <slug>/batch-0001/video.mp4.
+    const videoAsset = await db.pool.query<{
+      id: string;
+      object_size_bytes: string;
+      object_key: string;
+    }>(
+      `SELECT id, object_size_bytes, object_key FROM asset
         WHERE project_id = $1 AND stage = 'RE' AND kind = 'video'`,
       [projectId],
     );
     expect(videoAsset.rows).toHaveLength(1);
     expect(Number(videoAsset.rows[0]!.object_size_bytes)).toBeGreaterThan(1_000);
+    expect(videoAsset.rows[0]!.object_key).toBe('e2e-series/batch-0001/video.mp4');
+
+    // Scene images are named scenes/S01.png upward, never by array index.
+    const sceneAssets = await db.pool.query<{ object_key: string }>(
+      `SELECT object_key FROM asset WHERE project_id = $1 AND stage = 'IM' AND kind = 'image'
+        ORDER BY object_key ASC`,
+      [projectId],
+    );
+    expect(sceneAssets.rows.length).toBeGreaterThanOrEqual(1);
+    expect(sceneAssets.rows[0]!.object_key).toBe('e2e-series/batch-0001/scenes/S01.png');
+    for (const row of sceneAssets.rows) {
+      expect(row.object_key).toMatch(/^e2e-series\/batch-0001\/scenes\/S\d{2}\.png$/);
+    }
 
     const videoRef = await db.pool.query<{ role: string }>(
       `SELECT role FROM asset_ref WHERE asset_id = $1 AND project_id = $2`,

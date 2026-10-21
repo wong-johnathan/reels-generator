@@ -25,7 +25,7 @@ import { findVideoStage } from '../db/repositories/video-stages.js';
 import { listScenes } from '../db/repositories/scenes.js';
 import { recordReviewDecision } from '../db/repositories/review-decisions.js';
 import { runMigrations } from '../db/runner.js';
-import { InMemoryContentAddressedStore, objectKeyFor, sha256Hex } from '../storage/object-store.js';
+import { InMemoryContentAddressedStore, sha256Hex } from '../storage/object-store.js';
 import {
   createTestDatabase,
   SKIP_REASON,
@@ -84,7 +84,7 @@ async function seedReference(
     text: { reels_refs: 'reference-set-' + projectId },
   });
   const hash = sha256Hex(bytes);
-  const key = objectKeyFor(hash);
+  const key = 'references/' + hash + '.png';
   await blobs.put(key, bytes, 'image/png');
   const asset = await db.pool.query<{ id: string }>(
     'INSERT INTO asset (project_id, stage, kind, content_sha256, object_key, object_size_bytes, ' +
@@ -324,7 +324,8 @@ describe.skipIf(!hasDatabase)('image stage (US-019)', () => {
       expect(asset.width).toBe(768);
       expect(asset.height).toBe(1376);
       expect(asset.content_sha256).toMatch(/^[0-9a-f]{64}$/);
-      expect(asset.object_key).toBe('sha256:' + asset.content_sha256);
+      // D-F: the key is a readable path, not a hash — <slug>/batch-0001/scenes/S0N.png.
+      expect(asset.object_key.endsWith('/batch-0001/scenes/' + scene.scene_no + '.png')).toBe(true);
       expect(Number(asset.object_size_bytes)).toBeGreaterThan(0);
       expect(asset.series_version_id).toBe(fixture.seed.seriesVersionId);
       expect(asset.provider).toBe('fake');

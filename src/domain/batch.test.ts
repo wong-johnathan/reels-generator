@@ -98,6 +98,17 @@ describe.skipIf(!hasDatabase)('createBatch (R-019)', { timeout: 120_000 }, () =>
     expect(result.projectIds).toHaveLength(2);
   });
 
+  it('allocates batch.ordinal 1, 2, … per series (the readable path number)', async () => {
+    const seriesId = await seedSeries({ target_duration_s: 75, videos_per_batch: 1 });
+    await createBatch(db.pool, { seriesId });
+    await createBatch(db.pool, { seriesId });
+    const ordinals = await db.pool.query<{ ordinal: number }>(
+      `SELECT ordinal FROM batch WHERE series_id = $1 ORDER BY ordinal ASC`,
+      [seriesId],
+    );
+    expect(ordinals.rows.map((row) => row.ordinal)).toEqual([1, 2]);
+  });
+
   it('refuses an archived series', async () => {
     const seriesId = await seedSeries({ target_duration_s: 75, videos_per_batch: 1 });
     await db.pool.query(`UPDATE series SET status = 'archived' WHERE id = $1`, [seriesId]);

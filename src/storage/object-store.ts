@@ -1,52 +1,22 @@
 /**
- * Content-addressed blob store — TECH_DESIGN 3.4 / 11.2, R-026.
+ * Blob store port — TECH_DESIGN 3.4 / 11.2.
  *
- * The object key is a pure function of the content hash ("sha256:<64 hex>"), so
- * the store can never hold two blobs for one hash and the object count equals
- * the unique-hash count (R-026-2). put() verifies the key against the bytes it
- * was handed: a caller that hashes one thing and stores another fails loudly
- * instead of writing an object nothing can reach.
+ * The name `ContentAddressedStore` is historical (deviation D-F): object keys
+ * were once a pure function of the content hash (`sha256:<64 hex>`, R-026), and
+ * this port carried the dedupe-by-hash contract. Keys are now readable paths
+ * (`<series-slug>/batch-0001/video.mp4`, see `object-key.ts`) and `put()` no
+ * longer derives or verifies the key against the bytes — a re-render may write
+ * different bytes under the same path. The port shape (put/get/has) is
+ * unchanged; `sha256Hex` stays for the `content_sha256` provenance column.
  *
  * MinIO is the production backend (TECH_DESIGN 2.1). The stage depends on this
  * port, not on an S3 client, and the in-memory implementation is the
- * "fake object store (in-memory, content-addressed)" of TECH_DESIGN 11.1.
+ * deterministic fake of TECH_DESIGN 11.1.
  */
 import { createHash } from 'node:crypto';
 
-const SHA256_PATTERN = /^[0-9a-f]{64}$/;
-
 export function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
-}
-
-export class InvalidContentHashError extends Error {
-  constructor(readonly value: string) {
-    super('content hash must be 64 lowercase hex characters, got "' + value + '"');
-    this.name = 'InvalidContentHashError';
-  }
-}
-
-export class ObjectKeyMismatchError extends Error {
-  constructor(
-    readonly objectKey: string,
-    readonly expectedKey: string,
-  ) {
-    super(
-      'object key "' +
-        objectKey +
-        '" does not match sha256(bytes) ("' +
-        expectedKey +
-        '"): R-026-2 ' +
-        'requires object_key to be a pure function of the content hash',
-    );
-    this.name = 'ObjectKeyMismatchError';
-  }
-}
-
-/** TECH_DESIGN 3.1: object_key = "sha256:" || content_sha256. */
-export function objectKeyFor(contentSha256: string): string {
-  if (!SHA256_PATTERN.test(contentSha256)) throw new InvalidContentHashError(contentSha256);
-  return 'sha256:' + contentSha256;
 }
 
 export interface StoredObject {
@@ -55,12 +25,12 @@ export interface StoredObject {
 }
 
 export interface PutResult {
-  /** false when the content-addressed key already held these bytes (dedupe hit). */
+  /** false when the key already held an object (the write was a no-op replace). */
   readonly created: boolean;
 }
 
 export interface ContentAddressedStore {
-  /** Idempotent by key: storing the same bytes twice creates one object. */
+  /** Writes bytes under `objectKey`; the same key written again overwrites. */
   put(objectKey: string, bytes: Uint8Array, mimeType: string): Promise<PutResult>;
   get(objectKey: string): Promise<StoredObject | null>;
   has(objectKey: string): Promise<boolean>;
@@ -71,11 +41,9 @@ export class InMemoryContentAddressedStore implements ContentAddressedStore {
   private readonly objects = new Map<string, StoredObject>();
 
   async put(objectKey: string, bytes: Uint8Array, mimeType: string): Promise<PutResult> {
-    const expected = objectKeyFor(sha256Hex(bytes));
-    if (expected !== objectKey) throw new ObjectKeyMismatchError(objectKey, expected);
-    if (this.objects.has(objectKey)) return { created: false };
+    const had = this.objects.has(objectKey);
     this.objects.set(objectKey, { bytes: Uint8Array.from(bytes), mimeType });
-    return { created: true };
+    return { created: !had };
   }
 
   async get(objectKey: string): Promise<StoredObject | null> {
@@ -88,7 +56,7 @@ export class InMemoryContentAddressedStore implements ContentAddressedStore {
     return this.objects.has(objectKey);
   }
 
-  /** The number of distinct blobs — the R-026-2 assertion surface. */
+  /** The number of distinct keys. */
   get size(): number {
     return this.objects.size;
   }
@@ -105,8 +73,8 @@ export class InMemoryContentAddressedStore implements ContentAddressedStore {
 /**
  * The smallest object-storage *bucket* surface the worker needs at boot: check
  * the bucket exists and create it when it does not. Kept separate from
- * `ContentAddressedStore` on purpose — a content-addressed blob store has no
- * bucket concept, and forcing `makeBucket` onto it would conflate two concerns.
+ * `ContentAddressedStore` on purpose — a blob store has no bucket concept, and
+ * forcing `makeBucket` onto it would conflate two concerns.
  *
  * There is no MinIO/S3 client in this repo and `@aws-sdk/client-s3` is not a
  * dependency, so this milestone ships the deterministic in-memory binding and

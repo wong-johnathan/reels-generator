@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import type { Pool } from 'pg';
 
 import {
+  assetKeyContextFor,
   findAssetById,
   insertOrReuseAsset,
   linkAssetToProject,
@@ -34,7 +35,8 @@ import {
   setProjectCurrentStage,
 } from '../db/repositories/stage-state.js';
 import { applyProjectStatusTransition } from '../db/repositories/video-stages.js';
-import { objectKeyFor, sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
+import { assetObjectKey, QC_REPORT_OBJECT_NAME } from '../storage/object-key.js';
+import { sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
 import type { StageState } from '../shared/index.js';
 import type { FfmpegRunner } from './ffmpeg.js';
 import { runVideoQc, type QcCheck, type QcReport } from './qc.js';
@@ -213,13 +215,20 @@ export async function runQcStage(deps: QcStageDeps, job: QcStageJob): Promise<Qc
 
     const reportBytes = new TextEncoder().encode(JSON.stringify(report));
     const sha = sha256Hex(reportBytes);
-    await deps.blobs.put(objectKeyFor(sha), reportBytes, 'application/json');
+    const keyCtx = await assetKeyContextFor(deps.pool, job.projectId);
+    const reportKey = assetObjectKey({
+      seriesSlug: keyCtx.seriesSlug,
+      batchOrdinal: keyCtx.batchOrdinal,
+      name: QC_REPORT_OBJECT_NAME,
+    });
+    await deps.blobs.put(reportKey, reportBytes, 'application/json');
     const reportAsset = await withTransaction(deps.pool, async (client) => {
       const inserted = await insertOrReuseAsset(client, {
         projectId: job.projectId,
         stage: 'QC',
         kind: 'sidecar',
         contentSha256: sha,
+        objectKey: reportKey,
         objectSizeBytes: reportBytes.byteLength,
         mimeType: 'application/json',
         seriesVersionId: videoAsset.series_version_id,

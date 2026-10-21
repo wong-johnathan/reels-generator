@@ -24,7 +24,7 @@ import type {
 } from '../adapters/image.js';
 import { runMigrations } from '../db/runner.js';
 import { createSceneReplaceHandler } from '../api/scene-replace-route.js';
-import { InMemoryContentAddressedStore, objectKeyFor, sha256Hex } from '../storage/object-store.js';
+import { InMemoryContentAddressedStore, sha256Hex } from '../storage/object-store.js';
 import {
   createTestDatabase,
   SKIP_REASON,
@@ -75,13 +75,14 @@ async function seedSceneImage(
     text: { reels_scene: sceneNoValue + '-' + projectId.slice(0, 8) },
   });
   const hash = sha256Hex(bytes);
-  await blobs.put(objectKeyFor(hash), bytes, 'image/png');
+  const key = 'scenes/' + sceneNoValue + '.png';
+  await blobs.put(key, bytes, 'image/png');
   const asset = await db.pool.query<{ id: string }>(
     'INSERT INTO asset (project_id, stage, scene_id, kind, content_sha256, object_key, ' +
       'object_size_bytes, mime_type, width, height, provider, model, prompt_text) ' +
       "VALUES ($1, 'IM', $2, 'image', $3, $4, $5, 'image/png', 16, 16, 'fake', 'fake-nano-banana', $6) " +
       'RETURNING id',
-    [projectId, sceneId, hash, objectKeyFor(hash), bytes.byteLength, sceneNoValue + ' prompt'],
+    [projectId, sceneId, hash, key, bytes.byteLength, sceneNoValue + ' prompt'],
   );
   const assetId = asset.rows[0]!.id;
   await db.pool.query('UPDATE scene SET asset_id = $2 WHERE id = $1', [sceneId, assetId]);

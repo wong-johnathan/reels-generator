@@ -1,13 +1,14 @@
 /**
- * Content-addressed object store port for the media the NA/TC stages produce
- * (TECH_DESIGN §3.4, R-026).
+ * Blob store port for the media the NA/TC/SB stages produce.
  *
- * The database row is the authority: `object_key` is a pure function of
- * `content_sha256` (`'sha256:' || hash`) and is enforced by the
- * `asset_object_key_matches_hash` CHECK constraint. The store therefore only has
- * to hold bytes under a key the caller already derived — there is no naming
- * decision left to the storage layer, and storing the same bytes twice is a
- * no-op by construction.
+ * The database row is the authority: `object_key` is a readable path
+ * (`<series-slug>/batch-0001/…`, deviation D-F), not a hash. The store only
+ * holds bytes under the key the caller already derived from `object-key.ts` —
+ * there is no naming decision left to the storage layer, and a re-render that
+ * writes different bytes under the same path overwrites rather than refuses.
+ *
+ * `sha256Hex` stays: it feeds the `content_sha256` provenance column, which no
+ * longer dedupes but still records what the bytes were.
  *
  * Milestone A ships the port plus a deterministic in-memory implementation.
  * The MinIO binding is deliberately *not* here: B-01's scaffold has no S3/MinIO
@@ -16,21 +17,11 @@
  */
 import { createHash } from 'node:crypto';
 
-/** The one prefix the `asset.object_key` constraint allows. */
-export const OBJECT_KEY_PREFIX = 'sha256:';
-
 export function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export function objectKeyFor(contentSha256: string): string {
-  if (!/^[0-9a-f]{64}$/.test(contentSha256)) {
-    throw new RangeError('content_sha256 must be 64 lowercase hex characters (R-026)');
-  }
-  return `${OBJECT_KEY_PREFIX}${contentSha256}`;
-}
-
-/** UTF-8 JSON bytes — the sidecar documents are stored content-addressed too. */
+/** UTF-8 JSON bytes — the sidecar documents are stored as JSON. */
 export function jsonBytes(value: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(value));
 }
@@ -41,7 +32,7 @@ export interface StoredObject {
 }
 
 export interface AssetBlobStore {
-  /** Idempotent: the same key (same content) may be written any number of times. */
+  /** Writes bytes under `objectKey`; the same key written again overwrites. */
   put(objectKey: string, bytes: Uint8Array, contentType: string): Promise<void>;
   get(objectKey: string): Promise<Uint8Array>;
   has(objectKey: string): Promise<boolean>;
@@ -71,17 +62,7 @@ export class InMemoryBlobStore implements AssetBlobStore {
   }
 
   async put(objectKey: string, bytes: Uint8Array, contentType: string): Promise<void> {
-    const copy = new Uint8Array(bytes);
-    const existing = this.objects.get(objectKey);
-    if (existing !== undefined) {
-      if (sha256Hex(existing.bytes) !== sha256Hex(copy)) {
-        throw new Error(
-          `object ${objectKey} already holds different bytes (R-026: key is the hash)`,
-        );
-      }
-      return;
-    }
-    this.objects.set(objectKey, { bytes: copy, contentType });
+    this.objects.set(objectKey, { bytes: new Uint8Array(bytes), contentType });
   }
 
   async get(objectKey: string): Promise<Uint8Array> {

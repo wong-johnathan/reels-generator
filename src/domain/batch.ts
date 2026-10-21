@@ -132,11 +132,22 @@ export async function createBatch(pool: Pool, input: CreateBatchInput): Promise<
       typeof snapshot?.target_duration_s === 'number' ? snapshot.target_duration_s : null;
     const targetCount = resolveBatchSize(input.targetCount ?? snapshot?.videos_per_batch);
 
+    // `batch.ordinal` is the stable number in the readable object path
+    // (`batch-0001`, …). It is allocated under the series `FOR UPDATE` lock held
+    // above, so two concurrent batch mints for one series serialise here and
+    // `max(ordinal) + 1` cannot race (no 23505 retry needed). It is never
+    // derived from a live count, so deleting one batch does not renumber another.
+    const nextOrdinal = await client.query<{ next: number }>(
+      'SELECT coalesce(max(ordinal), 0) + 1 AS next FROM batch WHERE series_id = $1',
+      [input.seriesId],
+    );
+    const ordinal = Number(nextOrdinal.rows[0]?.next ?? 1);
+
     const batch = await client.query<{ id: string }>(
-      `INSERT INTO batch (series_id, series_version_id, target_count, created_by)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO batch (series_id, series_version_id, target_count, created_by, ordinal)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id`,
-      [input.seriesId, versionRow.id, targetCount, input.operatorId ?? null],
+      [input.seriesId, versionRow.id, targetCount, input.operatorId ?? null, ordinal],
     );
     const batchId = batch.rows[0]?.id;
     if (batchId === undefined) throw new Error('INSERT INTO batch returned no id');

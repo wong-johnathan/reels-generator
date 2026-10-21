@@ -30,7 +30,12 @@ import { z } from 'zod';
 
 import { DURATION_BAND_RATIO } from '../shared/calibration.js';
 import type { StageCode } from '../shared/index.js';
-import { assetBelongsToProject, findAssetById, insertAsset } from '../db/repositories/assets.js';
+import {
+  assetBelongsToProject,
+  assetKeyContextFor,
+  findAssetById,
+  insertAsset,
+} from '../db/repositories/assets.js';
 import { markJobStatus } from '../db/repositories/jobs.js';
 import { listSceneSpans, writeSceneNarrationSpans } from '../db/repositories/scene-spans.js';
 import {
@@ -48,7 +53,8 @@ import {
   type CharacterAlignment,
   type WordTiming,
 } from '../domain/word-timing.js';
-import { jsonBytes, objectKeyFor, sha256Hex, type AssetBlobStore } from './asset-store.js';
+import { assetObjectKey, TIMING_OBJECT_NAME } from '../storage/object-key.js';
+import { jsonBytes, sha256Hex, type AssetBlobStore } from './asset-store.js';
 import { NARRATION_ALIGNMENT_SCHEMA_VERSION } from './narration-stage.js';
 
 /** The derived timing document's schema version (R-004's versioning, applied locally). */
@@ -503,7 +509,12 @@ export async function runTimingStage(
   };
   const bytes = jsonBytes(timingDocument);
   const contentSha256 = sha256Hex(bytes);
-  const objectKey = objectKeyFor(contentSha256);
+  const keyCtx = await assetKeyContextFor(deps.pool, input.projectId);
+  const objectKey = assetObjectKey({
+    seriesSlug: keyCtx.seriesSlug,
+    batchOrdinal: keyCtx.batchOrdinal,
+    name: TIMING_OBJECT_NAME,
+  });
   await deps.blobs.put(objectKey, bytes, 'application/json');
 
   // `asset.stage` admits no 'TC' (M-004 CHECK: IM/NA/RE/QC/EX/MUSIC/POSTER/DERIV/REF),
@@ -514,6 +525,7 @@ export async function runTimingStage(
     stage: 'NA',
     kind: 'sidecar',
     contentSha256,
+    objectKey,
     objectSizeBytes: bytes.byteLength,
     mimeType: 'application/json',
     seriesVersionId: input.seriesVersionId ?? null,

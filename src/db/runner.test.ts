@@ -340,27 +340,27 @@ describe.skipIf(!hasDatabase)(
       expect(duplicate.message).toContain('scene_project_scene_no_key');
     });
 
-    it('derives asset.object_key from content_sha256 (R-026) and enforces uniqueness', async () => {
+    it('keys assets by object_key, not content_sha256 (D-F)', async () => {
       const sha = 'a'.repeat(64);
-      const mismatched = await rejection(
-        db.pool.query(
-          `INSERT INTO asset (stage, kind, content_sha256, object_key) VALUES ('IM', 'image', $1, $2)`,
-          [sha, `sha256:${'b'.repeat(64)}`],
-        ),
-      );
-      expect(mismatched.message).toContain('asset_object_key_matches_hash');
-
+      const other = 'b'.repeat(64);
+      // The key is a free readable path, no longer a function of the hash.
       await db.pool.query(
         `INSERT INTO asset (stage, kind, content_sha256, object_key) VALUES ('IM', 'image', $1, $2)`,
-        [sha, `sha256:${sha}`],
+        [sha, 'series/batch-0001/scenes/S01.png'],
       );
+      // The same bytes under a different path are a second row (dedupe gone).
+      await db.pool.query(
+        `INSERT INTO asset (stage, kind, content_sha256, object_key) VALUES ('IM', 'image', $1, $2)`,
+        [sha, 'series/batch-0001/scenes/S02.png'],
+      );
+      // But the same path is refused.
       const duplicate = await rejection(
         db.pool.query(
           `INSERT INTO asset (stage, kind, content_sha256, object_key) VALUES ('IM', 'image', $1, $2)`,
-          [sha, `sha256:${sha}`],
+          [other, 'series/batch-0001/scenes/S01.png'],
         ),
       );
-      expect(duplicate.message).toContain('uq_asset_content_sha256');
+      expect(duplicate.message).toContain('uq_asset_object_key');
     });
 
     it('forbids billed_units on an unbilled charge and unbilled on a timeout (R-012-4)', async () => {

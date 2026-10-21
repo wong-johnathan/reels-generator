@@ -48,9 +48,20 @@ export async function seedProject(pool: Pool): Promise<SeededProject> {
     seriesId,
   ]);
 
+  // Every asset writer now resolves the series slug + batch ordinal for the
+  // readable object path (D-F), so the fixture mints a batch exactly the way
+  // createBatch does and links the project into it.
+  const batch = await pool.query<{ id: string }>(
+    `INSERT INTO batch (series_id, series_version_id, target_count, ordinal)
+     VALUES ($1, $2, 1, 1) RETURNING id`,
+    [seriesId, seriesVersionId],
+  );
+  const batchId = batch.rows[0]!.id;
+
   const project = await pool.query<{ id: string }>(
-    `INSERT INTO project (series_id, status, current_stage) VALUES ($1, 'RUNNING', 'T') RETURNING id`,
-    [seriesId],
+    `INSERT INTO project (batch_id, series_id, position_in_batch, status, current_stage)
+     VALUES ($1, $2, 1, 'RUNNING', 'T') RETURNING id`,
+    [batchId, seriesId],
   );
   const projectId = project.rows[0]!.id;
 

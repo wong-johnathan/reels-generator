@@ -5,15 +5,15 @@
  * method/path/headers/body and answers the handful of operations the store
  * uses (HeadBucket, CreateBucket, HeadObject, PutObject, GetObject) with
  * canned responses, including the 404 XML that maps to `null`/`false`. The
- * assertions prove path-style URLs (`/bucket/key`), the `sha256:` key
- * passthrough, the put dedupe `created` flag, and that a 404 never throws.
+ * assertions prove path-style URLs (`/bucket/key`), readable-key passthrough,
+ * and that a 404 never throws.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { ensureBucket, objectKeyFor, ObjectKeyMismatchError, sha256Hex } from './object-store.js';
+import { ensureBucket } from './object-store.js';
 import {
   createS3Client,
   createS3Stores,
@@ -27,7 +27,7 @@ import {
 
 const BUCKET = 'reels-generator';
 const BYTES = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x7f]);
-const KEY = objectKeyFor(sha256Hex(BYTES));
+const KEY = 'series/batch-0001/video.mp4';
 
 interface RecordedRequest {
   readonly method: string;
@@ -233,33 +233,28 @@ describe('s3ConfigFromEnv', () => {
 });
 
 describe('S3ContentAddressedStore.put', () => {
-  it('PUTs the bytes under the path-style sha256: key with the mime type', async () => {
+  it('PUTs the bytes under the path-style key with the mime type', async () => {
     const result = await store().put(KEY, BYTES, 'image/png');
     expect(result).toEqual({ created: true });
 
     const put = fake.requests.find((request) => request.method === 'PUT');
     expect(put).toBeDefined();
     // Path-style: the bucket is the first path segment, not a virtual-host
-    // prefix. The SDK percent-encodes the `:` in the key and appends an
-    // `x-id=PutObject` disambiguator; decode + strip the query to prove it.
+    // prefix. The SDK appends an `x-id=PutObject` disambiguator; decode + strip
+    // the query to prove it.
     expect(decodeURIComponent(put!.path.split('?')[0] ?? '')).toBe('/' + BUCKET + '/' + KEY);
     expect(put!.path).toContain('x-id=PutObject');
     expect(put!.headers['content-type']).toBe('image/png');
     expect(put!.body).toEqual(Buffer.from(BYTES));
   });
 
-  it('reports a dedupe hit when the object already exists', async () => {
+  it('reports the overwrite when the key already exists and PUTs again', async () => {
     const content = store();
     expect(await content.put(KEY, BYTES, 'image/png')).toEqual({ created: true });
-    expect(await content.put(KEY, BYTES, 'image/png')).toEqual({ created: false });
-    expect(fake.requests.filter((request) => request.method === 'PUT')).toHaveLength(1);
-  });
-
-  it('refuses bytes whose hash does not match the key, before any request', async () => {
-    const wrongKey = objectKeyFor(sha256Hex(new Uint8Array([9, 9, 9])));
-    const before = fake.requests.length;
-    await expect(store().put(wrongKey, BYTES, 'image/png')).rejects.toThrow(ObjectKeyMismatchError);
-    expect(fake.requests.length).toBe(before);
+    expect(await content.put(KEY, new Uint8Array([9, 9, 9]), 'image/png')).toEqual({
+      created: false,
+    });
+    expect(fake.requests.filter((request) => request.method === 'PUT')).toHaveLength(2);
   });
 });
 
@@ -276,7 +271,7 @@ describe('S3ContentAddressedStore.get / has', () => {
 
   it('maps a 404 to null for get and false for has, never throwing', async () => {
     const content = store();
-    const absent = objectKeyFor(sha256Hex(new Uint8Array([1])));
+    const absent = 'series/batch-0001/absent.bin';
     await expect(content.get(absent)).resolves.toBeNull();
     await expect(content.has(absent)).resolves.toBe(false);
     expect(fake.requests.filter((request) => request.method === 'HEAD')).toHaveLength(1);

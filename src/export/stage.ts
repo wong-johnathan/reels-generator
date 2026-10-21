@@ -19,6 +19,7 @@
 import type { Pool } from 'pg';
 
 import {
+  assetKeyContextFor,
   insertOrReuseAsset,
   linkAssetToProject,
   type AssetRow,
@@ -32,7 +33,8 @@ import {
   findProjectState,
   setProjectCurrentStage,
 } from '../db/repositories/stage-state.js';
-import { objectKeyFor, sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
+import { assetObjectKey, PACKAGE_MANIFEST_OBJECT_NAME } from '../storage/object-key.js';
+import { sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
 import type { StageState } from '../shared/index.js';
 import { buildVideoPackage, type PackageFileRecord, type SourceManifestClaim } from './package.js';
 
@@ -278,10 +280,16 @@ export async function runExportStage(
     const retentionEligibleAt = new Date(
       now().getTime() + (deps.retentionDays ?? 30) * 24 * 60 * 60 * 1000,
     );
+    const keyCtx = await assetKeyContextFor(deps.pool, job.projectId);
     const storedIds: string[] = [];
     for (const entry of pkg.contents) {
       const sha = sha256Hex(entry.bytes);
-      await deps.blobs.put(objectKeyFor(sha), entry.bytes, entry.record.mime_type);
+      const objectKey = assetObjectKey({
+        seriesSlug: keyCtx.seriesSlug,
+        batchOrdinal: keyCtx.batchOrdinal,
+        name: entry.record.name,
+      });
+      await deps.blobs.put(objectKey, entry.bytes, entry.record.mime_type);
       const inserted = await withTransaction(deps.pool, async (client) => {
         const written = await insertOrReuseAsset(client, {
           projectId: job.projectId,
@@ -293,6 +301,7 @@ export async function runExportStage(
                 ? 'sidecar'
                 : 'caption',
           contentSha256: sha,
+          objectKey,
           objectSizeBytes: entry.bytes.byteLength,
           mimeType: entry.record.mime_type,
           seriesVersionId: video.series_version_id,
@@ -337,7 +346,12 @@ export async function runExportStage(
     };
     const manifestBytes = new TextEncoder().encode(JSON.stringify(packageManifest, null, 2));
     const manifestSha = sha256Hex(manifestBytes);
-    await deps.blobs.put(objectKeyFor(manifestSha), manifestBytes, 'application/json');
+    const manifestKey = assetObjectKey({
+      seriesSlug: keyCtx.seriesSlug,
+      batchOrdinal: keyCtx.batchOrdinal,
+      name: PACKAGE_MANIFEST_OBJECT_NAME,
+    });
+    await deps.blobs.put(manifestKey, manifestBytes, 'application/json');
     storedIds.push(
       await withTransaction(deps.pool, async (client) => {
         const written = await insertOrReuseAsset(client, {
@@ -345,6 +359,7 @@ export async function runExportStage(
           stage: 'EX',
           kind: 'sidecar',
           contentSha256: manifestSha,
+          objectKey: manifestKey,
           objectSizeBytes: manifestBytes.byteLength,
           mimeType: 'application/json',
           seriesVersionId: video.series_version_id,

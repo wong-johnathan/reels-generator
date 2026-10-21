@@ -40,6 +40,7 @@ import {
   type ImageMimeType,
 } from '../adapters/image.js';
 import {
+  assetKeyContextFor,
   findProjectReferenceAssets,
   latestCheckpointSceneAssetAt,
   persistSceneImage,
@@ -66,7 +67,8 @@ import {
   type PersistedGenerationRun,
 } from '../domain/generation-run.js';
 import type { StageCode, StageState, VideoState } from '../shared/index.js';
-import { objectKeyFor, sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
+import { assetObjectKey, sceneImageName } from '../storage/object-key.js';
+import { sha256Hex, type ContentAddressedStore } from '../storage/object-store.js';
 import {
   MAX_ATTEMPTS_PER_JOB,
   backoffSecondsForAttempt,
@@ -294,6 +296,7 @@ interface StageContext {
   readonly checkpoint_applies: boolean;
   readonly checkpoint_reviewed: boolean;
   readonly approval: ReviewDecisionRow | null;
+  readonly objectKeyContext: { readonly seriesSlug: string; readonly batchOrdinal: number };
 }
 
 function rightsNoteOf(value: unknown): string | null {
@@ -427,6 +430,7 @@ async function loadStageContext(
     checkpoint_applies: job.recurringProtagonist ?? derivesProtagonist,
     checkpoint_reviewed: checkpointReviewed,
     approval,
+    objectKeyContext: await assetKeyContextFor(deps.pool, projectId),
   };
 }
 
@@ -679,7 +683,12 @@ async function runGenerationPass(
 
     try {
       const contentSha256 = sha256Hex(result.image_bytes);
-      await deps.blobs.put(objectKeyFor(contentSha256), result.image_bytes, result.mime_type);
+      const objectKey = assetObjectKey({
+        seriesSlug: context.objectKeyContext.seriesSlug,
+        batchOrdinal: context.objectKeyContext.batchOrdinal,
+        name: sceneImageName(scene.scene_no),
+      });
+      await deps.blobs.put(objectKey, result.image_bytes, result.mime_type);
       const now = deps.now?.() ?? new Date();
       const retentionEligibleAt =
         deps.retentionDays === undefined
@@ -691,6 +700,7 @@ async function runGenerationPass(
         sceneId: scene.id,
         kind: 'image',
         contentSha256,
+        objectKey,
         objectSizeBytes: result.image_bytes.byteLength,
         mimeType: result.mime_type,
         width: result.width,
