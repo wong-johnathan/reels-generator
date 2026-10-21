@@ -57,18 +57,22 @@ describe.skipIf(!hasDatabase)(
     });
 
     it('returns the newest record for a provider+adapter pair', async () => {
-      const pair = { provider: 'elevenlabs', adapter: 'tts.elevenlabs.convert-with-timestamps' };
+      // Own pair: the first test writes to the elevenlabs pair with run_at = now(),
+      // so sharing it would make "newest" depend on the wall clock. Timestamps are
+      // deliberately in the past for the same reason — a fixed future date would
+      // silently invert this assertion the moment real time passed it.
+      const pair = { provider: 'newest-provider', adapter: 'tts.newest' };
       await insertQualification(db.pool, {
         ...pair,
         passed: false,
         details: { note: 'older' },
-        runAt: new Date('2026-10-20T10:00:00Z'),
+        runAt: new Date('2020-01-01T10:00:00Z'),
       });
       await insertQualification(db.pool, {
         ...pair,
         passed: true,
         details: { note: 'newer' },
-        runAt: new Date('2026-10-21T10:00:00Z'),
+        runAt: new Date('2020-01-02T10:00:00Z'),
       });
 
       const latest = await latestQualification(db.pool, pair.provider, pair.adapter);
@@ -83,13 +87,13 @@ describe.skipIf(!hasDatabase)(
         ...pair,
         passed: true,
         details: {},
-        runAt: new Date('2026-10-20T10:00:00Z'),
+        runAt: new Date('2020-01-01T10:00:00Z'),
       });
       await insertQualification(db.pool, {
         ...pair,
         passed: false,
         details: { reason: 'coverage regressed' },
-        runAt: new Date('2026-10-21T10:00:00Z'),
+        runAt: new Date('2020-01-02T10:00:00Z'),
       });
 
       await expect(isAdapterQualified(db.pool, pair.provider, pair.adapter)).resolves.toBe(false);
