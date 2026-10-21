@@ -103,6 +103,7 @@ describe.skipIf(!hasDatabase)('Postgres OpsGateway', { timeout: DB_TEST_TIMEOUT_
     expect(report.components.find((component) => component.name === 'postgres')?.status).toBe('ok');
     expect(report.providers).toHaveLength(3);
     for (const provider of report.providers) {
+      // No credential in this environment; the check must not claim one.
       expect(provider.key_present).toBe(false);
       expect(provider.idempotency_protected).toBe(false);
       expect(provider.qualified).toBe(false);
@@ -116,7 +117,9 @@ describe.skipIf(!hasDatabase)('Postgres OpsGateway', { timeout: DB_TEST_TIMEOUT_
       `INSERT INTO provider_qualification (provider, adapter, passed, run_at)
          VALUES ('deepseek', 'text.deepseek.chat', true, '2026-10-19T10:00:00Z')`,
     );
-    const gateway = createPostgresOpsGateway(db.pool);
+    // A configured credential is an environment fact: the page must say so even
+    // though no column exists for it.
+    const gateway = createPostgresOpsGateway(db.pool, { keyPresent: () => true });
 
     const settings = await gateway.settings();
 
@@ -126,7 +129,7 @@ describe.skipIf(!hasDatabase)('Postgres OpsGateway', { timeout: DB_TEST_TIMEOUT_
     const deepseek = settings.providers.find((provider) => provider.provider === 'deepseek');
     expect(deepseek?.qualified).toBe(true);
     expect(deepseek?.qualified_at).toBe('2026-10-19T10:00:00.000Z');
-    expect(deepseek?.key_present).toBe(false);
+    expect(deepseek?.key_present).toBe(true);
   });
 
   it('returns no attempt rows for a project with none', async () => {

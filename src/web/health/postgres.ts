@@ -5,7 +5,9 @@
  * migration ledger, the queue's durable `job` mirror, and the provider
  * qualification ledger. Redis, MinIO and disk are worker-owned and are reported
  * `unknown` (not guessed). Provider keys are environment facts, not columns, so
- * `key_present` is always false and R-012-2 means `idempotency_protected` is
+ * `key_present` is read from the process environment — it is an environment fact,
+ * not a database column, and reporting it as false when the key is configured
+ * turns a healthy stack into an alarming one. R-012-2 means `idempotency_protected` is
  * false — the adapter states this instead of inventing a key or a default
  * model name.
  *
@@ -17,6 +19,44 @@ import type { Pool } from 'pg';
 
 import { MIGRATIONS } from '../../db/migrations/index.js';
 import { PROVIDER_NAMES } from '../../shared/states.js';
+
+/**
+ * Provider → environment variable holding its credential.
+ *
+ * The settings page exists to answer one question: can this stack call its
+ * vendors? The answer lives in the environment, not in Postgres, so it is read
+ * here. A missing entry means the provider has no single-key credential.
+ */
+const PROVIDER_ENV_KEYS: Readonly<Record<string, string>> = {
+  deepseek: 'DEEPSEEK_API_KEY',
+  gemini: 'GEMINI_API_KEY',
+  elevenlabs: 'ELEVENLABS_API_KEY',
+};
+
+export interface OpsGatewayOptions {
+  /** Injected for tests; production reads the process environment. */
+  readonly keyPresent?: (envKey: string) => boolean;
+}
+
+/**
+ * Does this provider have a credential in the environment?
+ *
+ * Exported as a pure function so the mapping is testable without a database:
+ * the settings page is the only thing that reports this, and getting it wrong
+ * either alarms a healthy stack or hides a broken one.
+ */
+export function providerKeyConfigured(
+  provider: string,
+  keyPresent: (envKey: string) => boolean,
+): boolean {
+  const envKey = PROVIDER_ENV_KEYS[provider];
+  return envKey === undefined ? false : keyPresent(envKey);
+}
+
+function readProcessKey(envKey: string): boolean {
+  const value = process.env[envKey];
+  return value !== undefined && value.trim().length > 0;
+}
 import type {
   AttemptRow,
   AttemptsQuery,
@@ -51,8 +91,13 @@ export interface PostgresOpsOptions {
   readonly now?: () => number;
 }
 
-export function createPostgresOpsGateway(pool: Pool, options: PostgresOpsOptions = {}): OpsGateway {
+export function createPostgresOpsGateway(
+  pool: Pool,
+  options: PostgresOpsOptions & OpsGatewayOptions = {},
+): OpsGateway {
   const now = options.now ?? ((): number => Date.now());
+  const keyPresent = options.keyPresent ?? readProcessKey;
+  const keyConfigured = (provider: string): boolean => providerKeyConfigured(provider, keyPresent);
 
   async function providerRows(): Promise<Map<string, { passed: boolean; run_at: Date }>> {
     const result = await pool.query<{ provider: string; passed: boolean; run_at: Date }>(
@@ -107,7 +152,7 @@ export function createPostgresOpsGateway(pool: Pool, options: PostgresOpsOptions
         const qualification = providers.get(provider);
         return {
           provider,
-          key_present: false,
+          key_present: keyConfigured(provider),
           qualified: qualification?.passed ?? false,
           qualified_at: qualification?.run_at.toISOString() ?? null,
           idempotency_protected: false,
@@ -174,7 +219,7 @@ export function createPostgresOpsGateway(pool: Pool, options: PostgresOpsOptions
           const qualification = providers.get(provider);
           return {
             provider,
-            key_present: false,
+            key_present: keyConfigured(provider),
             qualified: qualification?.passed ?? false,
             qualified_at: qualification?.run_at.toISOString() ?? null,
             idempotency_protected: false,
