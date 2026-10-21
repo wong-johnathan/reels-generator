@@ -43,3 +43,39 @@ values per release and keeping them in sync with `.env`.
 **Reversal:** restore the digest refs in `compose.yaml`, re-add the five keys to
 the env templates, and reinstate the `release-manifest` job in
 `.github/workflows/build.yml` (git history has it at `9c17b6b`).
+
+## D-F — Object keys are readable paths, not content hashes (R-026 deviated)
+
+**Rule:** R-026 makes `asset.object_key` a pure function of the content hash —
+`CHECK (object_key = 'sha256:' || content_sha256)` plus `UNIQUE (content_sha256)`
+— so the object store can never hold two blobs for one hash.
+
+**What we do instead:** objects are addressed by where they belong —
+`<series-slug>/batch-0001/scenes/S01.png`, `.../narration.mp3`, `.../video.mp4`,
+`.../script.json`. `content_sha256` stays on the row as provenance, but it no
+longer determines the key and no longer dedupes.
+
+**Why:** the operator reads the bucket through a MinIO console. Content
+addressing is the right shape for a deduplicating blob store and an opaque wall
+of hashes for a human. "Which file is scene 7 of batch 2" has no answer when
+every object is named after its bytes.
+
+**Cost:** the same image used by two batches is stored twice, and a re-render
+writes new bytes under the same path rather than reusing one object. For a
+private factory where every video is unique content this is negligible; it buys a
+library that can be read.
+
+**Also deviates from R-017-3** (additive-only migrations): M-007 drops a CHECK
+constraint and an index, which is structural. Applied while the stack is
+pre-release, with one live batch. Existing objects stay at their `sha256:` keys
+and remain readable — only new assets use the readable layout, so no data
+migration is needed.
+
+**Note for future work:** `ON CONFLICT (content_sha256)` no longer resolves;
+asset writes must conflict on `object_key` instead. `batch.ordinal` (added in
+M-007 and backfilled from creation order) is the stable number in the path —
+deriving it from a count at read time would rename folders when a batch is
+deleted.
+
+**Reversal:** re-add the CHECK and the hash index, switch keys back to
+`objectKeyFor(contentSha256)` in the storage port, and delete `batch.ordinal`.
