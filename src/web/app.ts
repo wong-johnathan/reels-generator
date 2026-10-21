@@ -31,6 +31,14 @@ import { renderSeriesEditor } from './render/seriesEditor.js';
 import { renderSeriesList } from './render/seriesList.js';
 import { buildShellModel, renderShell, type BreadcrumbItem, type NavKey } from './render/shell.js';
 import { renderWorkspace } from './render/workspace.js';
+import { renderScriptReview, SCRIPT_REVIEW_SCRIPTS } from './render/scriptReview.js';
+import { renderSceneDetail } from './render/sceneDetail.js';
+import { renderSceneGrid } from './render/sceneGrid.js';
+import { renderStoryboard } from './render/storyboard.js';
+import { checkpointState, RELEASE_UNWIRED_REASON, type StoryboardView } from './scenes/model.js';
+import { SceneConflictError, SceneNotFoundError, type SceneGateway } from './scenes/gateway.js';
+import type { ScriptGateway } from './script/gateway.js';
+import type { VideoDetail } from './workspace/model.js';
 import { savedAnnouncement } from './series/commit.js';
 import {
   changedFields,
@@ -47,8 +55,6 @@ import {
 } from './series/gateway.js';
 import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
-import { renderScriptReview, SCRIPT_REVIEW_SCRIPTS } from './render/scriptReview.js';
-import type { ScriptGateway } from './script/gateway.js';
 import type { VideoGateway } from './workspace/gateway.js';
 import { isTabKey, tabKeyForStage, type TabKey } from './workspace/model.js';
 
@@ -69,6 +75,8 @@ export interface WebAppDependencies {
   readonly series?: SeriesGateway;
   /** S-09…S-16 storage. Absent builds answer 503 rather than inventing data. */
   readonly video?: VideoGateway;
+  /** S-11/S-12/S-13 storyboard and scene storage. Absent builds keep the F-04 summary. */
+  readonly scenes?: SceneGateway;
   /** S-10 script storage. Absent builds fall back to the F-04 stage summary. */
   readonly script?: ScriptGateway;
   readonly assets?: {
@@ -133,6 +141,9 @@ const MAX_FORM_BODY_CHARS = 65_536;
 const SLUG_TAKEN_MESSAGE = 'That slug is already used by another series.';
 const SAVE_FAILED_MESSAGE = 'The series could not be saved. Nothing was changed.';
 const CREATE_FAILED_MESSAGE = 'The series could not be created. Nothing was saved.';
+
+/** S-12's keyboard enhancer, loaded with the workspace module. */
+const SCENE_GRID_SCRIPTS: readonly string[] = ['/assets/client/scene-grid.js'];
 
 /** Loaded after the shell module on both S-04 pages. */
 const SERIES_SCRIPTS: readonly string[] = ['/assets/client/series-editor.js'];
@@ -329,8 +340,14 @@ export function createWebApp(
     }
 
     if (pathname === '/videos' || pathname.startsWith('/videos/')) {
-      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
-      return videoRoutes({ pathname, session: sessionInfo(record) });
+      if (effective !== 'GET' && effective !== 'POST') return methodNotAllowed('GET, HEAD, POST');
+      return videoRoutes({
+        method: effective,
+        pathname,
+        search: target.searchParams,
+        body: input.body ?? '',
+        session: sessionInfo(record),
+      });
     }
 
     if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
@@ -383,9 +400,46 @@ export function createWebApp(
   }
 
   // ── S-09…S-16 video workspace shell (W-04, IP-03) ───────────────────────
+  // ── S-11/S-12/S-13 storyboard, scene grid and scene detail (F-06) ────────
+
+  /** Success lines for a committed scene action, keyed by the redirect's notice. */
+  const SCENE_NOTICES: Readonly<Record<string, string>> = {
+    replaced:
+      'Replacement queued · 1 image call. The previous image is kept as an earlier attempt.',
+    approved: 'Storyboard approved (optional gate). Nothing downstream ran.',
+    released:
+      'Release queued for the remaining scenes; the image stage resumes at the previewed call count.',
+  };
+
+  function noticeFor(search: URLSearchParams): string | undefined {
+    const key = search.get('notice');
+    if (key === null) return undefined;
+    return SCENE_NOTICES[key];
+  }
+
+  function scenePanelFailure(label: string, copy: string): string {
+    return (
+      '<section class="scene-panel-error" data-scene-panel-error="true">' +
+      '<h2>' +
+      label +
+      '</h2><p>' +
+      copy +
+      '</p></section>'
+    );
+  }
+
+  function parseRevision(body: string): number | null {
+    const raw = parseFormEncoded(body)['revision'];
+    if (raw === undefined || !/^\d+$/.test(raw)) return null;
+    const value = Number(raw);
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+  }
 
   async function videoRoutes(input: {
+    readonly method: string;
     readonly pathname: string;
+    readonly search: URLSearchParams;
+    readonly body: string;
     readonly session: SessionInfo;
   }): Promise<WebResponse> {
     const gateway = deps.video;
@@ -393,69 +447,397 @@ export function createWebApp(
 
     const rest = input.pathname.slice('/videos/'.length);
     const segments = rest.split('/');
+    if (segments.length > 4) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     const rawId = segments[0];
-    const rawTab = segments[1];
-    if (rawId === undefined || rawId.length === 0 || segments.length > 2) {
-      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
-    }
-    if (rawTab !== undefined && !isTabKey(rawTab)) {
+    if (rawId === undefined || rawId.length === 0) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
 
     let videoId: string;
+    const tail: string[] = [];
     try {
       videoId = decodeURIComponent(rawId);
+      for (const segment of segments.slice(1)) tail.push(decodeURIComponent(segment));
     } catch {
-      return json(400, 'validation_failed', 'Malformed video id');
+      return json(400, 'validation_failed', 'Malformed video path');
     }
+    const [rawTab, action, actionId] = tail;
+    const isSceneDetail = input.method === 'GET' && tail.length === 2 && rawTab === 'scenes';
+    const isRelease =
+      input.method === 'POST' &&
+      tail.length === 2 &&
+      rawTab === 'scenes' &&
+      action === 'release-checkpoint';
+    const isApprove =
+      input.method === 'POST' &&
+      tail.length === 2 &&
+      rawTab === 'storyboard' &&
+      action === 'approve';
+    const isReplace =
+      input.method === 'POST' &&
+      tail.length === 3 &&
+      rawTab === 'scenes' &&
+      action !== undefined &&
+      actionId === 'replace-image';
 
-    let detail;
+    if (tail.length === 1 && rawTab !== undefined && !isTabKey(rawTab)) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    if (tail.length >= 2 && !isSceneDetail && !isRelease && !isApprove && !isReplace) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    const isCommit = isRelease || isApprove || isReplace;
+    if (input.method !== 'GET' && !isCommit) return methodNotAllowed('GET, HEAD');
+
+    let detail: VideoDetail;
     try {
-      detail = await gateway.get(videoId);
+      const loaded = await gateway.get(videoId);
+      if (loaded === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      detail = loaded;
     } catch {
       return json(503, 'not_ready', 'The video workspace is unavailable');
     }
-    if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
 
-    // No tab in the URL: open the tab that holds the stage needing attention.
-    const tab: TabKey = rawTab === undefined ? tabKeyForStage(detail.current_stage) : rawTab;
+    const base = '/videos/' + encodeURIComponent(videoId);
+    const imStage = detail.stages.find((row) => row.stage === 'IM');
+    const imBlocked = imStage?.blocked_reason ?? null;
 
-    // S-10 owns the script tab. Without a script gateway the F-04 stage summary
-    // stays in place (an honest fallback, never invented script data).
-    let panel: string | undefined;
-    let scripts: readonly string[] = [];
-    if (tab === 'script' && deps.script !== undefined) {
-      scripts = SCRIPT_REVIEW_SCRIPTS;
+    function workspacePage(view: {
+      readonly tab: TabKey;
+      readonly panel?: string;
+      readonly scripts?: readonly string[];
+      readonly status?: number;
+      readonly crumb?: string;
+    }): WebResponse {
+      const parts = renderWorkspace(detail, view.tab, {
+        ...(view.panel === undefined ? {} : { panel: view.panel }),
+        ...(view.scripts === undefined ? {} : { scripts: view.scripts }),
+      });
+      const breadcrumbs = [
+        { label: 'Overview', href: '/' },
+        { label: detail.series_name, href: '/series/' + encodeURIComponent(detail.series_id) },
+        {
+          label: 'Video ' + (detail.position_in_batch + 1),
+          href: base + '/' + view.tab,
+        },
+        ...(view.crumb === undefined ? [] : [{ label: view.crumb }]),
+      ];
+      return html(
+        page({
+          title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
+          nav: null,
+          breadcrumbs,
+          content: parts.content,
+          titleAside: parts.titleAside,
+          footer: parts.footer,
+          session: input.session,
+          scripts: parts.scripts,
+        }),
+        view.status ?? 200,
+      );
+    }
+
+    async function storyboardOrNull(
+      gatewayWithScenes: SceneGateway,
+    ): Promise<StoryboardView | null> {
       try {
-        const script = await deps.script.get(videoId);
-        panel = renderScriptReview({ detail, script });
+        return await gatewayWithScenes.storyboard(videoId);
       } catch {
-        // A tab whose data fails keeps the rail and the tabs; only the panel errors.
-        panel =
-          '<section class="script-review" id="script-load-failed" data-script-review data-error="true">' +
-          '<h2>Script</h2>' +
-          '<p>The script could not be loaded. The rest of the workspace is unaffected, and nothing was changed.</p>' +
-          '</section>';
+        return null;
       }
     }
 
-    const parts = renderWorkspace(detail, tab, { panel, scripts });
-    return html(
-      page({
-        title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
-        nav: null,
-        breadcrumbs: [
-          { label: 'Overview', href: '/' },
-          { label: detail.series_name, href: '/series/' + encodeURIComponent(detail.series_id) },
-          { label: 'Video ' + (detail.position_in_batch + 1) },
-        ],
-        content: parts.content,
-        titleAside: parts.titleAside,
-        footer: parts.footer,
-        session: input.session,
-        scripts: parts.scripts,
-      }),
-    );
+    // ── commits ─────────────────────────────────────────────────────────────
+
+    if (isApprove) {
+      const scenes = deps.scenes;
+      if (scenes === undefined) return json(503, 'not_ready', 'The storyboard is not mounted');
+      const revision = parseRevision(input.body);
+      if (revision === null)
+        return json(400, 'validation_failed', 'A positive revision is required');
+      try {
+        await scenes.approveStoryboard(videoId, { revision });
+      } catch (error) {
+        const board = await storyboardOrNull(scenes);
+        if (error instanceof SceneConflictError) {
+          return workspacePage({
+            tab: 'storyboard',
+            panel: renderStoryboard({ detail, storyboard: board }),
+            status: 409,
+            crumb: 'Storyboard',
+          });
+        }
+        if (error instanceof SceneNotFoundError) {
+          return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+        }
+        return workspacePage({
+          tab: 'storyboard',
+          status: 503,
+          crumb: 'Storyboard',
+          panel: scenePanelFailure(
+            'Storyboard',
+            'The approval could not be recorded. Nothing was changed; the storyboard below is the last state the server reported.',
+          ),
+        });
+      }
+      return redirect(base + '/storyboard?notice=approved');
+    }
+
+    if (isRelease) {
+      const scenes = deps.scenes;
+      if (scenes === undefined) return json(503, 'not_ready', 'The scene grid is not mounted');
+      const revision = parseRevision(input.body);
+      if (revision === null)
+        return json(400, 'validation_failed', 'A positive revision is required');
+      const board = await storyboardOrNull(scenes);
+      const release = scenes.releaseRemaining;
+      if (release === undefined) {
+        // Gap F-06-1: the frozen contract has no checkpoint-release route, so the
+        // control stays disabled and the page says why rather than guessing a
+        // request shape the backend cannot serve.
+        return workspacePage({
+          tab: 'scenes',
+          status: 503,
+          crumb: 'Scenes',
+          scripts: SCENE_GRID_SCRIPTS,
+          panel: renderSceneGrid({
+            detail,
+            storyboard: board,
+            release: { wired: false },
+            notice: RELEASE_UNWIRED_REASON,
+          }),
+        });
+      }
+      try {
+        await release.call(scenes, videoId, { revision });
+      } catch (error) {
+        if (error instanceof SceneConflictError) {
+          const fresh = await storyboardOrNull(scenes);
+          return workspacePage({
+            tab: 'scenes',
+            status: 409,
+            crumb: 'Scenes',
+            scripts: SCENE_GRID_SCRIPTS,
+            panel: renderSceneGrid({
+              detail,
+              storyboard: fresh,
+              release: { wired: true },
+              notice:
+                'The storyboard changed while this page was open (current rev ' +
+                error.currentRevision +
+                '). Nothing was released; the grid below is the current state.',
+            }),
+          });
+        }
+        const fresh = await storyboardOrNull(scenes);
+        return workspacePage({
+          tab: 'scenes',
+          status: 503,
+          crumb: 'Scenes',
+          scripts: SCENE_GRID_SCRIPTS,
+          panel: renderSceneGrid({
+            detail,
+            storyboard: fresh,
+            release: { wired: true },
+            notice:
+              'The release could not be queued. Nothing was changed; nothing was spent. The grid below is the last state the server reported.',
+          }),
+        });
+      }
+      return redirect(base + '/scenes?notice=released');
+    }
+
+    if (isReplace) {
+      const scenes = deps.scenes;
+      if (scenes === undefined) return json(503, 'not_ready', 'The scene grid is not mounted');
+      const sceneId = action ?? '';
+      const revision = parseRevision(input.body);
+      if (revision === null)
+        return json(400, 'validation_failed', 'A positive revision is required');
+      const fields = parseFormEncoded(input.body);
+      const typed = (fields['image_prompt'] ?? '').trim();
+      if (typed.length > 4_000) return json(400, 'validation_failed', 'The prompt is too long');
+      try {
+        await scenes.replaceImage(videoId, sceneId, {
+          revision,
+          ...(typed.length === 0 ? {} : { image_prompt: typed }),
+        });
+      } catch (error) {
+        const board = await storyboardOrNull(scenes);
+        const scene = await scenes.scene(videoId, sceneId).catch(() => null);
+        if (error instanceof SceneNotFoundError) {
+          return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+        }
+        if (scene === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+        const total = Math.max(detail.scene_count, board?.scene_count ?? 0);
+        const checkpoint = checkpointState({ storyboard: board, blockedReason: imBlocked, total });
+        const failure =
+          error instanceof SceneConflictError
+            ? 'The scene changed while this page was open (current rev ' +
+              error.currentRevision +
+              '). Nothing was replaced and no call was made; the page shows the current scene.'
+            : 'The replacement was not queued: ' +
+              (error instanceof Error ? error.message : 'the backend refused it') +
+              '. Nothing was changed and no call was made.';
+        return workspacePage({
+          tab: 'scenes',
+          status: error instanceof SceneConflictError ? 409 : 503,
+          crumb: scene.scene_no,
+          panel: renderSceneDetail({
+            detail,
+            scene,
+            total,
+            replace: {
+              wired: true,
+              blockedReason:
+                checkpoint.kind === 'open' && scene.position > 3 && scene.asset === null
+                  ? 'Scene ' + scene.position + ' waits for the first-three checkpoint release.'
+                  : null,
+            },
+            notice: failure,
+          }),
+        });
+      }
+      return redirect(base + '/scenes/' + encodeURIComponent(sceneId) + '?notice=replaced');
+    }
+
+    // ── scene detail (S-13) ────────────────────────────────────────────────
+
+    if (isSceneDetail) {
+      const scenes = deps.scenes;
+      if (scenes === undefined) {
+        return html(
+          page({
+            title: 'Scene',
+            nav: null,
+            breadcrumbs: [{ label: 'Overview', href: '/' }],
+            content: scenePanelFailure(
+              'Scene detail',
+              'The scene surfaces are not mounted in this build, so there is no scene to show.',
+            ),
+            session: input.session,
+          }),
+          503,
+        );
+      }
+      const sceneId = action ?? '';
+      const detailNotice = noticeFor(input.search);
+      let scene;
+      try {
+        scene = await scenes.scene(videoId, sceneId);
+      } catch {
+        return workspacePage({
+          tab: 'scenes',
+          status: 503,
+          crumb: 'Scenes',
+          panel: scenePanelFailure(
+            'Scene detail',
+            'The scene could not be loaded. The rest of the workspace is unaffected, and nothing was changed.',
+          ),
+        });
+      }
+      if (scene === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      const board = await storyboardOrNull(scenes);
+      const total = Math.max(detail.scene_count, board?.scene_count ?? 0);
+      const checkpoint = checkpointState({ storyboard: board, blockedReason: imBlocked, total });
+      const blocked =
+        checkpoint.kind === 'open' && scene.position > 3 && scene.asset === null
+          ? 'Scene ' + scene.position + ' waits for the first-three checkpoint release.'
+          : null;
+      return workspacePage({
+        tab: 'scenes',
+        crumb: scene.scene_no,
+        panel: renderSceneDetail({
+          detail,
+          scene,
+          total,
+          replace: { wired: true, blockedReason: blocked },
+          ...(detailNotice === undefined ? {} : { notice: detailNotice }),
+        }),
+      });
+    }
+
+    // ── tabs (S-09…S-16) ───────────────────────────────────────────────────
+
+    const tab: TabKey = isTabKey(rawTab ?? '')
+      ? (rawTab as TabKey)
+      : tabKeyForStage(detail.current_stage);
+
+    if (tab === 'script' && deps.script !== undefined) {
+      const scriptGateway = deps.script;
+      try {
+        const script = await scriptGateway.get(videoId);
+        return workspacePage({
+          tab,
+          crumb: 'Script',
+          scripts: SCRIPT_REVIEW_SCRIPTS,
+          panel: renderScriptReview({ detail, script }),
+        });
+      } catch {
+        return workspacePage({
+          tab,
+          crumb: 'Script',
+          scripts: SCRIPT_REVIEW_SCRIPTS,
+          panel:
+            '<section class="script-review" id="script-load-failed" data-script-review data-error="true">' +
+            '<h2>Script</h2>' +
+            '<p>The script could not be loaded. The rest of the workspace is unaffected, and nothing was changed.</p>' +
+            '</section>',
+        });
+      }
+    }
+
+    if (tab === 'storyboard' && deps.scenes !== undefined) {
+      const scenes = deps.scenes;
+      try {
+        const board = await scenes.storyboard(videoId);
+        return workspacePage({
+          tab,
+          crumb: 'Storyboard',
+          panel: renderStoryboard({ detail, storyboard: board }),
+        });
+      } catch {
+        return workspacePage({
+          tab,
+          crumb: 'Storyboard',
+          panel: scenePanelFailure(
+            'Storyboard',
+            'The storyboard could not be loaded. The rest of the workspace is unaffected, and nothing was changed.',
+          ),
+        });
+      }
+    }
+
+    if (tab === 'scenes' && deps.scenes !== undefined) {
+      const scenes = deps.scenes;
+      const notice = noticeFor(input.search);
+      try {
+        const board = await scenes.storyboard(videoId);
+        return workspacePage({
+          tab,
+          crumb: 'Scenes',
+          scripts: SCENE_GRID_SCRIPTS,
+          panel: renderSceneGrid({
+            detail,
+            storyboard: board,
+            release: { wired: scenes.releaseRemaining !== undefined },
+            ...(notice === undefined ? {} : { notice }),
+          }),
+        });
+      } catch {
+        return workspacePage({
+          tab,
+          crumb: 'Scenes',
+          scripts: SCENE_GRID_SCRIPTS,
+          panel: scenePanelFailure(
+            'Scenes',
+            'The scene grid could not be loaded. The rest of the workspace is unaffected, and nothing was changed.',
+          ),
+        });
+      }
+    }
+
+    return workspacePage({ tab });
   }
 
   function page(input: {

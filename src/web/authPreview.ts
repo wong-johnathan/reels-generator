@@ -19,7 +19,6 @@ import {
   HealthReportSchema,
   OverviewSchema,
   SeriesDetailSchema,
-  ScriptViewSchema,
   SeriesVersionDetailSchema,
   VideoDetailSchema,
 } from '../../contract/api.js';
@@ -27,39 +26,10 @@ import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { createWebApp, type WebRequest, type WebResponse } from './app.js';
 import type { AuthOutcome } from './auth/login.js';
 import { MemorySessionStore } from './auth/session.js';
-import { createMemoryScriptGateway } from './script/gateway.js';
 import { createMemorySeriesGateway } from './series/gateway.js';
 import { createMemoryVideoGateway } from './workspace/gateway.js';
 
 const DEMO_OPERATOR = 'operator';
-
-/**
- * The preview renders S-10 against the fixture script. `PREVIEW_SCRIPT=draft`
- * swaps in a blocked draft (C-10) so the closed approval gate can be checked
- * by eye; it changes no production behaviour.
- */
-function previewScript() {
-  const approved = ScriptViewSchema.parse(FIXTURES['script.get']);
-  if (process.env['PREVIEW_SCRIPT'] !== 'draft') return approved;
-  const [first] = approved.claims;
-  if (first === undefined) return approved;
-  return ScriptViewSchema.parse({
-    ...approved,
-    revision: 5,
-    status: 'draft',
-    approved_at: null,
-    claims: [
-      { ...first, id: '22222222-2222-4222-8222-222222222222', status: 'unsourced', source: null },
-      {
-        ...first,
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'url_unreachable',
-        url_status: 404,
-      },
-      { ...first, id: '44444444-4444-4444-8444-444444444444', status: 'sourced' },
-    ],
-  });
-}
 const DEMO_PASSWORD = 'preview';
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -77,20 +47,20 @@ function transpile(relativePath: string, label: string): string | null {
   }).outputText;
 }
 
+/** Wire names (kebab-case, from the script tags) to the module files on disk. */
+const CLIENT_MODULE_FILES: Readonly<Record<string, string>> = {
+  login: 'login',
+  shell: 'shell',
+  behaviours: 'behaviours',
+  'series-editor': 'seriesEditor',
+  'script-review': 'scriptReview',
+  workspace: 'workspace',
+  'scene-grid': 'sceneGrid',
+};
+
 function readClientModule(name: string): string | null {
-  if (
-    name !== 'login' &&
-    name !== 'shell' &&
-    name !== 'behaviours' &&
-    name !== 'series-editor' &&
-    name !== 'script-review' &&
-    name !== 'workspace'
-  ) {
-    return null;
-  }
-  const file =
-    name === 'series-editor' ? 'seriesEditor' : name === 'script-review' ? 'scriptReview' : name;
-  return transpile('./client/' + file + '.ts', name);
+  const file = CLIENT_MODULE_FILES[name];
+  return file === undefined ? null : transpile('./client/' + file + '.ts', name);
 }
 
 /** The enhancer's shared rules, served from the same source the server uses. */
@@ -99,11 +69,8 @@ function readSharedModule(path: string): string | null {
     'format.js',
     'series/commit.js',
     'series/fields.js',
-    'script/impact.js',
-    'script/model.js',
     'workspace/events.js',
     'workspace/glyphs.js',
-    'workspace/railDom.js',
     'shared/stages.js',
     'shared/states.js',
   ];
@@ -150,7 +117,6 @@ export function createAuthPreviewHandler(
     now: options.now ?? ((): number => Date.now()),
     series: demoSeriesGateway(),
     video: createMemoryVideoGateway([VideoDetailSchema.parse(FIXTURES['video.get'])]),
-    script: createMemoryScriptGateway([previewScript()]),
     assets: { readClientModule, readSharedModule },
   });
 }
