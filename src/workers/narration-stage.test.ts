@@ -192,9 +192,12 @@ describe.skipIf(!hasDatabase)('narration stage (US-021)', () => {
     expect(second.narration.content_sha256).toBe(first.narration.content_sha256);
     expect(second.narration.audio_asset_id).not.toBe(first.narration.audio_asset_id);
 
+    // Scoped to these two projects: earlier cases in this file stored the same
+    // bytes for their own seeded series, and each series is its own folder.
     const rows = await db.pool.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM asset WHERE kind = 'audio' AND content_sha256 = $1`,
-      [first.narration.content_sha256],
+      `SELECT count(*)::int AS n FROM asset
+        WHERE kind = 'audio' AND content_sha256 = $1 AND project_id = ANY($2::uuid[])`,
+      [first.narration.content_sha256, [seeded.projectId, other.projectId]],
     );
     expect(rows.rows[0]).toEqual({ n: 2 });
 

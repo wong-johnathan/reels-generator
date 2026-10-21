@@ -284,10 +284,13 @@ export async function runExportStage(
     const storedIds: string[] = [];
     for (const entry of pkg.contents) {
       const sha = sha256Hex(entry.bytes);
+      // Packages live under export/: they carry the publishable filename
+      // (<video-slug>.mp4), not the batch's internal video.mp4, so the two never
+      // look like the same file to a human reading the bucket.
       const objectKey = assetObjectKey({
         seriesSlug: keyCtx.seriesSlug,
         batchOrdinal: keyCtx.batchOrdinal,
-        name: entry.record.name,
+        name: 'export/' + entry.record.name,
       });
       await deps.blobs.put(objectKey, entry.bytes, entry.record.mime_type);
       const inserted = await withTransaction(deps.pool, async (client) => {
@@ -349,7 +352,7 @@ export async function runExportStage(
     const manifestKey = assetObjectKey({
       seriesSlug: keyCtx.seriesSlug,
       batchOrdinal: keyCtx.batchOrdinal,
-      name: PACKAGE_MANIFEST_OBJECT_NAME,
+      name: 'export/' + PACKAGE_MANIFEST_OBJECT_NAME,
     });
     await deps.blobs.put(manifestKey, manifestBytes, 'application/json');
     storedIds.push(

@@ -152,13 +152,17 @@ describe.skipIf(!hasDatabase)('EX stage', () => {
     ]);
     expect(result.total_bytes).toBeGreaterThan(0);
 
-    // R-026: the MP4/.srt/.vtt are the RE assets themselves (one blob per hash),
-    // so EX records the two sidecars plus the manifest that names all five files.
+    // D-F: an exported package is its own set of objects under export/, because
+    // the file the operator uploads must carry the video's name (title.mp4), not
+    // the batch's internal video.mp4. Every entry is therefore stored again.
     const assets = await exAssets(db.pool, fixture.projectId);
     expect(assets.map((asset) => asset.name).sort()).toEqual([
       'metadata.json',
       'package-manifest.json',
       'sources.json',
+      `${result.package_stem}.mp4`,
+      `${result.package_stem}.srt`,
+      `${result.package_stem}.vtt`,
     ]);
     for (const asset of assets) expect(asset.sha).toMatch(/^[0-9a-f]{64}$/);
 

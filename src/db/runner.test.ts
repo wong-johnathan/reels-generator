@@ -311,8 +311,8 @@ describe.skipIf(!hasDatabase)(
 
       const badBatch = await rejection(
         db.pool.query(
-          `INSERT INTO batch (series_id, series_version_id, target_count, status)
-                     VALUES ($1, $2, 31, 'ACTIVE')`,
+          `INSERT INTO batch (series_id, series_version_id, ordinal, target_count, status)
+                     VALUES ($1, $2, 99, 31, 'ACTIVE')`,
           [seeded.seriesId, seeded.seriesVersionId],
         ),
       );
