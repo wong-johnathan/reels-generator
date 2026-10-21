@@ -47,23 +47,23 @@ describe('session cookie (R-015-2)', () => {
 
 describe('readSessionToken', () => {
   it('reads the token from a cookie header with other cookies around it', () => {
-    expect(readSessionToken('theme=dark; session=abc123; other=1')).toBe('abc123');
+    expect(readSessionToken('theme=dark; reels_session=abc123; other=1')).toBe('abc123');
   });
 
   it('tolerates missing headers and empty values', () => {
     expect(readSessionToken(undefined)).toBeNull();
     expect(readSessionToken('')).toBeNull();
-    expect(readSessionToken('session=')).toBeNull();
+    expect(readSessionToken('reels_session=')).toBeNull();
     expect(readSessionToken('theme=dark')).toBeNull();
   });
 
-  it('does not match a cookie whose name merely ends in "session"', () => {
-    expect(readSessionToken('xsession=abc')).toBeNull();
-    expect(readSessionToken('session_extra=abc')).toBeNull();
+  it('does not match a cookie whose name merely ends in "reels_session"', () => {
+    expect(readSessionToken('xreels_session=abc')).toBeNull();
+    expect(readSessionToken('reels_session_extra=abc')).toBeNull();
   });
 
   it('rejects an oversized value instead of trusting it', () => {
-    expect(readSessionToken('session=' + 'a'.repeat(513))).toBeNull();
+    expect(readSessionToken('reels_session=' + 'a'.repeat(513))).toBeNull();
   });
 });
 

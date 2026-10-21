@@ -23,7 +23,12 @@ import type {
 } from '../../contract/api.js';
 import type { Authenticate, AuthOutcome } from './auth/login.js';
 import { guardRequest, LOGIN_PATH, safeNextPath } from './auth/guard.js';
-import { readSessionToken, serializeSessionCookie, type SessionStore } from './auth/session.js';
+import {
+  readSessionToken,
+  serializeCsrfCookie,
+  serializeSessionCookie,
+  type SessionStore,
+} from './auth/session.js';
 import { LOGIN_COPY, renderLoginPage } from './render/login.js';
 import { renderNotFoundPage } from './render/notFound.js';
 import { renderOverview } from './render/overview.js';
@@ -140,6 +145,14 @@ export interface WebResponse {
   readonly body: string;
   /** Set only by the preview's asset stand-ins; the production proxy streams from MinIO. */
   readonly bodyBytes?: Uint8Array;
+  /**
+   * Additional Set-Cookie values beyond any single `set-cookie` in `headers`.
+   * Sign-in sets the session *and* CSRF cookie here (the DB-backed path issues
+   * the session token the authenticator already minted). The production mount
+   * merges these into the response as separate Set-Cookie headers; the
+   * in-memory preview path keeps the single `set-cookie` string in `headers`.
+   */
+  readonly setCookies?: readonly string[];
 }
 
 const CSP =
@@ -284,7 +297,7 @@ export function createWebApp(
     const path = pathname + target.search;
     const cookieHeader = headerValue(request.headers, 'cookie');
     const token = readSessionToken(cookieHeader);
-    const record = token === null ? null : deps.sessions.read(token, now());
+    const record = token === null ? null : await deps.sessions.read(token, now());
 
     const decision = guardRequest({
       path,
@@ -1742,7 +1755,22 @@ export function createWebApp(
 
     switch (outcome.kind) {
       case 'authenticated': {
-        const created = deps.sessions.create(outcome.username, now());
+        if (outcome.sessionToken !== undefined) {
+          // The DB-backed authenticator (AuthService.login) already minted the
+          // session and returned its token, so nothing is (re)created here —
+          // the password is gone by this point. Issue the API's cookie pair:
+          // the session token plus the synchroniser token its forms need.
+          return {
+            status: 303,
+            headers: { location: next, ...NO_STORE },
+            body: '',
+            setCookies: [
+              serializeSessionCookie(outcome.sessionToken),
+              serializeCsrfCookie(outcome.csrfToken ?? ''),
+            ],
+          };
+        }
+        const created = await deps.sessions.create(outcome.username, now());
         return redirect(next, { 'set-cookie': serializeSessionCookie(created.token) });
       }
       case 'rejected':

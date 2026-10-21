@@ -47,7 +47,18 @@ import {
   type HttpResponse,
   type HttpRequestLike,
 } from '../web/middleware/auth.js';
+import { createWebApp, type WebAppDependencies } from '../web/app.js';
+import { createDbSessionStore } from '../web/auth/dbSession.js';
+import { EMPTY_OVERVIEW, loadOverview, type Overview } from '../web/overview/postgres.js';
 import { handleSeriesRequest } from './series-routes.js';
+import { createPostgresOpsGateway } from '../web/health/postgres.js';
+import { createPostgresNarrationGateway } from '../web/narration/postgres.js';
+import { createPostgresExportGateway } from '../web/provenance/postgres.js';
+import { createPostgresRenderGateway } from '../web/quality/postgres.js';
+import { createPostgresSceneGateway } from '../web/scenes/postgres.js';
+import { createPostgresScriptGateway } from '../web/script/postgres.js';
+import { createSeriesGateway } from '../web/series/postgres.js';
+import { createVideoGateway } from '../web/workspace/postgres.js';
 
 export interface Readiness {
   readonly ready: boolean;
@@ -71,6 +82,13 @@ export interface HttpRequest extends HttpRequestLike {
  */
 export interface ContentRuntime {
   readonly pool: Pool;
+  /**
+   * The dashboard overview, loaded once at startup by the production entrypoint
+   * (see `loadOverview`). The mount passes it straight through to `createWebApp`;
+   * a handler built without it shows an empty overview rather than querying the
+   * database per request.
+   */
+  readonly overview?: Overview;
 }
 
 /** What the production entrypoint injects. Tests pass the same shape. */
@@ -83,36 +101,6 @@ export interface AuthRuntime {
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' } as const;
 
-/**
- * The page layer (`src/web/app.ts`) is not mounted in this build: it expects a
- * sync in-memory session store and the `session` cookie, while this server uses
- * the DB-backed `AuthService` and `reels_session`/`reels_csrf`. Until the
- * integration lands, an unmatched page path must say so. It must never fall
- * through to the auth gate: that gate answers `302 /login?next=…`, `/login` is
- * not routed here either, and the pair redirects forever with the `next` value
- * URL-encoded on each hop until the URL stops parsing.
- */
-const NOT_MOUNTED_PAGE = [
-  '<!doctype html><html lang="en"><head><meta charset="utf-8">',
-  '<meta name="viewport" content="width=device-width,initial-scale=1">',
-  '<title>Web UI not available in this build</title></head>',
-  '<body style="font:16px/1.5 system-ui,sans-serif;max-width:38rem;margin:12vh auto;padding:0 1.5rem;color:#111">',
-  '<h1 style="font-size:1.25rem">Web UI not available in this build</h1>',
-  '<p>The HTTP API is running and reachable under <code>/api</code>',
-  ' (<code>/api/session</code>, <code>/api/login</code>).</p>',
-  '<p>The dashboard pages are intentionally not mounted here: they require the',
-  ' session-store and storage adapters that are not part of this build.</p>',
-  '<p>Health probes: <code>/healthz</code>, <code>/readyz</code>.</p>',
-  '</body></html>',
-].join('');
-
-function notMountedPage(): HandlerResponse {
-  return {
-    status: 503,
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
-    body: NOT_MOUNTED_PAGE,
-  };
-}
 const MAX_BODY_BYTES = 64 * 1024;
 
 function envelope(code: string, message: string, status: number): HandlerResponse {
@@ -299,14 +287,92 @@ async function handleLogout(request: HttpRequest, auth: AuthRuntime): Promise<Ha
 }
 
 /**
+ * Build the dashboard's dependencies from the runtimes the server already has.
+ * The AuthService is the single source of truth for sessions and login: the web
+ * store reads through it, and the web authenticator maps its LoginResult onto
+ * the web's three AuthOutcome kinds (authenticated / rejected / throttled).
+ */
+function webDeps(auth: AuthRuntime, content?: ContentRuntime): WebAppDependencies {
+  return {
+    sessions: createDbSessionStore(auth.service),
+    authenticate: async ({ username, password }) => {
+      const result = await auth.service.login({ username, password });
+      if (result.ok) {
+        return {
+          kind: 'authenticated',
+          username: result.session.username,
+          sessionToken: result.token,
+          csrfToken: result.session.csrfToken,
+        };
+      }
+      if (result.reason === 'rate_limited') {
+        return { kind: 'throttled', retryAfterSeconds: result.retryAfterS ?? 1 };
+      }
+      return { kind: 'rejected' };
+    },
+    overview: content?.overview ?? EMPTY_OVERVIEW,
+    // Storage adapters. Every one of these reads only columns that exist in the
+    // frozen schema (m001…m009); a field with no column behind it is left as the
+    // view type's documented empty value rather than a plausible default, so a
+    // page can look sparse but never invents a number.
+    ...(content === undefined
+      ? {}
+      : {
+          series: createSeriesGateway(content.pool),
+          video: createVideoGateway(content.pool),
+          scenes: createPostgresSceneGateway(content.pool),
+          script: createPostgresScriptGateway(content.pool),
+          narration: createPostgresNarrationGateway(content.pool),
+          render: createPostgresRenderGateway(content.pool),
+          exportPackage: createPostgresExportGateway(content.pool),
+          ops: createPostgresOpsGateway(content.pool),
+        }),
+    // The web session record carries only the operator and expiry; the CSRF
+    // token lives in the `reels_csrf` cookie (issued on login) and is checked
+    // by the /api middleware on state-changing routes. No HTML form this build
+    // serves needs it, so '' is the honest value rather than a fabricated token.
+    csrfToken: () => '',
+    now: () => Date.now(),
+  };
+}
+
+/** Bridge a web response onto the handler's shape, merging any extra cookies. */
+async function handleWebApp(
+  app: ReturnType<typeof createWebApp>,
+  request: HttpRequest,
+): Promise<HandlerResponse> {
+  const response = await app({
+    method: request.method,
+    url: request.url,
+    headers: request.headers,
+    body: request.body,
+  });
+  const headers: Record<string, string | readonly string[]> = { ...response.headers };
+  if (response.setCookies !== undefined && response.setCookies.length > 0) {
+    headers['set-cookie'] = response.setCookies;
+  }
+  return { status: response.status, headers, body: response.body };
+}
+
+/**
  * Route a request. Pure and injectable so the tests run without binding a socket
  * or requiring a database; `startServer` adds the socket and body reading.
+ *
+ * The dashboard (`src/web/app.ts`) is mounted here whenever the handler has an
+ * auth runtime: non-`/api` paths go to it, so `/login`, `/` and every HTML
+ * surface share the production session store and the DB-backed authenticator.
+ * A handler built without `auth` answers only the probes and the /api surface —
+ * there is no session store to back an HTML page, so page paths answer 404.
  */
 export function createRequestHandler(
   probe: HealthProbe,
   auth?: AuthRuntime,
   content?: ContentRuntime,
 ) {
+  // Built once: the page handler holds no per-request state, and the overview
+  // is a startup snapshot (ContentRuntime.overview), not a per-request read.
+  const webApp = auth === undefined ? null : createWebApp(webDeps(auth, content));
+
   return async function handle(request: HttpRequest): Promise<HandlerResponse> {
     const method = request.method.toUpperCase();
     const path = request.url.split('?')[0] ?? '/';
@@ -330,10 +396,14 @@ export function createRequestHandler(
       };
     }
 
-    // Page paths are not mounted in this build. Answer honestly rather than
-    // letting them fall through to the auth gate, which redirects to `/login` —
-    // itself unrouted here — and loops (see NOT_MOUNTED_PAGE).
-    if (!path.startsWith('/api/')) return notMountedPage();
+    // HTML surfaces: the dashboard app owns them (and its own session guard).
+    if (!path.startsWith('/api/')) {
+      if (webApp === null) {
+        // Probe-only embedding: no session store exists to back a page.
+        return envelope('not_found', `No route for ${path}`, 404);
+      }
+      return handleWebApp(webApp, request);
+    }
 
     if (auth === undefined) {
       // Probe-only embedding: no protected routes are mounted, so there is
@@ -522,6 +592,11 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
       },
     });
 
+    // The dashboard overview is a startup snapshot (the SSE enhancer refreshes
+    // it in place), so it is read once here, after the operator seed proved the
+    // database reachable, and handed to the mount.
+    const overview = await loadOverview(pool);
+
     const server = startServer({
       port: Number.parseInt(result.values.APP_PORT ?? '8080', 10),
       probe: createDependencyProbe(process.env),
@@ -530,7 +605,7 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
         sessionTtlSeconds: ttlHours * 3600,
         secureCookies: (result.values.APP_BASE_URL ?? '').startsWith('https://'),
       },
-      content: { pool },
+      content: { pool, overview },
     });
     server.on('close', () => {
       void pool.end();

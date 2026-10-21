@@ -55,36 +55,20 @@ describe('web probes (R-016-1, R-018)', () => {
   });
 });
 
-describe('page paths in a build without the dashboard mounted', () => {
-  const handle = createRequestHandler(async () => ({ ready: true, degraded_reasons: [] }), {
-    service: {
-      login: async () => ({ kind: 'rejected' as const }),
-      authenticate: async () => null,
-      logout: async () => undefined,
-    } as unknown as Parameters<typeof createRequestHandler>[1] extends infer T
-      ? T extends { service: infer S }
-        ? S
-        : never
-      : never,
-    sessionTtlSeconds: 60,
+describe('page paths without an auth runtime (probe-only embedding)', () => {
+  const handle = createRequestHandler(async () => ({ ready: true, degraded_reasons: [] }));
+
+  it('answers page paths with 404 rather than a redirect, since no session store exists', async () => {
+    const login = await handle({ method: 'GET', url: '/login' });
+    expect(login.status).toBe(404);
+    expect(login.headers['location']).toBeUndefined();
+
+    const root = await handle({ method: 'GET', url: '/' });
+    expect(root.status).toBe(404);
+    expect(root.headers['location']).toBeUndefined();
   });
 
-  it('answers GET /login with an explicit 503 page, never a redirect', async () => {
-    const response = await handle({ method: 'GET', url: '/login' });
-    expect(response.status).toBe(503);
-    expect(response.headers['location']).toBeUndefined();
-    expect(String(response.headers['content-type'])).toContain('text/html');
-    expect(response.body).toContain('Web UI not available in this build');
-  });
-
-  it('answers GET / the same way, so the /login redirect loop cannot start', async () => {
-    const response = await handle({ method: 'GET', url: '/' });
-    expect(response.status).toBe(503);
-    expect(response.headers['location']).toBeUndefined();
-  });
-
-  it('leaves the API and the probes untouched', async () => {
+  it('leaves the probes untouched', async () => {
     expect((await handle({ method: 'GET', url: '/healthz' })).status).toBe(200);
-    expect((await handle({ method: 'GET', url: '/api/session' })).status).toBe(200);
   });
 });

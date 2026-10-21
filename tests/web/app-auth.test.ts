@@ -73,7 +73,7 @@ function sessionCookie(response: { headers: Readonly<Record<string, string>> }):
   const header = response.headers['set-cookie'];
   expect(header, 'expected a Set-Cookie header').toBeDefined();
   const pair = header!.split(';')[0]!;
-  expect(pair.startsWith('session=')).toBe(true);
+  expect(pair.startsWith('reels_session=')).toBe(true);
   return pair;
 }
 
@@ -135,7 +135,7 @@ describe('signing in (R-015-1, R-015-2)', () => {
     expect(response.status).toBe(303);
     expect(response.headers['location']).toBe('/');
     const header = response.headers['set-cookie']!;
-    expect(header).toMatch(/^session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax$/);
+    expect(header).toMatch(/^reels_session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax$/);
     expect(header).not.toContain('Secure');
     expect(response.headers['cache-control']).toBe('no-store');
   });
@@ -179,9 +179,9 @@ describe('signing in (R-015-1, R-015-2)', () => {
 
   it('ignores a stale cookie presented with the sign-in POST', async () => {
     const handler = app();
-    const response = await handler(login('session=stale', form(CREDENTIALS)));
+    const response = await handler(login('reels_session=stale', form(CREDENTIALS)));
     expect(response.status).toBe(303);
-    expect(sessionCookie(response)).not.toBe('session=stale');
+    expect(sessionCookie(response)).not.toBe('reels_session=stale');
   });
 
   it('sends an already-signed-in operator from /login to the overview', async () => {
@@ -254,7 +254,7 @@ describe('session expiry (SY-2, AX-21)', () => {
   });
 
   it('renders SY-2 with the spec copy and an assertive announcement', async () => {
-    const response = await app()(get('/login?expired=1&next=%2Fsettings', 'session=gone'));
+    const response = await app()(get('/login?expired=1&next=%2Fsettings', 'reels_session=gone'));
     expect(response.status).toBe(200);
     expect(response.body).toContain('Your session expired. Your unsaved draft is preserved.');
     expect(response.body).toContain(

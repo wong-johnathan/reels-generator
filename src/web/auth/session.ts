@@ -10,7 +10,15 @@
  */
 import { randomBytes } from 'node:crypto';
 
-export const SESSION_COOKIE = 'session';
+/**
+ * The canonical cookie pair, shared with the production auth surface
+ * (src/api/server.ts and src/web/middleware/auth.ts). The API's names win:
+ * production auth already issues `reels_session` + `reels_csrf`, so the web
+ * side must read and write the same names or the two halves of one login can
+ * never agree on the session.
+ */
+export const SESSION_COOKIE = 'reels_session';
+export const CSRF_COOKIE = 'reels_csrf';
 
 /**
  * Absolute lifetime, independent of browser session. The cookie itself carries
@@ -33,10 +41,10 @@ export interface CreatedSession {
 }
 
 export interface SessionStore {
-  create(operator: string, now?: number): CreatedSession;
+  create(operator: string, now?: number): CreatedSession | Promise<CreatedSession>;
   /** Null for unknown, revoked and expired tokens alike. */
-  read(token: string, now?: number): SessionRecord | null;
-  destroy(token: string): void;
+  read(token: string, now?: number): SessionRecord | null | Promise<SessionRecord | null>;
+  destroy(token: string): void | Promise<void>;
 }
 
 /** 32 random bytes, base64url: 43 characters, URL- and header-safe. */
@@ -51,6 +59,15 @@ export function createSessionToken(): string {
  */
 export function serializeSessionCookie(token: string): string {
   return SESSION_COOKIE + '=' + token + '; Path=/; HttpOnly; SameSite=Lax';
+}
+
+/**
+ * The synchroniser token, issued next to the session cookie on sign-in so the
+ * page's state-changing forms can double-submit it. Same attributes as the
+ * session cookie: httpOnly, SameSite=Lax, whole-site path, no Domain.
+ */
+export function serializeCsrfCookie(token: string): string {
+  return CSRF_COOKIE + '=' + token + '; Path=/; HttpOnly; SameSite=Lax';
 }
 
 export function serializeClearedSessionCookie(): string {

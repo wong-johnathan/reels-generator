@@ -183,8 +183,8 @@ describe('S-03 Series list', () => {
       body: 'username=operator&password=preview-passphrase',
     });
     const emptyCookie = (login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
-    expect(emptyCookie.startsWith('session=')).toBe(true);
-    expect(cookie.startsWith('session=')).toBe(true);
+    expect(emptyCookie.startsWith('reels_session=')).toBe(true);
+    expect(cookie.startsWith('reels_session=')).toBe(true);
     const response = await empty(get('/series', emptyCookie));
     expect(response.status).toBe(200);
     expect(response.body).toContain('No series yet.');
