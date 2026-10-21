@@ -25,8 +25,12 @@ export const X264_CRF = 20;
 /** §6.8: hard runtime ceiling for one render attempt. */
 export const RENDER_TIMEOUT_MS = 15 * 60 * 1000;
 
-/** §6.4: caption line grouping (≤ 2 lines, ≤ ~42 chars/line). */
-export const CAPTION_MAX_CHARS_PER_LINE = 30;
+/**
+ * §6.4: caption line grouping — at most two lines per cue. The per-line
+ * character budget is derived from the font size (`captionMaxCharsPerLine` in
+ * captions.ts), so the character budget and the width budget can never
+ * disagree about how much fits on one line.
+ */
 export const CAPTION_MAX_LINES = 2;
 /** R-010-6 / D13: one generic 5 % inset per aspect ratio. */
 export const CAPTION_SAFE_INSET_RATIO = 0.05;
@@ -61,4 +65,12 @@ export const CAPTION_PRESENT_THRESHOLD = 128;
 /** The ASS style name and font used for burn-in and for the isolated scan pass. */
 export const CAPTION_STYLE = 'ReelsCaption';
 export const CAPTION_FONT = 'DejaVu Sans';
-export const CAPTION_FONT_SIZE = 48;
+/** 68 px reads at arm's length on a phone at a 1080-wide frame (the 64–72 px band). */
+export const CAPTION_FONT_SIZE = 68;
+/**
+ * The caption block's bottom anchor: the *ink* bottom (glyph + outline +
+ * shadow) sits at this fraction of the frame height — 75 % — so the block lives
+ * in the lower third and stays clear of the bottom ~25 % of a 9:16 frame, where
+ * the platform caption row, like/comment rail and audio row sit.
+ */
+export const CAPTION_BLOCK_BOTTOM_RATIO = 0.75;

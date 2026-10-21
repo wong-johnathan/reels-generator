@@ -3,13 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
   CAPTION_OUTLINE_PX,
   CAPTION_SHADOW_PX,
+  CaptionOverflowError,
   assMargins,
   assTimestamp,
   buildAssDocument,
   buildCaptionDocuments,
   buildSrtDocument,
   buildVttDocument,
+  captionMaxCharsPerLine,
   captionSafeArea,
+  captionTextWidthPx,
   estimateTextWidthPx,
   groupCaptionCues,
   offsetCues,
@@ -17,6 +20,7 @@ import {
   srtTimestamp,
   vttTimestamp,
 } from './captions.js';
+import { CAPTION_BLOCK_BOTTOM_RATIO, CAPTION_FONT_SIZE } from './constants.js';
 
 function words(
   texts: readonly string[],
@@ -41,17 +45,36 @@ describe('caption safe area (R-010-6, D13)', () => {
     });
   });
 
-  it('insets the ASS margins by the outline and shadow so ink, not the text box, is inside', () => {
-    const margins = assMargins(captionSafeArea());
+  it('derives the caption text-box width as the safe width minus the ink pad', () => {
     const pad = CAPTION_OUTLINE_PX + CAPTION_SHADOW_PX;
-    expect(margins.left).toBe(54 + pad);
-    expect(margins.right).toBe(54 + pad);
-    expect(margins.vertical).toBe(96 + pad);
+    expect(captionTextWidthPx()).toBe(1026 - 54 - 2 * pad);
+    expect(captionTextWidthPx()).toBe(960);
   });
 
-  it('keeps an estimate of a full line inside the safe width', () => {
-    const line = 'the quiet machine that runs your'; // 34 chars
-    expect(estimateTextWidthPx(line)).toBeLessThanOrEqual(1026 - 54);
+  it('anchors the ink bottom at 75% and insets the horizontal margins by outline + shadow', () => {
+    const safe = captionSafeArea();
+    const margins = assMargins(safe);
+    const pad = CAPTION_OUTLINE_PX + CAPTION_SHADOW_PX;
+    const inkBottom = Math.round(safe.height * CAPTION_BLOCK_BOTTOM_RATIO);
+    expect(margins.left).toBe(safe.left + pad);
+    expect(margins.right).toBe(safe.width - safe.right + pad);
+    // The ASS bottom margin is measured to the text box, one ink pad above 75%.
+    expect(margins.vertical).toBe(safe.height - (inkBottom - pad));
+    expect(inkBottom).toBe(1440);
+    // The text box bottom is clear of the bottom 25% of the frame.
+    expect(safe.height - margins.vertical + pad).toBeLessThanOrEqual(1440);
+  });
+
+  it('keeps a representative full reel line inside the safe width at 68 px', () => {
+    const line = 'quiet machine runs'; // a typical one-liner
+    expect(estimateTextWidthPx(line)).toBeLessThanOrEqual(captionTextWidthPx());
+  });
+
+  it('derives a per-line character budget from the font size', () => {
+    expect(CAPTION_FONT_SIZE).toBe(68);
+    expect(captionMaxCharsPerLine()).toBe(24);
+    // A smaller font fits more characters on the same width.
+    expect(captionMaxCharsPerLine(48)).toBeGreaterThan(captionMaxCharsPerLine(68));
   });
 });
 
@@ -62,8 +85,8 @@ describe('cue grouping', () => {
     for (const cue of cues) {
       expect(cue.lines.length).toBeLessThanOrEqual(2);
       for (const line of cue.lines) {
-        expect(line.length).toBeLessThanOrEqual(30);
-        expect(estimateTextWidthPx(line)).toBeLessThanOrEqual(1026 - 54);
+        expect(line.length).toBeLessThanOrEqual(captionMaxCharsPerLine());
+        expect(estimateTextWidthPx(line)).toBeLessThanOrEqual(captionTextWidthPx());
       }
     }
   });
@@ -106,13 +129,14 @@ describe('documents', () => {
     words(['the', 'quiet', 'machine', 'that', 'runs', 'your', 'morning'], 400),
   );
 
-  it('authors the ASS so the style margins are inside the safe area', () => {
+  it('authors the ASS with the 68 px style anchored at 75% inside the safe area', () => {
     const ass = buildAssDocument(cues);
     expect(ass).toContain('PlayResX: 1080');
     expect(ass).toContain('PlayResY: 1920');
     expect(ass).toContain('WrapStyle: 2');
-    expect(ass).toContain('Style: ReelsCaption,DejaVu Sans,48');
-    expect(ass).toContain(',2,60,60,102,1');
+    expect(ass).toContain('Style: ReelsCaption,DejaVu Sans,68');
+    // BorderStyle 1 (outline + shadow), Outline 3, Shadow 3, Alignment 2, margins.
+    expect(ass).toContain('1,3,3,2,60,60,486,1');
     expect(ass).toContain('{\\fad(120,120)}');
     const dialogues = ass.split('\n').filter((line) => line.startsWith('Dialogue:'));
     expect(dialogues).toHaveLength(cues.length);
@@ -124,6 +148,15 @@ describe('documents', () => {
     });
     const ass = buildAssDocument(tight);
     expect(ass).toContain('\\N');
+  });
+
+  it('refuses a cue whose line is too wide for the text box', () => {
+    const long = 'supercalifragilisticexpialidociousandthensome';
+    expect(() =>
+      buildAssDocument([{ index: 1, start_ms: 0, end_ms: 1000, lines: [long] }]),
+    ).toThrow(CaptionOverflowError);
+    // A normal two-line cue is authored without throwing.
+    expect(() => buildAssDocument(cues)).not.toThrow();
   });
 
   it('emits .srt and .vtt from the same cue list as the ASS', () => {

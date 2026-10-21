@@ -11,13 +11,15 @@
  * `x ∈ [54, 1026]`, `y ∈ [96, 1824]` at 1080x1920. ASS margins are *not* the
  * safe area: the outline and the drop shadow are drawn outside the text box, so
  * the margins are inset by `outline + shadow` on top of the 5 % inset. That
- * makes the ink box, not just the nominal text box, inside the rectangle.
+ * makes the ink box, not just the nominal text box, inside the rectangle. The
+ * block is also raised off the bottom edge to `CAPTION_BLOCK_BOTTOM_RATIO` so it
+ * stays clear of the platform UI that lives in the bottom ~25 % of a 9:16 frame.
  */
 import {
+  CAPTION_BLOCK_BOTTOM_RATIO,
   CAPTION_FONT,
   CAPTION_FONT_SIZE,
   CAPTION_INK_THRESHOLD,
-  CAPTION_MAX_CHARS_PER_LINE,
   CAPTION_MAX_LINES,
   CAPTION_SAFE_INSET_RATIO,
   CAPTION_STYLE,
@@ -54,26 +56,62 @@ export function captionSafeArea(
   };
 }
 
-/** ASS outline and shadow widths, in pixels, from the style below. */
-export const CAPTION_OUTLINE_PX = 4;
-export const CAPTION_SHADOW_PX = 2;
+/**
+ * ASS outline and shadow widths, in pixels, from the style below. A tight dark
+ * outline plus a subtle drop shadow gives white bold text contrast over busy
+ * imagery without a background box (BorderStyle stays 1: outline + shadow, no
+ * opaque panel).
+ */
+export const CAPTION_OUTLINE_PX = 3;
+export const CAPTION_SHADOW_PX = 3;
+
+/** The ink margin added on every side by the outline and the drop shadow. */
+export const CAPTION_INK_PAD_PX = CAPTION_OUTLINE_PX + CAPTION_SHADOW_PX;
 
 /**
- * ASS margins for a bottom-centred caption inside the safe area. The text box is
- * inset by the outline and the shadow as well, so glyph ink — not the nominal
- * box — stays inside `[left,right] x [top,bottom]`.
+ * ASS margins for a horizontally-centred caption block whose *ink* bottom sits
+ * at `CAPTION_BLOCK_BOTTOM_RATIO` of the frame height. The text box is inset by
+ * the outline and the shadow, so glyph ink — not the nominal box — stays inside
+ * `[left,right]` and above the block-bottom line by construction.
  */
 export function assMargins(safe: CaptionSafeArea): {
   readonly left: number;
   readonly right: number;
   readonly vertical: number;
 } {
-  const pad = CAPTION_OUTLINE_PX + CAPTION_SHADOW_PX;
+  // Ink bottom at 75 % of the frame height (clear of the bottom ~25 % UI); the
+  // ASS bottom margin is measured to the *text box* bottom, which sits one ink
+  // pad higher so the outline and shadow stay above the line too.
+  const inkBottom = Math.round(safe.height * CAPTION_BLOCK_BOTTOM_RATIO);
+  const textBottom = inkBottom - CAPTION_INK_PAD_PX;
   return {
-    left: safe.left + pad,
-    right: safe.width - safe.right + pad,
-    vertical: safe.height - safe.bottom + pad,
+    left: safe.left + CAPTION_INK_PAD_PX,
+    right: safe.width - safe.right + CAPTION_INK_PAD_PX,
+    vertical: safe.height - textBottom,
   };
+}
+
+/**
+ * The width of the caption *text box* in output pixels: the safe rectangle
+ * minus the ink pad on each side. A line whose estimated glyph width fits this
+ * budget cannot put ink outside the safe area (outline and shadow are already
+ * accounted for by the pad).
+ */
+export function captionTextWidthPx(safe: CaptionSafeArea = captionSafeArea()): number {
+  return safe.right - safe.left - 2 * CAPTION_INK_PAD_PX;
+}
+
+/**
+ * The per-line character budget derived from the font size, so the char cap and
+ * the width budget always agree. Uses the mean advance width of the character
+ * classes below (0.56 em, the default class) so it is an upper bound, not the
+ * binding constraint — the width estimate in `fitsOnLine` is what breaks lines.
+ */
+export function captionMaxCharsPerLine(fontSize: number = CAPTION_FONT_SIZE): number {
+  return Math.max(
+    1,
+    Math.floor(captionTextWidthPx() / (AVG_CHAR_WIDTH_EM * fontSize * BOLD_EM_FACTOR)),
+  );
 }
 
 /** A word as the timing document stores it (narration-relative milliseconds). */
@@ -94,7 +132,7 @@ export interface CaptionCue {
 
 /**
  * Rough advance width per character class, in ems. Bold DejaVu Sans is about
- * 0.55 em for average mixed text; capitals and digits are wider. The estimate is
+ * 0.56 em for average mixed text; capitals and digits are wider. The estimate is
  * deliberately pessimistic so a cue that passes here cannot overflow margins and
  * fail the safe-area scan on a real render.
  */
@@ -106,17 +144,22 @@ function charWidthEm(character: string): number {
   return 0.56;
 }
 
+/** The default (mean) advance width class, in ems — matches `charWidthEm`. */
+const AVG_CHAR_WIDTH_EM = 0.56;
+/** Bold DejaVu Sans advances ~5 % wider than the nominal em. */
+const BOLD_EM_FACTOR = 1.05;
+
 /** Estimated ink width of one line, in output pixels (bold adds ~5 %). */
 export function estimateTextWidthPx(text: string, fontSize: number = CAPTION_FONT_SIZE): number {
   let ems = 0;
   for (const character of text) ems += charWidthEm(character);
-  return Math.ceil(ems * fontSize * 1.05);
+  return Math.ceil(ems * fontSize * BOLD_EM_FACTOR);
 }
 
 export interface CaptionGroupingOptions {
   readonly maxCharsPerLine?: number;
   readonly maxLines?: number;
-  /** Available ink width; defaults to the 918 px safe width at 1080x1920. */
+  /** Available text-box width; defaults to the safe width minus the ink pad. */
   readonly maxLineWidthPx?: number;
   readonly fontSize?: number;
 }
@@ -133,21 +176,20 @@ function fitsOnLine(
 
 /**
  * Group words into cues of at most `maxLines` lines. A line breaks when the next
- * word would exceed the character *or* the width budget — the design's "≤ 2
- * lines, ≤ ~42 chars/line" is an upper bound and the width budget is the binding
- * one at 48 px. A single word wider than a line gets its own line (nothing is
- * truncated or dropped: a silent caption edit is worse than a wide one, and the
- * safe-area scan is what flags it).
+ * word would exceed the character *or* the width budget — the character budget
+ * is derived from the font size and the width budget is the binding one. A
+ * single word wider than a line gets its own line (nothing is truncated or
+ * dropped), and `buildAssDocument` refuses that cue loudly rather than let it
+ * bleed off-screen.
  */
 export function groupCaptionCues(
   words: readonly CaptionWord[],
   options: CaptionGroupingOptions = {},
 ): CaptionCue[] {
-  const maxChars = options.maxCharsPerLine ?? CAPTION_MAX_CHARS_PER_LINE;
-  const maxLines = options.maxLines ?? CAPTION_MAX_LINES;
-  const safe = captionSafeArea();
-  const maxWidth = options.maxLineWidthPx ?? safe.right - safe.left;
   const fontSize = options.fontSize ?? CAPTION_FONT_SIZE;
+  const maxChars = options.maxCharsPerLine ?? captionMaxCharsPerLine(fontSize);
+  const maxLines = options.maxLines ?? CAPTION_MAX_LINES;
+  const maxWidth = options.maxLineWidthPx ?? captionTextWidthPx();
 
   const cues: CaptionCue[] = [];
   let lines: string[] = [];
@@ -256,16 +298,42 @@ export interface CaptionDocuments {
   readonly vtt: string;
 }
 
+/** A cue line whose estimated width exceeds the caption text box. */
+export class CaptionOverflowError extends Error {
+  constructor(line: string, widthPx: number, maxPx: number) {
+    super(
+      `caption line ${JSON.stringify(line)} is ~${widthPx} px wide, over the ` +
+        `${maxPx} px safe text width`,
+    );
+    this.name = 'CaptionOverflowError';
+  }
+}
+
 /**
  * The ASS burn-in document. PlayRes matches the output, `WrapStyle: 2` disables
- * libass's own wrapping (line breaks are ours), and the style's margins are the
- * safe area minus the outline/shadow so the ink box is inside the rectangle by
- * construction.
+ * libass's own wrapping (line breaks are ours), and the style's margins anchor
+ * the block at `CAPTION_BLOCK_BOTTOM_RATIO` of the frame height and inset it by
+ * the outline/shadow so the ink box is inside the safe area by construction.
+ *
+ * Before authoring, every line is checked against the text-box width. Because
+ * `WrapStyle: 2` disables libass's own wrapping, an over-long line would
+ * otherwise overflow silently; this assertion is the deterministic guarantee
+ * that no rendered line can exceed the safe width.
  */
 export function buildAssDocument(
   cues: readonly CaptionCue[],
   safe: CaptionSafeArea = captionSafeArea(),
 ): string {
+  const textWidth = captionTextWidthPx(safe);
+  for (const cue of cues) {
+    for (const line of cue.lines) {
+      const width = estimateTextWidthPx(sanitizeCaptionText(line), CAPTION_FONT_SIZE);
+      if (width > textWidth) {
+        throw new CaptionOverflowError(sanitizeCaptionText(line), width, textWidth);
+      }
+    }
+  }
+
   const margins = assMargins(safe);
   const header = [
     '[Script Info]',
@@ -338,6 +406,13 @@ export interface BuildCaptionInput {
 /**
  * The whole caption transform: words → cues → ASS + `.srt` + `.vtt`, from one
  * cue list (R-010-6, R-014-1).
+ *
+ * Emphasis note: the storyboard carries a per-scene `caption_emphasis` phrase,
+ * but it does not reach this transform — the timing document's `words` are
+ * `{ word, start_ms, end_ms }` with no emphasis, and the render stage passes
+ * only `words` + `leadS`. Emphasising a phrase would mean matching free text
+ * against the word stream, which this module deliberately does not invent;
+ * honouring it is a follow-up that belongs with the TC/timing stage.
  */
 export function buildCaptionDocuments(input: BuildCaptionInput): {
   readonly cues: readonly CaptionCue[];
