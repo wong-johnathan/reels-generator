@@ -1,0 +1,521 @@
+/*
+ * App shell — top status strip, left rail, breadcrumb, content region and the
+ * four responsive bands (UI_SPEC §4.1, §5 UC-01/UC-02/UC-23, §7).
+ *
+ * Desktop-first, as the specification is: the >=1024 layout is the base, the
+ * two narrow bands narrow it honestly rather than hiding the surface.
+ */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-expanded) minmax(0, 1fr);
+  grid-template-rows: var(--strip-height) minmax(0, 1fr);
+  grid-template-areas: 'strip strip' 'rail main';
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ── global status strip (UC-01, UC-23, IP-07) ───────────────────────────── */
+
+.status-strip {
+  grid-area: strip;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-banner);
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  height: var(--strip-height);
+  padding: 0 var(--s-6);
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--success);
+}
+
+.status-strip[data-state='degraded'] .status-dot {
+  background: var(--warning);
+}
+
+.status-strip[data-state='not-ready'] .status-dot {
+  background: var(--danger);
+}
+
+.status-word {
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.status-strip[data-state='degraded'] .status-word {
+  color: var(--warning);
+}
+
+.status-strip[data-state='not-ready'] .status-word {
+  color: var(--danger);
+}
+
+.status-cause {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.status-cause:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.status-count,
+.status-attention,
+.status-freshness {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.status-freshness[data-stale='true'] {
+  color: var(--warning);
+}
+
+.status-operator {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* ── left rail (UC-01, UX §2.2) ──────────────────────────────────────────── */
+
+.rail {
+  grid-area: rail;
+  position: sticky;
+  top: var(--strip-height);
+  width: var(--rail-expanded);
+  height: calc(100vh - var(--strip-height));
+  height: calc(100dvh - var(--strip-height));
+  overflow-y: auto;
+  padding: var(--s-5) 0;
+  background: var(--surface-panel);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.rail-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-item {
+  flex: 0 0 auto;
+}
+
+.rail-settings {
+  margin-top: auto;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.rail-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: 0 var(--s-6);
+  color: var(--text-secondary);
+  border-left: 2px solid transparent;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-1) var(--ease-standard),
+    border-color var(--dur-1) var(--ease-standard),
+    color var(--dur-1) var(--ease-standard);
+}
+
+.rail-link:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.rail-link[aria-current='page'] {
+  background: var(--surface-selected);
+  border-left-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+
+.rail-glyph {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  letter-spacing: 0.04em;
+}
+
+.rail-label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+.rail-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--accent-fill);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: var(--t-10);
+  font-weight: var(--fw-bold);
+  line-height: 20px;
+  text-align: center;
+}
+
+/* ── main region, breadcrumb and page title ──────────────────────────────── */
+
+.main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--s-8);
+}
+
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.mobile-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  height: var(--mobile-bar-height);
+  margin: 0 0 var(--s-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mobile-back,
+.mobile-home,
+.mobile-attention {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--target-min);
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mobile-attention,
+.mobile-home {
+  font-variant-numeric: tabular-nums;
+}
+
+.breadcrumb {
+  margin: 0 0 var(--s-5);
+  font-family: var(--font-mono);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--text-secondary);
+}
+
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.breadcrumb li + li::before {
+  content: '\203A'; /* › */
+  color: var(--text-tertiary);
+}
+
+.breadcrumb a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.breadcrumb [aria-current='page'] {
+  color: var(--text-secondary);
+}
+
+.page-title {
+  margin: 0 0 var(--s-6);
+}
+
+/* ── degraded banner (UC-23, IP-07) ──────────────────────────────────────── */
+
+.degraded-banner {
+  margin: 0 0 var(--s-8);
+  padding: var(--s-5) var(--s-6);
+  background: var(--surface-warning-tint);
+  border: 1px solid var(--warning);
+  border-left-width: 4px;
+  border-radius: var(--r-3);
+}
+
+.degraded-banner h2 {
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+  color: var(--warning);
+}
+
+.degraded-detail {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--s-2) var(--s-5);
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.degraded-detail dt {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.degraded-detail dd {
+  margin: 0;
+  color: var(--text-primary);
+  max-width: 92ch;
+}
+
+.degraded-more {
+  margin: 0 0 var(--s-3);
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.degraded-link {
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+/* ── content grid and workspace footer (UI_SPEC §4.1) ────────────────────── */
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-8);
+  align-items: start;
+}
+
+.content-main,
+.impact-column {
+  min-width: 0;
+}
+
+.workspace-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  height: var(--footer-height);
+  margin-top: auto;
+  padding: 0 var(--s-4);
+  background: var(--surface-panel);
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  color: var(--text-tertiary);
+}
+
+/* ── band ≥1440: full workbench ──────────────────────────────────────────── */
+
+@media (min-width: 1440px) {
+  .shell {
+    grid-template-columns: var(--rail-expanded) minmax(0, 1fr);
+  }
+
+  .content-grid.has-aside {
+    grid-template-columns: minmax(0, 1fr) var(--aside-wide);
+  }
+
+  .rail-label {
+    position: static;
+  }
+}
+
+/* ── band 1024–1439: compressed workbench ────────────────────────────────── */
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .shell {
+    grid-template-columns: var(--rail-compact) minmax(0, 1fr);
+  }
+
+  .main {
+    padding: var(--s-7);
+  }
+
+  .content-grid.has-aside {
+    grid-template-columns: minmax(0, 1fr) var(--aside-compact);
+  }
+
+  .rail {
+    width: var(--rail-compact);
+  }
+
+  .rail-link {
+    justify-content: center;
+    gap: var(--s-2);
+    padding: 0;
+  }
+
+  .rail-glyph {
+    display: block;
+  }
+
+  /* The label becomes the link's accessible name and its tooltip. */
+  .rail-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .rail-badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    font-size: 10px;
+    line-height: 16px;
+  }
+
+  .rail-item {
+    position: relative;
+  }
+
+  .rail-settings .rail-link {
+    padding: 0;
+  }
+}
+
+/* ── band ≤1023: review-lite — rail hidden behind a top bar ──────────────── */
+
+@media (max-width: 1023px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'strip' 'main';
+  }
+
+  .rail {
+    display: none;
+  }
+
+  .main {
+    padding: var(--s-5);
+  }
+
+  .mobile-bar {
+    display: flex;
+  }
+
+  /* §7.2: service word only; the word itself carries the degradation. */
+  .status-cause {
+    display: none;
+  }
+
+  .status-count {
+    display: none;
+  }
+
+  .status-freshness {
+    display: none;
+  }
+
+  .status-operator {
+    display: none;
+  }
+
+  .status-attention {
+    display: none;
+  }
+
+  .content-grid.has-aside {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-6);
+  }
+}
+
+/* ── band ≤767: monitoring — service word only, no counters (AX-22) ──────── */
+
+@media (max-width: 767px) {
+  .status-count {
+    display: none;
+  }
+
+  .status-operator {
+    display: none;
+  }
+
+  .status-freshness {
+    display: none;
+  }
+
+  .status-attention {
+    display: none;
+  }
+
+  .workspace-footer {
+    position: static;
+  }
+}
+
+/* ── band ≤480: phone — 16 px page padding, single column ────────────────── */
+
+@media (max-width: 480px) {
+  .main {
+    padding: var(--s-6);
+  }
+
+  .content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .status-strip {
+    padding: 0 var(--s-4);
+  }
+}

@@ -1,0 +1,163 @@
+/*
+ * Design tokens — UI_SPEC §2 (colour, type, spacing, radii, motion, focus,
+ * elevation, z-index) and §4.1 (shell geometry).
+ *
+ * Dark is the only theme: there is no prefers-color-scheme switch, and the
+ * ratio in each comment is the measured WCAG 2.2 ratio from UI_SPEC §8.2
+ * against --surface-panel. tests/web/tokens.test.ts recomputes every pair, so
+ * a drifted hex fails the build rather than shipping.
+ *
+ * No webfont, no icon package, no external reference: the NAS serves no font
+ * files (UI_SPEC §2.3, §2.6).
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── surfaces ─────────────────────────────────────────────────────────── */
+  --surface-app: #0e1014; /* page background */
+  --surface-panel: #15181e; /* default container */
+  --surface-raised: #1c2027; /* header bars, dialog, toast */
+  --surface-inset: #0a0c10; /* inputs, values, not-started thumbnails */
+  --surface-hover: #22272f; /* row/button hover */
+  --surface-selected: #263041; /* selected row, current nav item */
+  --surface-inverse: #e8ebf0; /* login pressed state only */
+
+  /* state-bearing tints — body text stays >= 12.4:1 on each */
+  --surface-stale-tint: #2a2340;
+  --surface-danger-tint: #33201f;
+  --surface-warning-tint: #302614;
+  --surface-success-tint: #13251a;
+
+  /* ── text ─────────────────────────────────────────────────────────────── */
+  --text-primary: #e8ebf0; /* 14.88:1 */
+  --text-secondary: #aeb7c4; /* 8.78:1 */
+  --text-tertiary: #8b95a3; /* 5.86:1 */
+  --text-disabled: #5f6875; /* 3.15:1 — WCAG 1.4.3 inactive-control exemption */
+  --text-link: #9dbbf9; /* 9.24:1 */
+  --text-inverse: #0b0d11; /* 16.27:1 on --surface-inverse */
+
+  /* ── state colours: text >= 4.5:1, boundary >= 3:1 ────────────────────── */
+  --accent: #7ea6f8; /* 7.36:1 */
+  --success: #4cc26a; /* 7.82:1 */
+  --warning: #e3a639; /* 8.28:1 */
+  --danger: #ff7b72; /* 7.05:1 */
+  --stale: #bba1ff; /* 8.17:1 */
+  --running: #4fd1e0; /* 9.76:1 */
+  --cancelled: #8b95a3; /* 5.86:1 */
+
+  /* ── borders and fills ────────────────────────────────────────────────── */
+  --border-subtle: #272d37; /* 1.28:1 — decorative only */
+  --border-default: #6b7480; /* 3.75:1 — every interactive boundary */
+  --border-strong: #8b95a3; /* 5.86:1 */
+  --accent-fill: #2f5fd0; /* #FFFFFF label 5.72:1 */
+  --accent-fill-hover: #3a6ce0; /* #FFFFFF label 4.77:1 */
+  --danger-fill: #c62828; /* #FFFFFF label 5.62:1 */
+  --danger-fill-hover: #d13a2a; /* #FFFFFF label 4.83:1 */
+  --control-fill: #22272f; /* --text-primary label 12.56:1 */
+
+  /* ── type ─────────────────────────────────────────────────────────────── */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
+    sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --t-80: 32px; /* login wordmark only */
+  --t-70: 24px; /* page title */
+  --t-60: 20px; /* section title */
+  --t-50: 16px; /* workspace title */
+  --t-40: 14px; /* body */
+  --t-30: 13px; /* dense body */
+  --t-20: 12px; /* metadata */
+  --t-10: 11px; /* column headers, chips, eyebrows */
+  --lh-80: 40px;
+  --lh-70: 32px;
+  --lh-60: 28px;
+  --lh-50: 24px;
+  --lh-40: 22px;
+  --lh-30: 20px;
+  --lh-20: 18px;
+  --lh-10: 16px;
+  --fw-regular: 400;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* ── spacing: 4 px base, no arbitrary values ──────────────────────────── */
+  --s-0: 0;
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 20px;
+  --s-8: 24px;
+  --s-9: 32px;
+  --s-10: 40px;
+  --s-11: 48px;
+  --s-12: 64px;
+
+  /* ── radii ────────────────────────────────────────────────────────────── */
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 6px;
+  --r-4: 10px;
+  --r-full: 999px;
+
+  /* ── elevation: shadows only for things that float above the page ─────── */
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --e-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --e-3: 0 12px 32px rgba(0, 0, 0, 0.62);
+
+  /* ── z-index: fixed scale, no invented values ─────────────────────────── */
+  --z-content: 0;
+  --z-sticky-head: 10;
+  --z-banner: 20;
+  --z-dropdown: 30;
+  --z-dialog: 40;
+  --z-toast: 50;
+
+  /* ── motion: only opacity, transform, colour and progress width ───────── */
+  --dur-1: 80ms; /* hover, focus */
+  --dur-2: 140ms; /* chip swap, selection */
+  --dur-3: 220ms; /* panel reveal, banner appear */
+  --dur-4: 320ms; /* dialog, toast */
+  --spin-duration: 1.2s; /* the only loop in the product */
+  --progress-duration: 700ms; /* determinate progress width */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ── focus: outline, never box-shadow (survives overflow clipping) ────── */
+  --focus-ring-width: 2px;
+  --focus-ring-color: #7ea6f8;
+  --focus-ring-offset: 2px;
+  --focus-ring-style: solid;
+
+  /* ── pointer targets (AX-17) ──────────────────────────────────────────── */
+  --target-min: 24px;
+  --target-review: 44px;
+  --target-gap: 8px;
+
+  /* ── shell geometry (UI_SPEC §4.1, §7.1) ──────────────────────────────── */
+  --rail-expanded: 216px;
+  --rail-compact: 64px;
+  --aside-wide: 360px;
+  --aside-compact: 320px;
+  --content-max: 1600px;
+  --strip-height: 40px;
+  --footer-height: 32px;
+  --mobile-bar-height: 44px;
+}
+
+/* AX-16: reduced motion collapses every duration and stops the one loop. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+    --dur-4: 0.01ms;
+    --spin-duration: 0.01ms;
+    --progress-duration: 0.01ms;
+  }
+}
