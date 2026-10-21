@@ -107,6 +107,10 @@ export interface SeedAssetInput {
 
 /** Insert an asset row (and, when `role` is set, its `asset_ref` link). */
 export async function insertAsset(pool: Pool, input: SeedAssetInput): Promise<string> {
+  // `asset.created_at` and `asset_ref.created_at` are NOT NULL with no default:
+  // the columns exist for provenance, so the seed must supply the instant rather
+  // than leaving Postgres to invent one.
+  const createdAt = input.createdAt ?? new Date();
   const result = await pool.query<{ id: string }>(
     `INSERT INTO asset
        (project_id, stage, kind, content_sha256, object_key, object_size_bytes, mime_type,
@@ -132,14 +136,14 @@ export async function insertAsset(pool: Pool, input: SeedAssetInput): Promise<st
       input.promptText ?? null,
       input.seed ?? null,
       input.rightsMetadata == null ? null : JSON.stringify(input.rightsMetadata),
-      input.createdAt ?? null,
+      createdAt,
     ],
   );
   const id = result.rows[0]!.id;
   if (input.role !== undefined) {
     await pool.query(
       'INSERT INTO asset_ref (asset_id, project_id, role, created_at) VALUES ($1, $2, $3, $4)',
-      [id, input.projectId, input.role, input.createdAt ?? null],
+      [id, input.projectId, input.role, createdAt],
     );
   }
   return id;
