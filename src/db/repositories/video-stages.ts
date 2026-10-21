@@ -114,15 +114,17 @@ export async function applyStageTransition(
     // Throws IllegalTransitionError when the pair is not in the spec table.
     const next = transitionStage(row.state, input.event);
 
+    // §4.4 step 4: entering `stale` records the cause and the moment; reaching
+    // `done` (the only clearing edge, IP-01/UC-05) clears both.
     const updated = await client.query<VideoStageRow>(
       'UPDATE video_stage SET state = $2, last_event = $3, last_event_at = now(), ' +
         'updated_at = now(), progress_current = COALESCE($4, progress_current), ' +
         'progress_total = COALESCE($5, progress_total), ' +
         'series_version_id = COALESCE($6, series_version_id), ' +
-        'stale = CASE WHEN $2 = $7 THEN false ELSE stale END, ' +
-        'stale_cause = CASE WHEN $2 = $7 THEN NULL ELSE stale_cause END, ' +
+        'stale = CASE WHEN $2 = $7 THEN false WHEN $2 = $8 THEN true ELSE stale END, ' +
+        'stale_cause = CASE WHEN $2 = $7 THEN NULL WHEN $2 = $8 THEN $3 ELSE stale_cause END, ' +
         'stale_revision = CASE WHEN $2 = $7 THEN NULL ELSE stale_revision END, ' +
-        'stale_at = CASE WHEN $2 = $7 THEN NULL ELSE stale_at END ' +
+        'stale_at = CASE WHEN $2 = $7 THEN NULL WHEN $2 = $8 THEN now() ELSE stale_at END ' +
         'WHERE id = $1 RETURNING ' +
         VIDEO_STAGE_COLUMNS,
       [
@@ -133,6 +135,7 @@ export async function applyStageTransition(
         input.progress?.total ?? null,
         input.seriesVersionId ?? null,
         'done',
+        'stale',
       ],
     );
     const result = updated.rows[0];

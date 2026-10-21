@@ -267,13 +267,19 @@ export interface ImageStageResult {
   readonly failure: ClassifiedFailure | null;
 }
 
-interface LoadedReference {
+/*
+ * Exported for B-15 (per-scene replace): the replace path must build the same
+ * request, prompt hash and R-013-1 provenance as a stage call, and it must not
+ * carry a second copy of the reference/rights rules. INT-01 owns converging
+ * these into their own module.
+ */
+export interface LoadedReference {
   readonly asset_id: string;
   readonly content_sha256: string;
   readonly rights_note: string;
 }
 
-interface LoadedReferenceSet {
+export interface LoadedReferenceSet {
   readonly images: readonly InlineImageData[];
   readonly rights: readonly LoadedReference[];
   readonly digest: string;
@@ -315,7 +321,7 @@ function imageMimeOrThrow(value: string | null, assetId: string): ImageMimeType 
  * a rights note or without its object refuses the whole stage: identity can not
  * be reproduced from bytes the store does not have.
  */
-async function loadReferenceSet(
+export async function loadReferenceSet(
   deps: ImageStageDeps,
   projectId: string,
 ): Promise<LoadedReferenceSet> {
@@ -367,7 +373,7 @@ async function loadReferenceSet(
 }
 
 /** X-8/OQ-6: the pin a stage starts with is the newest series version. */
-async function currentSeriesVersionId(pool: Pool, seriesId: string): Promise<string | null> {
+export async function currentSeriesVersionId(pool: Pool, seriesId: string): Promise<string | null> {
   const result = await pool.query<{ current_version_id: string | null }>(
     'SELECT current_version_id FROM series WHERE id = $1',
     [seriesId],
@@ -424,7 +430,7 @@ async function loadStageContext(
   };
 }
 
-function buildImageRequest(
+export function buildImageRequest(
   scene: PlannerScene,
   references: LoadedReferenceSet,
   imageSize: ImageSize,
@@ -438,7 +444,7 @@ function buildImageRequest(
 }
 
 /** sha256 of the exact request body — the R-013-1 provenance key of the call. */
-function promptHashFor(request: ImageGenerateRequest): string {
+export function promptHashFor(request: ImageGenerateRequest): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
@@ -451,7 +457,7 @@ function promptHashFor(request: ImageGenerateRequest): string {
     .digest('hex');
 }
 
-function rightsMetadataFor(input: {
+export function rightsMetadataFor(input: {
   readonly provider: string;
   readonly model: string;
   readonly runId: string;

@@ -248,3 +248,135 @@ export async function latestCheckpointSceneAssetAt(
   );
   return result.rows[0]?.latest ?? null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B-15 — per-scene replace (US-020, RULINGS L-2). The one path that may move a
+// scene's `asset_id` off an image that is already there.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The image linked to the scene changed after the caller read it (concurrent replace). */
+export class SceneAssetConflictError extends Error {
+  constructor(
+    readonly sceneId: string,
+    readonly expectedAssetId: string | null,
+    readonly actualAssetId: string | null,
+  ) {
+    super(
+      'scene ' +
+        sceneId +
+        ' now shows asset ' +
+        String(actualAssetId) +
+        ', not the ' +
+        String(expectedAssetId) +
+        ' the replacement was generated against: refusing to overwrite a newer image',
+    );
+    this.name = 'SceneAssetConflictError';
+  }
+}
+
+export interface SceneImageReplacement extends NewAssetProvenance {
+  readonly sceneId: string;
+  /** The image the call was generated against; a mismatch means a lost update. */
+  readonly expectedAssetId: string | null;
+}
+
+export interface ReplacedScene {
+  readonly id: string;
+  readonly scene_no: string;
+  readonly position: number;
+  readonly asset_id: string;
+  readonly image_prompt: string | null;
+  readonly revision: number;
+}
+
+export interface SceneImageReplacementResult extends AssetUpsertResult {
+  readonly previous_asset_id: string | null;
+  readonly scene: ReplacedScene;
+}
+
+/**
+ * Persist a replacement image, repoint the scene at it, and keep the old asset.
+ *
+ * One transaction: the scene row is locked FOR UPDATE (two replaces cannot both
+ * "win"), the asset row is inserted or reused by content hash (R-026-1), the
+ * scene is repointed, and `generation_run.asset_id` is linked — the reverse edge
+ * of the circular FK. The superseded asset is deliberately **not** deleted: it
+ * stays a content-addressed row (and object) and becomes discoverable as
+ * orphaned through findOrphanedSceneImages()/`scene.asset_id <> asset.id`
+ * (R-025 retention decides when it may go, which is Milestone B).
+ */
+export async function replaceSceneImage(
+  pool: Pool,
+  input: SceneImageReplacement,
+): Promise<SceneImageReplacementResult> {
+  return withTransaction(pool, async (client) => {
+    const locked = await client.query<{
+      id: string;
+      scene_no: string;
+      position: number;
+      asset_id: string | null;
+    }>('SELECT id, scene_no, position, asset_id FROM scene WHERE id = $1 FOR UPDATE', [
+      input.sceneId,
+    ]);
+    const scene = locked.rows[0];
+    if (scene === undefined) {
+      throw new Error(
+        'scene ' + input.sceneId + ' does not exist; an image cannot be replaced on it',
+      );
+    }
+    if (scene.asset_id !== input.expectedAssetId) {
+      throw new SceneAssetConflictError(input.sceneId, input.expectedAssetId, scene.asset_id);
+    }
+
+    const upsert = await insertOrReuseAsset(client, input);
+    // `revision` is the prompt-edit lock (R-024) and was bumped by
+    // lockSceneForReplace() when the operator supplied a new prompt; the image
+    // swap itself is recorded by asset_id + the asset row's created_at.
+    const updated = await client.query<ReplacedScene>(
+      'UPDATE scene SET asset_id = $2 WHERE id = $1 ' +
+        'RETURNING id, scene_no, position, asset_id, image_prompt, revision',
+      [scene.id, upsert.asset.id],
+    );
+    const replaced = updated.rows[0];
+    if (replaced === undefined) throw new Error('scene replace update returned no row');
+
+    if (input.generationRunId !== undefined && input.generationRunId !== null) {
+      await client.query(
+        'UPDATE generation_run SET asset_id = COALESCE(asset_id, $2) WHERE id = $1',
+        [input.generationRunId, upsert.asset.id],
+      );
+    }
+    return { ...upsert, previous_asset_id: scene.asset_id, scene: replaced };
+  });
+}
+
+export interface OrphanedSceneImage {
+  readonly asset_id: string;
+  readonly scene_id: string;
+  readonly scene_no: string;
+  readonly content_sha256: string;
+  readonly object_key: string;
+  readonly created_at: Date;
+}
+
+/**
+ * Superseded scene images: IM assets whose scene now points at a different
+ * image. This is the "orphaned but retained" set of a per-scene replace — the
+ * rows and blobs still exist (R-026 dedupe keeps them addressable, R-025
+ * retention decides later whether they may be cleaned up), they are simply no
+ * longer the scene's current image. Derived from the scene↔asset invariant, so
+ * there is no second flag that can drift from `scene.asset_id`.
+ */
+export async function findOrphanedSceneImages(
+  db: Queryable,
+  projectId: string,
+): Promise<OrphanedSceneImage[]> {
+  const result = await db.query<OrphanedSceneImage>(
+    'SELECT a.id AS asset_id, a.scene_id, s.scene_no, a.content_sha256, a.object_key, a.created_at ' +
+      'FROM asset a JOIN scene s ON s.id = a.scene_id ' +
+      "WHERE a.project_id = $1 AND a.stage = 'IM' AND s.asset_id IS DISTINCT FROM a.id " +
+      'ORDER BY a.created_at ASC, a.id ASC',
+    [projectId],
+  );
+  return result.rows;
+}
