@@ -303,7 +303,7 @@ export async function insertAsset(db: Queryable, input: NewAsset): Promise<Inser
         mime_type, width, height, series_version_id, provider, model, seed, provider_request_id,
         prompt_hash, prompt_text, rights_metadata, generation_run_id, retention_eligible_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-             $15, $16, $17::jsonb, $18, $19)
+             $15, $16, $17, $18::jsonb, $19, $20)
      ON CONFLICT (object_key) DO UPDATE SET
        content_sha256 = EXCLUDED.content_sha256,
        object_size_bytes = EXCLUDED.object_size_bytes,

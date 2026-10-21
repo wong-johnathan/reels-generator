@@ -471,7 +471,7 @@ describe.skipIf(!hasDatabase)('image stage (US-019)', () => {
     }
   }
 
-  it('stores one asset row for identical bytes and links both scenes (R-026)', async () => {
+  it('stores one asset per scene even when two prompts are identical (D-F)', async () => {
     const fixture = await createFixture(db, {
       sceneCount: 4,
       identicalFirstTwoPrompts: true,
@@ -483,11 +483,25 @@ describe.skipIf(!hasDatabase)('image stage (US-019)', () => {
     expect(result.status).toBe('complete');
     expect(result.calls).toBe(4);
     const scenes = await listScenes(db.pool, projectId);
-    expect(scenes[0]!.asset_id).toBe(scenes[1]!.asset_id);
+    // R-026 deduped identical bytes to one asset row. Keys are readable paths now
+    // (D-F), so scene 1 and scene 2 are separate objects under separate names —
+    // which is the point: a reader must be able to tell which file is which scene.
+    expect(scenes[0]!.asset_id).not.toBe(scenes[1]!.asset_id);
     expect(scenes[0]!.asset_id).not.toBe(scenes[2]!.asset_id);
-    expect(await imageAssets(projectId)).toHaveLength(3);
+    expect(await imageAssets(projectId)).toHaveLength(4);
     expect(await runs(projectId)).toHaveLength(4);
-    expect(fixture.blobs.size).toBe(3);
+    expect(fixture.blobs.size).toBe(4);
+
+    const keys = await db.pool.query<{ object_key: string }>(
+      'SELECT object_key FROM asset WHERE project_id = $1 ORDER BY object_key',
+      [projectId],
+    );
+    expect(keys.rows.map((row) => row.object_key.split('/').pop())).toEqual([
+      'S01.png',
+      'S02.png',
+      'S03.png',
+      'S04.png',
+    ]);
   });
 
   it('retries a transient failure and never regenerates a persisted scene', async () => {

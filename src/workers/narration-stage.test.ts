@@ -162,14 +162,17 @@ describe.skipIf(!hasDatabase)('narration stage (US-021)', () => {
     expect((await readProject(db.pool, seeded.projectId))?.current_stage).toBe('TC');
   });
 
-  it('dedupes identical narration bytes to one blob across projects (R-026)', async () => {
+  it('gives each project its own narration object, because keys are paths (D-F)', async () => {
     const first = await runNarrationStage(
       { pool: db.pool, tts: new FakeTtsAdapter({ rateLimitPerMinute: 600 }), blobs },
       input(),
     );
 
     // A second project reading the same script at the same voice produces the
-    // same bytes: one asset row, linked to both projects through asset_ref.
+    // same bytes. Under R-026 that deduped to one asset row shared through
+    // asset_ref; with readable paths the object lives inside each project's own
+    // batch folder, so identical bytes are stored twice — the cost recorded in
+    // DEVIATIONS D-F, paid for a bucket a human can read.
     const other = await seedProject(db.pool);
     await insertVideoStage(db.pool, other.projectId, 'NA');
     const otherJob = await insertStageJob(db.pool, other.projectId, 'NA');
@@ -185,22 +188,26 @@ describe.skipIf(!hasDatabase)('narration stage (US-021)', () => {
     expect(first.status).toBe('stored');
     expect(second.status).toBe('stored');
     if (first.status !== 'stored' || second.status !== 'stored') return;
-    expect(second.narration.audio_asset_id).toBe(first.narration.audio_asset_id);
-    expect(second.narration.content_sha256).toBe(first.narration.content_sha256);
 
-    const rows = await db.pool.query(
+    expect(second.narration.content_sha256).toBe(first.narration.content_sha256);
+    expect(second.narration.audio_asset_id).not.toBe(first.narration.audio_asset_id);
+
+    const rows = await db.pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM asset WHERE kind = 'audio' AND content_sha256 = $1`,
       [first.narration.content_sha256],
     );
-    expect(rows.rows[0]).toEqual({ n: 1 });
-    const refs = await db.pool.query(
-      `SELECT project_id FROM asset_ref WHERE asset_id = $1 ORDER BY project_id`,
-      [first.narration.audio_asset_id],
+    expect(rows.rows[0]).toEqual({ n: 2 });
+
+    // Each project's audio sits in its own batch folder, so the two keys differ.
+    const keys = await db.pool.query<{ object_key: string }>(
+      `SELECT object_key FROM asset WHERE kind = 'audio' AND content_sha256 = $1
+        ORDER BY object_key`,
+      [first.narration.content_sha256],
     );
-    const linked = refs.rows.map((row: { project_id: string }) => row.project_id);
-    expect(linked).toContain(seeded.projectId);
-    expect(linked).toContain(other.projectId);
-    expect(blobs.size).toBe(2); // audio + alignment document, not four objects
+    expect(new Set(keys.rows.map((row) => row.object_key)).size).toBe(2);
+    expect(keys.rows.every((row) => row.object_key.endsWith('/narration.mp3'))).toBe(true);
+
+    expect(blobs.size).toBe(4); // two takes + two alignment documents
   });
 
   it('a non-retryable provider failure stores nothing and fails the stage', async () => {

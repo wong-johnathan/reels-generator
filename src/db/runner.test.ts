@@ -50,7 +50,7 @@ const DESIGNED_TABLES = [
   'video_stage',
 ] as const;
 
-const MIGRATION_IDS = ['M-001', 'M-002', 'M-003', 'M-004', 'M-005', 'M-006'] as const;
+const MIGRATION_IDS = ['M-001', 'M-002', 'M-003', 'M-004', 'M-005', 'M-006', 'M-007'] as const;
 
 const hasDatabase = testDatabaseUrl() !== null;
 if (!hasDatabase) console.warn(`[schema tests skipped] ${SKIP_REASON}`);
