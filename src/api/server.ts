@@ -19,6 +19,8 @@
  * answers only the probes: there is no unauthenticated protected surface to
  * forget about, because there are no protected routes in that mode.
  */
+import { readFileSync } from 'node:fs';
+
 import {
   createServer,
   type IncomingHttpHeaders,
@@ -100,6 +102,63 @@ export interface AuthRuntime {
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' } as const;
+
+/**
+ * Client enhancers, served from the compiled bundle.
+ *
+ * The pages are written to work without JavaScript, but the commit bar, the
+ * dirty-state diff and the form validation only recompute client-side. Without
+ * these module responses every page renders its *initial* state forever: a new
+ * series form stays "Nothing to save" with a disabled button no matter what is
+ * typed, because the server rendered it before the fields were filled.
+ *
+ * Names are wire identifiers from a fixed map, never paths. `dist` holds .js;
+ * the .ts fallback exists so tests can exercise this without a build step.
+ */
+const CLIENT_MODULE_FILES: Readonly<Record<string, string>> = {
+  login: 'login',
+  shell: 'shell',
+  behaviours: 'behaviours',
+  'series-editor': 'seriesEditor',
+  'script-review': 'scriptReview',
+  workspace: 'workspace',
+  'scene-grid': 'sceneGrid',
+  narration: 'narration',
+};
+
+const SHARED_MODULES: readonly string[] = [
+  'format.js',
+  'series/commit.js',
+  'series/fields.js',
+  'script/impact.js',
+  'script/model.js',
+  'workspace/events.js',
+  'workspace/glyphs.js',
+  'workspace/railDom.js',
+  'narration/model.js',
+  'shared/stages.js',
+  'shared/states.js',
+];
+
+function readWebSource(relativeJs: string): string | null {
+  for (const candidate of [relativeJs, relativeJs.replace(/\.js$/, '.ts')]) {
+    try {
+      return readFileSync(new URL(candidate, import.meta.url), 'utf8');
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function readClientModule(name: string): string | null {
+  const file = CLIENT_MODULE_FILES[name];
+  return file === undefined ? null : readWebSource('../web/client/' + file + '.js');
+}
+
+function readSharedModule(path: string): string | null {
+  return SHARED_MODULES.includes(path) ? readWebSource('../web/' + path) : null;
+}
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -331,6 +390,7 @@ function webDeps(auth: AuthRuntime, content?: ContentRuntime): WebAppDependencie
     // token lives in the `reels_csrf` cookie (issued on login) and is checked
     // by the /api middleware on state-changing routes. No HTML form this build
     // serves needs it, so '' is the honest value rather than a fabricated token.
+    assets: { readClientModule, readSharedModule },
     csrfToken: () => '',
     now: () => Date.now(),
   };

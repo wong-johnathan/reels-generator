@@ -187,3 +187,35 @@ describe('dashboard mount (INT-01)', () => {
     expect(asset.headers['location']).toBeUndefined();
   });
 });
+
+describe('client enhancers are served in production', () => {
+  // The mount is only installed when the handler is given an auth runtime, so
+  // these cases must use the same wiring as the rest of this file.
+  const handle = createRequestHandler(probe, {
+    service: fakeAuthService(),
+    sessionTtlSeconds: 3600,
+  });
+
+  it('serves the series editor module the commit bar depends on', async () => {
+    // Without this module the new-series form cannot leave its initial
+    // "Nothing to save" state: the button is rendered disabled and only the
+    // enhancer can re-evaluate it.
+    const response = await handle({ method: 'GET', url: '/assets/client/series-editor.js' });
+    expect(response.status).toBe(200);
+    expect(String(response.headers['content-type'])).toContain('javascript');
+    expect(response.body.length).toBeGreaterThan(0);
+  });
+
+  it('serves the shared rules the enhancer imports', async () => {
+    const response = await handle({ method: 'GET', url: '/assets/series/commit.js' });
+    expect(response.status).toBe(200);
+  });
+
+  it('never resolves a module name from the wire', async () => {
+    // The URL normalises to /etc/passwd.js, which is a page path: the guard sends
+    // it to the login page. Either way it must not be served as a module.
+    const response = await handle({ method: 'GET', url: '/assets/client/../../etc/passwd.js' });
+    expect([303, 400, 404]).toContain(response.status);
+    expect(response.body).not.toContain('root:');
+  });
+});
