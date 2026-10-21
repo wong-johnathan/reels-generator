@@ -1,0 +1,163 @@
+{
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "9:16",
+  "size": "1K",
+  "reference": "/opt/data/cache/scratch/prd-review-reels/scene01_ref.png",
+  "scenes": [
+    {
+      "scene": 1,
+      "shot": "Wide establishing shot: she walks alone into a floodlit underground subway station, seen small in the frame.",
+      "refs": 1,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 18.6,
+      "path": "/opt/data/cache/scratch/drift/scene-01.png"
+    },
+    {
+      "scene": 2,
+      "shot": "Tight close-up lit only by her phone screen at night, her glasses catching the glow.",
+      "refs": 2,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 15.6,
+      "path": "/opt/data/cache/scratch/drift/scene-02.png"
+    },
+    {
+      "scene": 3,
+      "shot": "Over-the-shoulder shot as she studies a wall-mounted control panel.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 26.8,
+      "path": "/opt/data/cache/scratch/drift/scene-03.png"
+    },
+    {
+      "scene": 4,
+      "shot": "She crouches in heavy rain under a blue streetlamp, jacket collar up.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 24.2,
+      "path": "/opt/data/cache/scratch/drift/scene-04.png"
+    },
+    {
+      "scene": 5,
+      "shot": "She runs up a concrete stairwell, slight motion blur, urgency.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 24.5,
+      "path": "/opt/data/cache/scratch/drift/scene-05.png"
+    },
+    {
+      "scene": 6,
+      "shot": "Side profile in a crowded train carriage, other passengers out of focus behind her.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 24.4,
+      "path": "/opt/data/cache/scratch/drift/scene-06.png"
+    },
+    {
+      "scene": 7,
+      "shot": "Close-up of her hands holding a paper ticket, her jacket cuff in frame.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 25.3,
+      "path": "/opt/data/cache/scratch/drift/scene-07.png"
+    },
+    {
+      "scene": 8,
+      "shot": "Back view: she walks away down a long tiled corridor, one hand on the strap of her bag.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 26.0,
+      "path": "/opt/data/cache/scratch/drift/scene-08.png"
+    },
+    {
+      "scene": 9,
+      "shot": "She sits by a cafe window in afternoon light, cup on the table, looking out.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 17.0,
+      "path": "/opt/data/cache/scratch/drift/scene-09.png"
+    },
+    {
+      "scene": 10,
+      "shot": "Her face lit from below by a handheld torch in a dark service tunnel.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 35.4,
+      "path": "/opt/data/cache/scratch/drift/scene-10.png"
+    },
+    {
+      "scene": 11,
+      "shot": "She leans against a tiled wall with arms crossed, waiting, three-quarter view.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 30.6,
+      "path": "/opt/data/cache/scratch/drift/scene-11.png"
+    },
+    {
+      "scene": 12,
+      "shot": "Medium shot mid-sentence, one hand gesturing, eyebrows raised.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 17.1,
+      "path": "/opt/data/cache/scratch/drift/scene-12.png"
+    },
+    {
+      "scene": 13,
+      "shot": "Low angle looking up at her from ground level as she looks down at the camera.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 18.8,
+      "path": "/opt/data/cache/scratch/drift/scene-13.png"
+    },
+    {
+      "scene": 14,
+      "shot": "She stands silhouetted against a sunset skyline on a rooftop.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 18.9,
+      "path": "/opt/data/cache/scratch/drift/scene-14.png"
+    },
+    {
+      "scene": 15,
+      "shot": "Extreme close-up of her eyes and glasses, reflections of fluorescent lights.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 28.9,
+      "path": "/opt/data/cache/scratch/drift/scene-15.png"
+    },
+    {
+      "scene": 16,
+      "shot": "She stands still in a moving crowd, everyone else blurred, only her in focus.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 28.1,
+      "path": "/opt/data/cache/scratch/drift/scene-16.png"
+    },
+    {
+      "scene": 17,
+      "shot": "Final wide shot: she steps out through a station exit into bright daylight.",
+      "refs": 3,
+      "ok": true,
+      "detail": "image/jpeg",
+      "seconds": 26.9,
+      "path": "/opt/data/cache/scratch/drift/scene-17.png"
+    }
+  ],
+  "ok_count": 17,
+  "total_seconds": 518.0
+}
