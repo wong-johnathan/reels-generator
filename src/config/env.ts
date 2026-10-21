@@ -171,6 +171,21 @@ const SPECS = [
     expected: 'non-empty model id',
   },
   {
+    key: 'RESEARCH_PROVIDER',
+    kind: 'enum',
+    roles: [],
+    default: 'deepseek',
+    choices: ['deepseek', 'gemini'],
+    expected:
+      'one of deepseek, gemini (TECH_DESIGN 5.2: deepseek is the default, gemini is the documented fallback)',
+  },
+  {
+    key: 'GEMINI_GROUNDING_MODEL',
+    kind: 'string',
+    roles: [],
+    expected: 'non-empty Gemini model id, required only when RESEARCH_PROVIDER=gemini',
+  },
+  {
     key: 'GEMINI_API_KEY',
     kind: 'secret',
     roles: ['worker'],
