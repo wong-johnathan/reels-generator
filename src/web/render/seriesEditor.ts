@@ -261,8 +261,10 @@ function radioGroup(field: FieldSpec, model: SeriesEditorModel): string {
 }
 
 function renderForm(model: SeriesEditorModel): string {
+  // Create posts to /series/new: /series is the list page and answers GET only,
+  // so posting there returns a 405 with nothing the owner can act on.
   const action =
-    model.mode === 'create' ? '/series' : '/series/' + escapeAttr(model.detail?.id ?? '');
+    model.mode === 'create' ? '/series/new' : '/series/' + escapeAttr(model.detail?.id ?? '');
   const currentVersion = model.conflict?.currentVersion ?? model.detail?.current_version ?? 0;
 
   const blocks = BLOCKS.map((block) => {
