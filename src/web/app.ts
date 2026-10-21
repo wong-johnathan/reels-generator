@@ -47,6 +47,8 @@ import {
 } from './series/gateway.js';
 import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
+import { renderScriptReview, SCRIPT_REVIEW_SCRIPTS } from './render/scriptReview.js';
+import type { ScriptGateway } from './script/gateway.js';
 import type { VideoGateway } from './workspace/gateway.js';
 import { isTabKey, tabKeyForStage, type TabKey } from './workspace/model.js';
 
@@ -67,6 +69,8 @@ export interface WebAppDependencies {
   readonly series?: SeriesGateway;
   /** S-09…S-16 storage. Absent builds answer 503 rather than inventing data. */
   readonly video?: VideoGateway;
+  /** S-10 script storage. Absent builds fall back to the F-04 stage summary. */
+  readonly script?: ScriptGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
@@ -142,6 +146,7 @@ const SHARED_MODULE_ROOTS: readonly string[] = [
   '/assets/format.js',
   '/assets/series/',
   '/assets/workspace/',
+  '/assets/script/',
   '/assets/shared/',
 ];
 
@@ -414,7 +419,27 @@ export function createWebApp(
 
     // No tab in the URL: open the tab that holds the stage needing attention.
     const tab: TabKey = rawTab === undefined ? tabKeyForStage(detail.current_stage) : rawTab;
-    const parts = renderWorkspace(detail, tab);
+
+    // S-10 owns the script tab. Without a script gateway the F-04 stage summary
+    // stays in place (an honest fallback, never invented script data).
+    let panel: string | undefined;
+    let scripts: readonly string[] = [];
+    if (tab === 'script' && deps.script !== undefined) {
+      scripts = SCRIPT_REVIEW_SCRIPTS;
+      try {
+        const script = await deps.script.get(videoId);
+        panel = renderScriptReview({ detail, script });
+      } catch {
+        // A tab whose data fails keeps the rail and the tabs; only the panel errors.
+        panel =
+          '<section class="script-review" id="script-load-failed" data-script-review data-error="true">' +
+          '<h2>Script</h2>' +
+          '<p>The script could not be loaded. The rest of the workspace is unaffected, and nothing was changed.</p>' +
+          '</section>';
+      }
+    }
+
+    const parts = renderWorkspace(detail, tab, { panel, scripts });
     return html(
       page({
         title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
