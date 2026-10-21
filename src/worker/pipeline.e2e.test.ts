@@ -96,6 +96,13 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
     expect(projectIds).toHaveLength(1);
     const projectId = projectIds[0]!;
 
+    // Freshly created and untouched: no stage has run, so the batch is open.
+    const created = await db.pool.query<{ status: string }>(
+      `SELECT status FROM batch WHERE id = $1`,
+      [batchId],
+    );
+    expect(created.rows[0]!.status).toBe('ACTIVE');
+
     const blobs = new SharedBlobStore();
     const qualification = new InMemoryImageQualificationStore();
     await seedFakeImageQualification(qualification);
@@ -137,13 +144,8 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
     });
     expect(renderProcessed).toBe(RENDER_JOB_COUNT);
 
-    // The durable spine: batch → project → topic → script → scenes.
-    const batch = await db.pool.query<{ status: string }>(
-      `SELECT status FROM batch WHERE id = $1`,
-      [batchId],
-    );
-    expect(batch.rows[0]!.status).toBe('ACTIVE');
-
+    // The durable spine: batch → project → topic → script → scenes. The batch's
+    // own status is asserted at the end of the test, once every stage has settled.
     const topic = await db.pool.query<{ status: string }>(
       `SELECT status FROM topic WHERE project_id = $1`,
       [projectId],
