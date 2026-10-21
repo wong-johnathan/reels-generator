@@ -323,6 +323,19 @@ async function persistStoryboard(
  * mints the next job. A retryable failure leaves the stage `running`; a
  * terminal failure leaves it `failed`.
  */
+/**
+ * `runProviderAttempt` returns whatever the adapter produced. The text adapter
+ * wraps the parsed document in a `TextResult` envelope, so the document itself is
+ * under `content`. Anything else is a malformed result and must fail loudly —
+ * an undefined document silently persisted as empty text is worse than a throw.
+ */
+export function unwrapTextDocument(result: unknown): unknown {
+  if (typeof result !== 'object' || result === null || !('content' in result)) {
+    throw new Error('text adapter returned no content envelope');
+  }
+  return (result as { content: unknown }).content;
+}
+
 export async function runTextStage(
   deps: TextStageDeps,
   stage: TextStageCode,
@@ -347,16 +360,24 @@ export async function runTextStage(
       pool: deps.pool,
       adapter: deps.text.forRequest(request),
       onResult: async (result, ref) => {
+        // runProviderAttempt hands back the adapter's envelope (TextResult), not
+        // the document. Casting the envelope to ScriptDocument left `hook`,
+        // `narration` and `ending` undefined: SC then threw on `undefined.trim()`,
+        // and T wrote an empty title because normalisedText tolerates undefined.
+        const document = unwrapTextDocument(result);
+
         if (stage === 'T') {
-          await persistTopic(
-            deps.pool,
-            job.projectId,
-            result as { title: string; description: string; rationale: string | null },
-          );
+          await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));
         } else if (stage === 'SC') {
-          await persistScript(deps.pool, job.projectId, result as ScriptDocument);
+          await persistScript(deps.pool, job.projectId, TEXT_SCHEMAS.script.schema.parse(document));
         } else {
-          await persistStoryboard(deps, job, context, result as StoryboardDocument, ref);
+          await persistStoryboard(
+            deps,
+            job,
+            context,
+            TEXT_SCHEMAS.storyboard.schema.parse(document),
+            ref,
+          );
         }
       },
     },
