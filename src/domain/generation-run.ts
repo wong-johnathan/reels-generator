@@ -283,3 +283,82 @@ export async function executePersisted<Result>(
   await assertRunCommittedAndPending(deps.pool, run);
   return adapter.execute(run);
 }
+
+export interface OpenRunInAttemptInput {
+  readonly jobAttemptId: string;
+  readonly projectId: string;
+  readonly stage: ProviderStageCode;
+  readonly sceneId?: string | null;
+  readonly provider?: string | null;
+  readonly model?: string | null;
+  readonly promptHash: string;
+  readonly seriesVersionId?: string | null;
+  readonly attemptNo?: number | null;
+}
+
+/**
+ * Open an additional pending run inside an attempt that is already committed.
+ *
+ * TECH_DESIGN 4.7: a stage attempt may emit several provider calls -- IM emits
+ * one per scene, RS one per search/fetch -- while R-011-2 counts queue
+ * executions. openAttempt() writes both rows for the first call; this helper
+ * attaches calls 2..N to the same job_attempt, so one image stage attempt has
+ * one attempt row and N generation_run rows. The commit-before-call rule is
+ * unchanged: the row is committed here, and executePersisted still re-reads it
+ * on a fresh session before the adapter runs.
+ */
+export async function openRunInAttempt(
+  pool: Pool,
+  input: OpenRunInAttemptInput,
+): Promise<PersistedGenerationRun> {
+  if (!isProviderStageCode(input.stage)) {
+    throw new GenerationRunContractViolationError(
+      'stage ' +
+        input.stage +
+        ' is not a provider stage: render/QC/export never write generation_run (X-7)',
+    );
+  }
+  if (input.promptHash.trim() === '') {
+    throw new GenerationRunContractViolationError('prompt_hash is required (R-013-1)');
+  }
+
+  return withTransaction(pool, async (client) => {
+    const pid = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+    const backendPid = pid.rows[0]?.pid;
+    if (backendPid === undefined) throw new Error('postgres did not report a backend pid');
+
+    const owner = await client.query<{ project_id: string }>(
+      'SELECT j.project_id FROM job_attempt a JOIN job j ON j.id = a.job_id WHERE a.id = $1',
+      [input.jobAttemptId],
+    );
+    const projectId = owner.rows[0]?.project_id;
+    if (projectId === undefined) {
+      throw new GenerationRunContractViolationError(
+        'job_attempt ' + input.jobAttemptId + ' does not exist: a run cannot be opened for it',
+      );
+    }
+    if (projectId !== input.projectId) {
+      throw new GenerationRunContractViolationError(
+        'job_attempt ' +
+          input.jobAttemptId +
+          ' belongs to project ' +
+          projectId +
+          ', not ' +
+          input.projectId,
+      );
+    }
+
+    const row = await insertPendingRun(client, {
+      jobAttemptId: input.jobAttemptId,
+      projectId: input.projectId,
+      stage: input.stage,
+      sceneId: input.sceneId ?? null,
+      provider: input.provider ?? null,
+      model: input.model ?? null,
+      promptHash: input.promptHash,
+      attemptNo: input.attemptNo ?? null,
+      seriesVersionId: input.seriesVersionId ?? null,
+    });
+    return toPersistedRun(row, backendPid);
+  });
+}

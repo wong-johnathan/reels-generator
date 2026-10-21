@@ -157,3 +157,55 @@ export class ProviderSchemaError extends ProviderError {
     this.fieldErrors = fieldErrors;
   }
 }
+
+/**
+ * B-06 image-adapter failure vocabulary. B-04 (text/TTS) ships the richer
+ * ProviderError hierarchy above; B-05/B-06 independently shipped
+ * ProviderRequestError for the same facts. Both batches are merged here so one
+ * module is the single error surface (INT-01 converges the duplicate).
+ * ProviderFailureClass is an alias of B-04's ProviderErrorClass: identical
+ * values, and a second spelling must not become a second vocabulary.
+ */
+export type ProviderFailureClass = ProviderErrorClass;
+
+export interface ProviderRequestErrorOptions {
+  readonly failureClass: ProviderFailureClass;
+  readonly httpStatus?: number;
+  readonly billedUnknown: boolean;
+  /** From Retry-After, when present. */
+  readonly retryAfterMs?: number;
+  readonly cause?: unknown;
+}
+
+export class ProviderRequestError extends Error {
+  readonly failureClass: ProviderFailureClass;
+  readonly httpStatus: number | undefined;
+  readonly billedUnknown: boolean;
+  readonly retryAfterMs: number | undefined;
+
+  constructor(message: string, options: ProviderRequestErrorOptions) {
+    super(message, options.cause === undefined ? undefined : { cause: options.cause });
+    this.name = 'ProviderRequestError';
+    this.failureClass = options.failureClass;
+    this.httpStatus = options.httpStatus;
+    this.billedUnknown = options.billedUnknown;
+    this.retryAfterMs = options.retryAfterMs;
+  }
+}
+
+/**
+ * Retry-After is delta-seconds or an HTTP-date (RFC 9110 10.2.3). Returns
+ * milliseconds, or undefined when the header is absent or unusable.
+ */
+export function parseRetryAfter(
+  header: string | null,
+  nowMs: number = Date.now(),
+): number | undefined {
+  if (header === null) return undefined;
+  const trimmed = header.trim();
+  if (trimmed === '') return undefined;
+  if (/^[0-9]+$/.test(trimmed)) return Number.parseInt(trimmed, 10) * 1_000;
+  const dateMs = Date.parse(trimmed);
+  if (Number.isNaN(dateMs)) return undefined;
+  return Math.max(0, dateMs - nowMs);
+}
