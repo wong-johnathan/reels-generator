@@ -72,6 +72,8 @@ export class FakeElement {
   parent: FakeElement | null = null;
   hidden = false;
   focused = false;
+  /** Form controls only: the enhancer reads and writes the property, as a browser does. */
+  value = '';
   private text = '';
 
   constructor(tag: string, attrs: Readonly<Record<string, string>> = {}) {
@@ -215,6 +217,10 @@ export class FakeElement {
       element.owner = this.owner;
       this.append(element);
       element.appendNodes(node.children, '');
+      // A browser exposes a control's current value as a property; the
+      // enhancers read `value`, so the fake DOM must do the same.
+      if (element.tag === 'textarea') element.value = element.textContent;
+      else if (element.tag === 'input') element.value = node.attrs['value'] ?? '';
     }
   }
 }
@@ -290,5 +296,7 @@ FakeElement.prototype.appendNodesFrom = function appendNodesFrom(
     element.owner = this.owner;
     this.append(element);
     element.appendNodesFrom(node.children);
+    if (element.tag === 'textarea') element.value = element.textContent;
+    else if (element.tag === 'input') element.value = node.attrs['value'] ?? '';
   }
 };

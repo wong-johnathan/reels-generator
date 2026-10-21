@@ -26,19 +26,17 @@ import {
   emptyFeedState,
   eventAnnouncement,
   FEED_EVENT_TYPES,
-  FEED_RAIL_WORDS,
   FEED_STATE_WORDS,
   initialFeedState,
   parseSseEvent,
-  ribbonCodes,
   sentenceState,
-  staleCodes,
   type FeedEvent,
   type FeedState,
   type StageSnapshot,
   type StageState,
 } from '../workspace/events.js';
 import { stateGlyph } from '../workspace/glyphs.js';
+import { paintStages } from '../workspace/railDom.js';
 
 export interface WsElement {
   textContent: string;
@@ -143,64 +141,6 @@ function readWorkspaceState(root: WsElement, doc: WsDocument): FeedState {
     })),
   });
   return base;
-}
-
-function renderStageNode(doc: WsDocument, code: string, snapshot: StageSnapshot): void {
-  const node = doc.querySelector('[data-stage="' + code + '"]');
-  if (node === null) return;
-  // DI-05: a stale stage displays STALE even though its stored state is still
-  // `done`; the tooltip keeps the underlying state (see model.railStateFor).
-  const displayed: StageState = snapshot.stale ? 'stale' : snapshot.state;
-  setAttr(node, 'data-state', displayed);
-  setAttr(node, 'data-stale', snapshot.stale ? 'true' : 'false');
-  const word = node.querySelector?.('[data-state-word]');
-  if (word !== null && word !== undefined) word.textContent = FEED_RAIL_WORDS[displayed];
-  const glyph = node.querySelector?.('[data-glyph]');
-  if (glyph !== null && glyph !== undefined) glyph.innerHTML = stateGlyph(displayed);
-  // The progress bar belongs to `running` only (UC-03: never a percentage of a
-  // whole stage); a finished stage hides it rather than freezing a stale bar.
-  const progress = node.querySelector?.('[data-progress]');
-  if (progress !== null && progress !== undefined) progress.hidden = snapshot.state !== 'running';
-}
-
-function renderStages(doc: WsDocument, state: FeedState): void {
-  for (const [code, snapshot] of Object.entries(state.stages)) {
-    renderStageNode(doc, code, snapshot);
-  }
-  const nodes = toArray(doc.querySelectorAll('[data-stage]'));
-  const summary = doc.querySelector('[data-stale-summary]');
-  const allStale = staleCodes(state.stages);
-  if (summary !== null) {
-    summary.textContent = allStale.length === 0 ? 'stale: none' : 'stale: ' + allStale.join(', ');
-  }
-
-  const ribbon = doc.querySelector('[data-stale-ribbon]');
-  if (ribbon !== null) {
-    const codes = ribbonCodes(state.stages);
-    ribbon.hidden = codes.length === 0;
-    const list = ribbon.querySelector?.('[data-ribbon-list]');
-    if (list !== null && list !== undefined) {
-      list.innerHTML = codes
-        .map(
-          (code) =>
-            '<span class="stale-ribbon-stage mono" data-ribbon-stage="' +
-            code +
-            '">' +
-            code +
-            ' ' +
-            stateGlyph('stale') +
-            ' stale</span>',
-        )
-        .join('<span class="stale-separator" aria-hidden="true"> · </span>');
-    }
-  }
-  // Keep the rail a single tab stop even after a state change.
-  const active = nodes.find((node) => attr(node, 'data-current') === 'true') ?? nodes[0];
-  for (const node of nodes) {
-    const link = node.querySelector?.('a');
-    if (link === null || link === undefined) continue;
-    setAttr(link, 'tabindex', node === active ? '0' : '-1');
-  }
 }
 
 function renderChip(doc: WsDocument, state: FeedState): void {
@@ -354,8 +294,7 @@ export function initWorkspace(
     }
     state = applyFeedEvent(state, event);
     if (event.type === 'stage.updated') {
-      renderStageNode(doc, event.stage, { state: event.state, stale: event.stale });
-      renderStages(doc, state);
+      paintStages(doc, state.stages);
     } else if (event.type === 'video.updated') {
       renderCurrentStage(doc, event.current_stage);
       renderChip(doc, state);
@@ -388,7 +327,7 @@ export function initWorkspace(
 
   function refresh(): void {
     if (root !== null) {
-      renderStages(doc, state);
+      paintStages(doc, state.stages);
       renderChip(doc, state);
     }
   }
