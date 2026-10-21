@@ -67,12 +67,24 @@ docker compose up -d
 
 Then open `http://<host>:${APP_PORT}` and log in with the single seeded operator account. There is no registration, no password reset and no user management — this is a one-person tool on a private network.
 
-Two compose files ship:
+One compose file ships. Application images are pulled from Docker Hub as
+`:latest` with `pull_policy: always`, so a deploy is:
 
-- **`compose.yaml`** — pins every application image by **tag + digest** for `linux/amd64` (reproducible; the audit-friendly path). Needs `RELEASE_TAG` and the three `*_DIGEST` values from the CI release job.
-- **`compose.dockerhub.yaml`** — same services, but application images come from Docker Hub on `:latest` and it needs **no release variables at all**. Not reproducible by design: it gives you whatever CI last built. Everything else — networks, volumes, env contract — is identical, and a test fails the build if the two files diverge.
+```
+docker compose pull && ./deploy/up.sh
+```
 
-CI publishes each image to **both** registries from one build (`ghcr.io/wong-johnathan/reels-generator-<service>` and `wongjohnathanwh741/reels-generator-<service>`), so the same build serves either file. CI needs two repository secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
+There are no release tags, digests or manifest files to exchange. **This is a
+deliberate deviation from the approved design** (R-016-1 asked for digest
+pinning): `:latest` is not reproducible, and rolling back means pinning a
+previously published `<sha>` tag by hand. CI publishes both `latest` and a
+`sha` tag per commit for exactly that reason. The full rationale and what is lost
+is in [`DEVIATIONS.md`](DEVIATIONS.md) D-E. Third-party images (Postgres, Redis,
+MinIO) keep explicit version tags.
+
+CI publishes each image to **both** Docker Hub (`wongjohnathanwh741/reels-generator-<service>`)
+and GHCR from one build, and needs two repository secrets: `DOCKERHUB_USERNAME`
+and `DOCKERHUB_TOKEN`.
 
 ### Environment
 

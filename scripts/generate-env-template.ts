@@ -74,17 +74,7 @@ const GROUPS: readonly { readonly title: string; readonly keys: readonly string[
     keys: ['RETENTION_DAYS', 'MAX_RENDER_CONCURRENCY', 'RENDER_MEM_LIMIT_MB', 'RENDER_TIMEOUT_MIN'],
   },
   { title: 'logging', keys: ['LOG_LEVEL', 'TZ'] },
-  {
-    title: 'release pins — ONLY for compose.yaml (skip these if you run compose.dockerhub.yaml)',
-    keys: [
-      'RELEASE_TAG',
-      'WEB_DIGEST',
-      'WORKER_DIGEST',
-      'OPS_DIGEST',
-      'MINIO_IMAGE',
-      'DOCKERHUB_USER',
-    ],
-  },
+  { title: 'image source', keys: ['DOCKERHUB_USER'] },
 ];
 
 interface Requirement {
@@ -104,30 +94,8 @@ const defaults = new Map<string, string>();
  */
 const COMPOSE_ONLY: Readonly<Record<string, { readonly comment: string; readonly value: string }>> =
   {
-    RELEASE_TAG: {
-      comment:
-        'REQUIRED by compose · release tag printed by the CI release job (images.env) · do not type by hand',
-      value: '',
-    },
-    WEB_DIGEST: {
-      comment: 'REQUIRED by compose · 64-char digest for the web image, printed as images.env',
-      value: '',
-    },
-    WORKER_DIGEST: {
-      comment: 'REQUIRED by compose · 64-char digest for the worker image, printed as images.env',
-      value: '',
-    },
-    OPS_DIGEST: {
-      comment: 'REQUIRED by compose · 64-char digest for the ops image, printed as images.env',
-      value: '',
-    },
-    MINIO_IMAGE: {
-      comment:
-        'compose.yaml only · digest-pinned object store (compose.dockerhub.yaml hardcodes one)',
-      value: '',
-    },
     DOCKERHUB_USER: {
-      comment: 'compose.dockerhub.yaml only · Docker Hub organisation · default wongjohnathanwh741',
+      comment: 'Docker Hub organisation for the application images · default wongjohnathanwh741',
       value: 'wongjohnathanwh741',
     },
   };
@@ -204,10 +172,11 @@ for (const group of GROUPS) {
 
 lines.push(
   '# ── notes ───────────────────────────────────────────────────────────────────',
-  '# Running compose.dockerhub.yaml (pull :latest)? Delete this whole release-pins',
-  '# section — that file uses none of it. Running compose.yaml (pinned)? RELEASE_TAG',
-  '# and *_DIGEST are printed by the CI release job as images.env; append that file',
-  '# to .env instead of typing digests.',
+  '# Application images are pulled as :latest on every deploy, so there are no',
+  '# release tags or digests to paste here. Store credentials are all above.',
+  '#',
+  '#   docker compose pull     # fetch the newest builds',
+  '#   ./deploy/up.sh          # migrate, then start',
   '',
 );
 

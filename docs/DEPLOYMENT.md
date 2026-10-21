@@ -5,17 +5,24 @@ This guide covers first install, start, upgrade, rollback and data safety. It is
 the R-016-1 deployment guide; `tests/compose.test.ts` asserts the rules it encodes.
 
 The NAS never builds and never installs application dependencies. CI builds `web`,
-`worker` and `ops` for `linux/amd64`, pushes them to GHCR, and prints the digests
-the NAS pulls by. Everything else runs as a pinned upstream image.
+`worker` and `ops` for `linux/amd64` and publishes each one to Docker Hub and GHCR.
+The NAS pulls the Docker Hub images by the `:latest` tag on every deploy
+(`pull_policy: always`), so there are no release tags or digests to paste anywhere.
+Everything else runs as an upstream image.
+
+Trade-off, stated once: `:latest` is not reproducible. Two deploys a week apart can
+run different code, and "roll back" means pinning a previously published `sha` tag
+by hand (§6). If you need to reproduce an exact build, use that `sha` tag — CI
+publishes one per commit alongside `:latest`.
 
 ## 1. Prerequisites
 
 - Docker Engine with the Compose v2 plugin (`docker compose version`).
 - Free space for the compose project and its volumes. Budget at least 20 GB for
   images, Postgres, Redis and the MinIO bucket.
-- Outbound HTTPS to `ghcr.io`, Docker Hub and the provider APIs.
-- A GHCR credential that can read the private packages (`docker login ghcr.io`).
-- A `linux/amd64` object-store image reference (see §2.5).
+- Outbound HTTPS to Docker Hub, `quay.io` and the provider APIs.
+- No registry credentials for the application images: they are public on Docker Hub.
+  `quay.io` may require `docker login quay.io` for the object store (§2.4).
 
 No Node.js, FFmpeg or database client is installed on the host.
 
@@ -29,9 +36,14 @@ No Node.js, FFmpeg or database client is installed on the host.
 
 ### 2.2 Create the environment file
 
-The repository tracks a names-only template at `.env.example`. Copy it to `.env`
-in the compose project directory, restrict it to the operator
-(`chmod 600 .env`), and fill every value.
+The repository tracks two templates: `.env.template` (generated from the startup
+validator, with required keys marked and working defaults filled in) and
+`.env.example` (names only, the tracked contract). Copy the generated one:
+
+    cp .env.template .env
+    chmod 600 .env
+
+Fill every line marked REQUIRED and delete the rest you do not need.
 
 The template ships no values. At minimum:
 
@@ -47,38 +59,35 @@ The template ships no values. At minimum:
 Optional keys fall back to documented defaults when left empty; the validator
 reports only keys that are required for the role or malformed.
 
-### 2.3 Add the release pins
+### 2.3 Object-store image
 
-CI's `release-manifest` job publishes `images.env` carrying `RELEASE_TAG`,
-`WEB_DIGEST`, `WORKER_DIGEST` and `OPS_DIGEST`. Append that file to `.env` so
-compose can resolve the pins. The digest values are the bare 64-character hex
-digest; `compose.yaml` supplies the `sha256:` prefix itself, so never paste
-`sha256:` into these variables.
+`compose.yaml` hardcodes one reference:
 
-`compose.yaml` references those values with `:?` guards, so a missing pin fails
-loudly instead of pulling `latest`. Never edit digests by hand: they are the
-release identity, and a tag alone is not pinned.
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
 
-### 2.4 Log in to GHCR
+It is hardcoded because `minio/minio` is no longer published on Docker Hub (404)
+and the quay.io manifest is not anonymously resolvable, so there is no verified
+digest to point at. If your NAS cannot pull that ref, mirror the image locally and
+change that single line. `MINIO_IMAGE` no longer exists as a variable.
 
-    docker login ghcr.io -u <github-user>
+### 2.4 Registry access
 
-### 2.5 Pin the object-store image
+Application images come from Docker Hub and need no login. Only the object store
+may require credentials:
 
-Set `MINIO_IMAGE` to a tag and digest, for example:
+    docker login quay.io
 
-    MINIO_IMAGE=quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:<64 hex>
+### 2.5 Nothing else to pin
 
-Resolve the digest with `docker buildx imagetools inspect <ref>` and confirm
-`linux/amd64` is listed. This is the only image compose cannot pin for you:
-`minio/minio` is no longer served by Docker Hub and quay.io requires registry
-auth, so the reference is operator-supplied.
+There are no release variables to append. `RELEASE_TAG`, `WEB_DIGEST`,
+`WORKER_DIGEST`, `OPS_DIGEST` and `MINIO_IMAGE` were removed with the switch to
+`:latest` — see `DEVIATIONS.md` D-E.
 
 ## 3. Start
 
-`deploy/up.sh` is the supported entry point. It checks the environment file and
-the release pins, runs the migration one-shot, starts the stack detached, and
-prints `docker compose ps`.
+`deploy/up.sh` is the supported entry point. It checks the environment file,
+pulls the newest application images, runs the migration one-shot, starts the stack
+detached, and prints `docker compose ps`.
 
     ./deploy/up.sh
 
@@ -163,13 +172,19 @@ Validate without starting a long-running process:
 Migrations within a release line are additive and backward-compatible, so an
 image rollback is valid.
 
-Upgrade: fetch the new `images.env`, replace the four pin lines in `.env`, run
-`docker compose pull`, then `./deploy/up.sh`, then check `/readyz` and the
-container health checks.
+Upgrade: `docker compose pull`, then `./deploy/up.sh`, then check `/readyz` and
+the container health checks. That is the whole procedure — `:latest` moves on its
+own, and `up.sh` pulls explicitly because `up` alone would reuse the cached image.
 
-Rollback: restore the previous `RELEASE_TAG` and digest lines, run
-`docker compose pull`, then `./deploy/up.sh`. Data and in-flight jobs persist in
-the volumes.
+Rollback: `:latest` cannot take you back. CI publishes a `sha` tag per commit, so
+pin that commit's build temporarily:
+
+    docker compose images web            # see which tag/id is running now
+    docker tag <registry>/reels-generator-web:<sha> <registry>/reels-generator-web:latest
+    docker compose up -d
+
+or edit the three `image:` lines in `compose.yaml` to `:<sha>` and run
+`./deploy/up.sh`. Data and in-flight jobs persist in the volumes.
 
 A structural (breaking) migration is not rolled back by image tag. Release notes
 must say so, and the recovery is restore-from-backup (§7).
@@ -189,7 +204,7 @@ re-export of a prior video, are documented and tested with US-002.
 The B-01 signal is a manual, on-hardware check:
 
 - [ ] `git log --all -- .env` on the release tag prints nothing.
-- [ ] `images.env` exists for the tag and carries three `sha256:` digests.
+- [ ] `grep -c 'sha256:' compose.yaml` prints `0` (no digest pins by design, D-E).
 - [ ] `docker compose config --quiet` succeeds with the release `.env` in place.
 - [ ] On a clean box, `docker compose pull` succeeds and `./deploy/up.sh` starts
       all six services with no local build.
@@ -200,11 +215,11 @@ The B-01 signal is a manual, on-hardware check:
 
 ## 9. Troubleshooting
 
-| Symptom                                 | Cause                                 | Fix                                                                       |
-| --------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
-| `RELEASE_TAG must be the release tag …` | pins not appended to `.env`           | §2.3                                                                      |
-| `MINIO_IMAGE must be a digest-pinned …` | object-store image not set            | §2.5                                                                      |
-| `manifest unknown` or `denied` on pull  | wrong digest or missing GHCR login    | re-check `images.env`; `docker login ghcr.io`                             |
-| `web` exits listing keys                | environment incomplete                | fill the named keys (§2.2)                                                |
-| `/readyz` 503 after start               | a store is still booting or unhealthy | `docker compose ps`, `docker compose logs <service>`                      |
-| `migrate` exits non-zero                | schema or migration failure           | previous version keeps running; read the log, fix forward or restore (§7) |
+| Symptom                                      | Cause                                                   | Fix                                                                       |
+| -------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `pull access denied` for `reels-generator-*` | image never published, or wrong org in `DOCKERHUB_USER` | check the Actions run; §2.4                                               |
+| `unauthorized` pulling `quay.io/minio/...`   | object store needs a login                              | `docker login quay.io` (§2.4)                                             |
+| redeploy still runs old code                 | cached `:latest`                                        | `docker compose pull` first; `pull_policy` covers it                      |
+| `web` exits listing keys                     | environment incomplete                                  | fill the named keys (§2.2)                                                |
+| `/readyz` 503 after start                    | a store is still booting or unhealthy                   | `docker compose ps`, `docker compose logs <service>`                      |
+| `migrate` exits non-zero                     | schema or migration failure                             | previous version keeps running; read the log, fix forward or restore (§7) |

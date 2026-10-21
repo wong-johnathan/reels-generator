@@ -23,16 +23,9 @@ const assignments = template
     return { key: line.slice(0, index), value: line.slice(index + 1) };
   });
 
-/** Compose-level names that the validator never sees: read by compose.yaml during
- * interpolation (release pins, object-store image) or by the Docker Hub override. */
-const COMPOSE_ONLY = [
-  'RELEASE_TAG',
-  'WEB_DIGEST',
-  'WORKER_DIGEST',
-  'OPS_DIGEST',
-  'MINIO_IMAGE',
-  'DOCKERHUB_USER',
-];
+/** Compose-level name the validator never sees: read by compose.yaml during
+ * interpolation, not by a running process. */
+const COMPOSE_ONLY = ['DOCKERHUB_USER'];
 
 describe('.env.template', () => {
   it('lists every key the validator knows, exactly once', () => {

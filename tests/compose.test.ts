@@ -11,19 +11,25 @@ import { ENV_KEYS } from '../src/config/env.js';
  * R-016 deployment contract.
  *
  * The NAS never builds and never installs application dependencies: compose
- * pulls digest-pinned amd64 images that CI published, only `web` is reachable
- * from the host, data lives in named volumes, and every service validates its
+ * pulls `linux/amd64` images that CI published, only `web` is reachable from the
+ * host, data lives in named volumes, and every service validates its
  * environment at startup (R-016-1…R-016-5).
  *
- * These are structural assertions on the checked-in files. A green run here
- * does not replace a real `compose up` on the NAS; docs/DEPLOYMENT.md §6 records
- * that manual check.
+ * Application images track `:latest` with `pull_policy: always` — the operator
+ * traded R-016-1's digest pinning for a single mutable tag (DEVIATIONS.md D-E).
+ * These assertions encode that decision so it cannot drift back: no digest, no
+ * release variable, and a pull on every deploy.
+ *
+ * These are structural assertions on the checked-in files. A green run here does
+ * not replace a real `compose up` on the NAS; docs/DEPLOYMENT.md §6 records that
+ * manual check.
  */
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 interface Service {
   readonly image?: string;
   readonly platform?: string;
+  readonly pull_policy?: string;
   readonly profiles?: readonly string[];
   readonly build?: unknown;
   readonly ports?: readonly string[];
@@ -64,50 +70,82 @@ interface Workflow {
   >;
 }
 
-const compose = parse(readFileSync(join(ROOT, 'compose.yaml'), 'utf8'), {
-  merge: true,
-}) as ComposeFile;
+const composeText = readFileSync(join(ROOT, 'compose.yaml'), 'utf8');
+const compose = parse(composeText, { merge: true }) as ComposeFile;
 const workflow = parse(readFileSync(join(ROOT, '.github/workflows/build.yml'), 'utf8')) as Workflow;
 
 const ALWAYS_ON = ['web', 'content-worker', 'render-worker', 'postgres', 'redis', 'minio'];
-const PINNED = /@sha256:[a-f0-9]{64}$/;
+const ONE_SHOT = ['migrate', 'backup'];
+const APP_SERVICES = ['web', 'content-worker', 'render-worker', 'migrate', 'backup'];
+const LATEST = /^\$\{DOCKERHUB_USER:-[a-z0-9]+\}\/reels-generator-[a-z]+:latest$/;
+const RELEASE_VARIABLES = [
+  'RELEASE_TAG',
+  'WEB_DIGEST',
+  'WORKER_DIGEST',
+  'OPS_DIGEST',
+  'MINIO_IMAGE',
+];
 
-describe('compose.yaml (R-016-1/2/3/4)', () => {
+describe('compose.yaml (R-016 deployment contract)', () => {
   it('declares the six always-on services and the two profile-gated one-shots', () => {
-    expect(Object.keys(compose.services).sort()).toEqual(
-      [...ALWAYS_ON, 'migrate', 'backup'].sort(),
-    );
+    expect(Object.keys(compose.services).sort()).toEqual([...ALWAYS_ON, ...ONE_SHOT].sort());
+    for (const name of ONE_SHOT) {
+      expect(compose.services[name]?.profiles, `${name} profile`).toHaveLength(1);
+    }
+    for (const name of ALWAYS_ON) {
+      expect(compose.services[name]?.profiles, `${name} must be always-on`).toBeUndefined();
+    }
   });
 
   it('never builds on the NAS: no service has a build key (R-016-2)', () => {
     for (const [name, service] of Object.entries(compose.services)) {
-      expect(service, `${name} must pull a prebuilt image`).not.toHaveProperty('build');
+      expect(service.build, `${name} must not build`).toBeUndefined();
     }
   });
 
-  it('pins every image by tag and digest, for linux/amd64 (R-016-1)', () => {
-    for (const name of ALWAYS_ON) {
-      const service = compose.services[name];
-      expect(service, name).toBeDefined();
-      expect(service?.platform, `${name} platform`).toBe('linux/amd64');
-      const image = service?.image ?? '';
-      if (name === 'minio') {
-        // `minio/minio` is gone from Docker Hub and quay.io needs registry auth,
-        // so the object-store image is an operator-supplied, digest-pinned ref.
-        expect(image, 'minio must require an operator-pinned image').toContain(':?');
-        expect(image, 'minio image variable').toContain('MINIO_IMAGE');
-      } else if (name === 'postgres' || name === 'redis') {
-        // Third-party stores are pinned by a fixed upstream tag + digest, not by
-        // the app release tag. Exact pinning is asserted below (PINNED).
-        expect(image, `${name} must be digest-pinned`).toContain('@sha256:');
-        expect(image, `${name} must be digest-pinned`).toMatch(PINNED);
-      } else {
-        expect(image, `${name} must be digest-pinned`).toContain('@sha256:');
-        expect(image, `${name} must carry a release tag`).toContain('${RELEASE_TAG');
-      }
+  it('runs every service as linux/amd64 (DS923+ is x86_64)', () => {
+    for (const [name, service] of Object.entries(compose.services)) {
+      expect(service.platform, `${name} platform`).toBe('linux/amd64');
     }
-    expect(compose.services.postgres?.image).toMatch(PINNED);
-    expect(compose.services.redis?.image).toMatch(PINNED);
+  });
+
+  it('tracks :latest for application images and re-pulls on every deploy', () => {
+    const prefix = workflow.env?.['DOCKERHUB_PREFIX'];
+    expect(prefix, 'workflow env DOCKERHUB_PREFIX').toBeTruthy();
+    const [org, repo] = String(prefix).split('/');
+    // Which published repository each service consumes.
+    const published: Readonly<Record<string, string>> = {
+      web: `${repo}-web`,
+      'content-worker': `${repo}-worker`,
+      'render-worker': `${repo}-worker`,
+      migrate: `${repo}-worker`,
+      backup: `${repo}-ops`,
+    };
+
+    for (const name of APP_SERVICES) {
+      const service = compose.services[name];
+      expect(service?.image, name).toBe(`\${DOCKERHUB_USER:-${org}}/${published[name]}:latest`);
+      expect(service?.image, name).toMatch(LATEST);
+      // Without this, `:latest` means "whatever is already cached locally".
+      expect(service?.pull_policy, `${name} must re-pull`).toBe('always');
+    }
+  });
+
+  it('carries no digest and no release variable anywhere', () => {
+    // The operator chose one mutable tag over reproducible pins (D-E). A digest
+    // creeping back in would silently reinstate a second deploy model.
+    expect(composeText).not.toContain('@sha256:');
+    for (const key of RELEASE_VARIABLES) {
+      expect(composeText, key).not.toContain(key);
+    }
+    expect(composeText, 'no required interpolation for image refs').not.toMatch(
+      /image: \$\{[A-Z0-9_]+:\?/,
+    );
+  });
+
+  it('ships the object store with a concrete reference', () => {
+    const image = compose.services.minio?.image ?? '';
+    expect(image).toMatch(/^[a-z0-9.-]+\/minio\/minio:RELEASE\.[0-9TZ.-]+$/);
   });
 
   it('publishes only the web entrypoint; stores stay on the private network (R-016-3)', () => {
@@ -144,8 +182,7 @@ describe('compose.yaml (R-016-1/2/3/4)', () => {
   });
 
   it('runs the migration one-shot as the migrate role, not as a queue consumer', () => {
-    for (const name of ['migrate', 'backup']) {
-      expect(compose.services[name]?.profiles, `${name} profile`).toHaveLength(1);
+    for (const name of ONE_SHOT) {
       expect(compose.services[name]?.restart, `${name} restart`).toBe('no');
     }
     expect(compose.services.migrate?.entrypoint).toEqual([
@@ -156,24 +193,26 @@ describe('compose.yaml (R-016-1/2/3/4)', () => {
       '--exec',
     ]);
     expect(compose.services.migrate?.command).toEqual(['node', 'dist/src/db/migrate.js']);
-    expect(compose.services.backup?.image).toContain('OPS_DIGEST');
+    expect(compose.services.backup?.image).toContain('reels-generator-ops');
   });
 });
 
-describe('tracked environment template (R-016-1/5, R-015-5)', () => {
+describe('tracked environment files (R-015-5, R-016-5)', () => {
   const gitignore = readFileSync(join(ROOT, '.gitignore'), 'utf8')
     .split('\n')
     .map((line) => line.trim());
-  const templateName = gitignore.find((line) => line.startsWith('!.'))?.slice(1);
+  const tracked = gitignore.filter((line) => line.startsWith('!.')).map((line) => line.slice(1));
 
-  it('ignores the real environment file but tracks the names-only template', () => {
+  it('ignores the real environment file but tracks both templates', () => {
     expect(gitignore).toContain('.env');
-    expect(templateName).toBeDefined();
-    expect(existsSync(join(ROOT, templateName ?? ''))).toBe(true);
+    expect(tracked).toEqual(expect.arrayContaining(['.env.example', '.env.template']));
+    for (const name of tracked) {
+      expect(existsSync(join(ROOT, name)), name).toBe(true);
+    }
   });
 
-  it('lists every key the validator knows, with no values (names only)', () => {
-    const template = readFileSync(join(ROOT, templateName ?? ''), 'utf8');
+  it('.env.example lists every validator key, names only (no values)', () => {
+    const template = readFileSync(join(ROOT, '.env.example'), 'utf8');
     const assignments = template
       .split('\n')
       .map((line) => line.trim())
@@ -187,16 +226,24 @@ describe('tracked environment template (R-016-1/5, R-015-5)', () => {
     }
   });
 
-  it('carries the release pins compose requires', () => {
-    const template = readFileSync(join(ROOT, templateName ?? ''), 'utf8');
-    for (const key of ['RELEASE_TAG', 'WEB_DIGEST', 'WORKER_DIGEST', 'OPS_DIGEST', 'MINIO_IMAGE']) {
-      expect(template, `missing ${key}`).toMatch(new RegExp(`^${key}=`, 'm'));
+  it('neither template mentions a release tag or digest', () => {
+    for (const name of tracked) {
+      const text = readFileSync(join(ROOT, name), 'utf8');
+      for (const key of RELEASE_VARIABLES) {
+        expect(text, `${name} still mentions ${key}`).not.toContain(key);
+      }
+    }
+  });
+
+  it('both carry the Docker Hub organisation the images are published under', () => {
+    for (const name of tracked) {
+      expect(readFileSync(join(ROOT, name), 'utf8'), name).toContain('DOCKERHUB_USER');
     }
   });
 });
 
 describe('.github/workflows/build.yml (R-016-1/2)', () => {
-  it('builds all three images for linux/amd64 and pushes them to GHCR', () => {
+  it('builds all three images for linux/amd64 and pushes them', () => {
     const include = workflow.jobs.images?.strategy?.matrix?.include ?? [];
     expect(include.map((entry) => entry.dockerfile)).toEqual([
       'Dockerfile.web',
@@ -212,34 +259,24 @@ describe('.github/workflows/build.yml (R-016-1/2)', () => {
     expect(workflow.permissions?.['packages']).toBe('write');
   });
 
-  it('publishes the tag plus the three digests the NAS pins', () => {
-    const manifest = workflow.jobs['release-manifest']?.steps?.find(
-      (step) => typeof step.run === 'string' && step.run.includes('WEB_DIGEST'),
-    );
-    expect(manifest).toBeDefined();
-    for (const key of ['RELEASE_TAG', 'WEB_DIGEST', 'WORKER_DIGEST', 'OPS_DIGEST']) {
-      expect(manifest?.run).toContain(key);
-    }
+  it('publishes to Docker Hub as well as GHCR, since compose pulls Docker Hub', () => {
+    const steps = workflow.jobs.images?.steps ?? [];
+    const registries = steps
+      .filter((step) => step.uses?.startsWith('docker/login-action'))
+      .map((step) => step.with?.['registry']);
+    expect(registries).toEqual(expect.arrayContaining(['docker.io', 'ghcr.io']));
+
+    const build = steps.find((step) => step.uses === 'docker/build-push-action@v6');
+    const tags = String(build?.with?.['tags'] ?? '');
+    expect(tags).toContain('DOCKERHUB_PREFIX');
+    expect(tags, 'main pushes move :latest').toContain('latest');
   });
 
-  it('writes the digest in the form compose interpolates after @sha256: (R-016-1/2)', () => {
-    // docker/build-push-action outputs `digest` as `sha256:<64 hex>`, while
-    // compose.yaml pins `@sha256:${WEB_DIGEST}`. If CI kept the prefix, every
-    // image ref would become `@sha256:sha256:<hex>` and the NAS pull would fail.
-    // images.env must therefore carry the bare 64-hex digest.
-    const manifest = workflow.jobs['release-manifest']?.steps?.find(
-      (step) => typeof step.run === 'string' && step.run.includes('WEB_DIGEST'),
-    );
-    const run = manifest?.run ?? '';
-    for (const key of ['WEB_DIGEST', 'WORKER_DIGEST', 'OPS_DIGEST']) {
-      expect(run, `${key} must be stripped of the sha256: prefix`).toContain(
-        `${key}="\${${key}#sha256:}"`,
-      );
-    }
-    expect(run, 'a malformed pin must fail the release job').toContain('[0-9a-f]{64}');
-    expect(run, 'compose keeps the sha256: prefix').not.toMatch(
-      /@\$\{?RELEASE_TAG.*@\$\{WEB_DIGEST/,
-    );
+  it('no longer produces an images.env release manifest', () => {
+    // Nothing pins by digest any more; a leftover manifest would be a second,
+    // misleading deploy model.
+    expect(workflow.jobs['release-manifest']).toBeUndefined();
+    expect(JSON.stringify(workflow.jobs)).not.toContain('images.env');
   });
 
   it('fails CI if the real environment file ever enters history (R-015-5)', () => {
@@ -253,94 +290,12 @@ describe('.github/workflows/build.yml (R-016-1/2)', () => {
 describe('deployment guide (R-016-1/2/4)', () => {
   const guide = readFileSync(join(ROOT, 'docs/DEPLOYMENT.md'), 'utf8');
 
-  it('documents migrate, start, upgrade, rollback and the data-loss warning', () => {
+  it('documents pull, migrate, start, upgrade, rollback and the data-loss warning', () => {
     expect(guide).toContain('--profile migrate');
     expect(guide).toContain('deploy/up.sh');
     expect(guide).toContain('down -v');
     expect(guide.toLowerCase()).toContain('rollback');
     expect(guide).toContain('linux/amd64');
-  });
-});
-
-/**
- * The Docker Hub variant: compose.dockerhub.yaml overrides only the five
- * application images. These assertions keep it a faithful mirror of
- * compose.yaml — a service added to the base file but missed here would leave
- * the NAS pulling GHCR for that one container, which fails only at deploy time.
-
-/**
- * compose.dockerhub.yaml is the convenience path: same services as compose.yaml,
- * application images track `:latest` on Docker Hub, third-party images stay
- * digest-pinned. It is a standalone file, not an override, so that bringing the
- * NAS up needs no RELEASE_TAG/digest variables at all.
- */
-describe('compose.dockerhub.yaml stays a faithful copy of compose.yaml', () => {
-  const hub = parse(readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8'), {
-    merge: true,
-  }) as ComposeFile;
-
-  const APP_SERVICES = ['web', 'content-worker', 'render-worker', 'migrate', 'backup'];
-
-  it('declares exactly the same services as compose.yaml', () => {
-    expect(Object.keys(hub.services).sort()).toEqual(Object.keys(compose.services).sort());
-  });
-
-  it('differs from compose.yaml only in application image references', () => {
-    for (const [name, base] of Object.entries(compose.services)) {
-      const copy = hub.services[name];
-      expect(copy, name).toBeDefined();
-      const { image: baseImage, ...baseRest } = base;
-      const { image: hubImage, ...hubRest } = copy ?? {};
-      if (APP_SERVICES.includes(name)) {
-        expect(hubImage, `${name} must move to Docker Hub`).not.toBe(baseImage);
-      } else if (name === 'minio') {
-        // The object store is the one third-party image the convenience file
-        // hardcodes: an operator-supplied variable would defeat its purpose.
-        expect(baseImage, 'compose.yaml keeps the variable').toContain('MINIO_IMAGE');
-        expect(hubImage, 'compose.dockerhub.yaml hardcodes a concrete ref').toMatch(
-          /^quay\.io\/minio\/minio:RELEASE\.[0-9TZ.-]+$/,
-        );
-      } else {
-        expect(hubImage, `${name} is a third-party image and must stay identical`).toBe(baseImage);
-      }
-      expect(hubRest, `${name} drifted from compose.yaml`).toEqual(baseRest);
-    }
-  });
-
-  it('pulls application images from Docker Hub by tag, not by digest', () => {
-    const prefix = workflow.env?.['DOCKERHUB_PREFIX'];
-    expect(prefix, 'workflow env DOCKERHUB_PREFIX').toBeTruthy();
-    const [org, repo] = String(prefix).split('/');
-    // Which published repository each service consumes.
-    const published: Readonly<Record<string, string>> = {
-      web: `${repo}-web`,
-      'content-worker': `${repo}-worker`,
-      'render-worker': `${repo}-worker`,
-      migrate: `${repo}-worker`,
-      backup: `${repo}-ops`,
-    };
-    for (const name of APP_SERVICES) {
-      expect(hub.services[name]?.image, name).toBe(
-        `\${DOCKERHUB_USER:-${org}}/${published[name]}:latest`,
-      );
-    }
-  });
-
-  it('needs no release variables: nothing to paste from images.env', () => {
-    const text = readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8');
-    // Store credentials still come from .env; the *release* pins must not appear
-    // here, or pulling "latest" would still require the digest output.
-    for (const key of ['RELEASE_TAG', 'WEB_DIGEST', 'WORKER_DIGEST', 'OPS_DIGEST', 'MINIO_IMAGE']) {
-      expect(text, key).not.toContain(key);
-    }
-    expect(text.match(/\$\{[A-Z0-9_]+:\?/g) ?? []).toHaveLength(
-      (text.match(/\$\{(POSTGRES|MINIO_ROOT|REDIS|SESSION|OPERATOR)[A-Z0-9_]*:\?/g) ?? []).length,
-    );
-  });
-
-  it('leaves no application image on GHCR', () => {
-    for (const [name, service] of Object.entries(hub.services)) {
-      expect(service.image ?? '', name).not.toContain('ghcr.io');
-    }
+    expect(guide).toContain('docker compose pull');
   });
 });
