@@ -10,6 +10,7 @@ Task: B-08 Attempt-row-before-call + retry/backoff + queue topology + reconciler
   its scripted failure series). B-04/B-05/B-06 were not merged; their error vocabularies are
   supported structurally (see D5).
 - Implementation commit: `1d72a16`
+- Concurrency hardening commit: `fc07234` (live-lease guard for a duplicate attempt claim)
 - Evidence commit: the commit that adds this file (see `git log feat/t_b3d9c9d4`).
 - Developed in an isolated worktree `/opt/data/engineering-team/projects/reels-generator/.worktrees/t_b3d9c9d4`;
   the shared tree was left untouched.
@@ -37,13 +38,13 @@ Appended (B-02-owned files, no existing behaviour changed):
 ```
 TEST_DATABASE_URL=postgres://reels@127.0.0.1:55432/reels_test npm run test
   Test Files  22 passed (22)
-  Tests       218 passed (218)
-  Duration    165.53s
+  Tests       219 passed (219)
+  Duration    170.13s
 
 npm run test                      (no database)
   Test Files  16 passed | 6 skipped (22)
-  Tests       174 passed | 44 skipped (218)
-  Duration    10.33s
+  Tests       174 passed | 45 skipped (219)
+  Duration    6.53s
 
 npm run lint                      PASS (eslint, 0 problems)
 npm run typecheck                 PASS (tsc -p tsconfig.json)
@@ -59,7 +60,7 @@ npm 11.17.0. No Redis server and no Docker daemon on this host.
 
 Per-file results with a database:
 
-- `src/workers/attempt.test.ts` — 7/7 PASS (85.3 s)
+- `src/workers/attempt.test.ts` — 8/8 PASS (68.7 s)
   1. commits the attempt row before the call, then bills a success
   2. fake 503 series → exactly 3 attempts at 1 s / 4 s, then failed with unknown charge
   3. 401 fails fast: one attempt, no requeue, unbilled
@@ -67,6 +68,8 @@ Per-file results with a database:
   5. a timeout is unknown charge, never unbilled (R-012-4)
   6. never reissues a pending run left by a dead process
   7. heartbeats the lease while the attempt is open and stops once it closes
+  8. concurrent attempt claims: a duplicate claim never reaches the provider and leaves the
+     winner rows intact
 - `src/workers/reconciler.test.ts` — 7/7 PASS (52.7 s)
   1. forced-kill mid-call: marks the run unknown charge, fails the job, enqueues nothing
   2. resumes a stale job with no in-flight call exactly once, at the next attempt
@@ -103,6 +106,8 @@ Per-file results with a database:
    `reconciler.test.ts` #1: same residue, reconciler run ⇒ `scanned=1`,
    `failedUnknownCharge=1`, `requeued=0`, `enqueuer.requests=[]` — nothing can reissue the call,
    so at most one billable request exists (R-012-3).
+   `attempt.test.ts` #8: two workers claim attempt 1; the loser reaches the adapter **0** times,
+   reports `non_retryable`/`unbilled`, and leaves the winner's `pending` rows untouched.
 
 ## Acceptance mapping (LEAD_PLAN §7 format)
 
@@ -113,7 +118,7 @@ Per-file results with a database:
 | R-011-3 owner can retry a failed stage                              | `attempt.test.ts` #6 (manual-retry entry point refuses to reissue a pending run); `reconciler.test.ts` #2 (resume path) | PASS (mechanism; UI/API wiring is B-14)     | `src/workers/attempt.ts`                              |
 | R-012-1 attempt row committed before the call                       | `attempt.test.ts` #1 (row read as `pending`/`pending` while the adapter runs) + B-02 two-connection test (unchanged)    | PASS                                        | `src/workers/attempt.ts`, B-02 guard                  |
 | R-012-2 idempotency unprotected is recorded                         | `attempt.test.ts` #1 (`idempotency_protected=false` on the run)                                                         | PASS                                        | `src/db/repositories/generation-runs.ts`              |
-| R-012-3 forced kill ⇒ ≤1 billable request on resume                 | `attempt.test.ts` #6; `reconciler.test.ts` #1                                                                           | PASS (mechanism; no live provider — L2)     | `src/workers/attempt.ts`, `src/workers/reconciler.ts` |
+| R-012-3 forced kill ⇒ ≤1 billable request on resume                 | `attempt.test.ts` #6, #8; `reconciler.test.ts` #1                                                                       | PASS (mechanism; no live provider — L2)     | `src/workers/attempt.ts`, `src/workers/reconciler.ts` |
 | R-012-4 timeout that may have billed is `unknown`, never `unbilled` | `attempt.test.ts` #5 (timeout ⇒ `timed_out`/`unknown`); #2 (503 ⇒ unknown); #3/#4 (401/429 ⇒ unbilled)                  | PASS                                        | `src/workers/attempt.ts`                              |
 | R-023 resumable from Postgres with no duplicate runs                | `reconciler.test.ts` #2 (requeued once at attempt 2, second tick scans 0)                                               | PASS (mechanism; batch e2e is QA case #2)   | `src/workers/reconciler.ts`                           |
 | R-022-2 retry scope stored on `job` before the retry runs           | `reconciler.test.ts` #5 (scope observed on the row at enqueue time)                                                     | PASS (storage half; computation stays B-03) | `src/db/repositories/jobs.ts`                         |
@@ -139,6 +144,14 @@ job.attemptsMade`. A reconciler re-enqueue at attempt 2 therefore gets two BullM
   vocabularies (`errorClass`/`failureClass`, `mayHaveBilled`/`billedUnknown`). B-08 reads the
   values structurally instead of importing one module, and does not add a fifth copy.
 - **D6 — repository layering kept.** No existing repository function changed behaviour; the
+- **D7 — a pending run has two meanings, told apart by the lease.** In the attempt path a
+  pending run whose attempt was created/heartbeated within the lease TTL is a **live** claim by
+  another worker: refuse, touch nothing, report `non_retryable` with charge `unbilled`. Only a
+  pending run with a stale lease is the crash residue that gets `unknown charge`. The reconciler
+  always requires a heartbeat/started stamp (`requireHeartbeat: true`) because the job is
+  already known-stalled and a worker can die seconds after committing a run. The
+  `unique(job_id, attempt_no)` constraint remains the backstop for the race between the guard
+  and the INSERT: the loser reports `non_retryable` and makes no provider call (test 8).
   new queries are appended, and `src/db/repositories/jobs.ts` is new because B-02 had no
   `job` writer.
 
