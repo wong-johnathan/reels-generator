@@ -18,6 +18,7 @@ const SOURCES: readonly { file: string; exportName: string }[] = [
   { file: 'auth.css', exportName: 'authCss' },
   { file: 'series.css', exportName: 'seriesCss' },
   { file: 'workspace.css', exportName: 'workspaceCss' },
+  { file: 'operations.css', exportName: 'operationsCss' },
 ];
 
 const styles: StyleSource[] = SOURCES.map((source) => ({

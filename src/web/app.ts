@@ -48,6 +48,21 @@ import {
 import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
 import type { VideoGateway } from './workspace/gateway.js';
+
+import { StageCodeSchema, UuidSchema } from '../../contract/api.js';
+import type { StageCode } from '../shared/stages.js';
+import type { OpsGateway, ProviderSettingsView } from './health/gateway.js';
+import { ATTEMPT_PAGE_SIZE, attemptsView, healthSummary, providerRows } from './health/model.js';
+import type { AttemptRow } from './health/model.js';
+import { ExportRefusedError, type ExportGateway } from './provenance/gateway.js';
+import { exportNotice, type ExportNotice } from './provenance/notice.js';
+import type { ExportView } from './provenance/model.js';
+import { renderExportPanel } from './render/export.js';
+import { renderHealthPage } from './render/health.js';
+import { escapeHtml } from './render/html.js';
+import { renderSettings } from './render/settings.js';
+import { degradedNotices } from './render/shell.js';
+import { settingsModel } from './settings/model.js';
 import { isTabKey, tabKeyForStage, type TabKey } from './workspace/model.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
@@ -67,6 +82,10 @@ export interface WebAppDependencies {
   readonly series?: SeriesGateway;
   /** S-09…S-16 storage. Absent builds answer 503 rather than inventing data. */
   readonly video?: VideoGateway;
+  /** S-16 export package and per-stage pins. Absent builds keep the F-04 summary. */
+  readonly exportPackage?: ExportGateway;
+  /** S-19/S-21 health, provider settings and attempt rows. Absent builds answer 503. */
+  readonly ops?: OpsGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
@@ -324,8 +343,26 @@ export function createWebApp(
     }
 
     if (pathname === '/videos' || pathname.startsWith('/videos/')) {
+      if (effective !== 'GET' && effective !== 'POST') {
+        return methodNotAllowed('GET, HEAD, POST');
+      }
+      return videoRoutes({
+        method: effective,
+        pathname,
+        search: target.searchParams,
+        body: input.body,
+        session: sessionInfo(record),
+      });
+    }
+
+    if (pathname === '/health') {
       if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
-      return videoRoutes({ pathname, session: sessionInfo(record) });
+      return healthPage({ search: target.searchParams, session: sessionInfo(record) });
+    }
+
+    if (pathname === '/settings') {
+      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
+      return settingsPage(sessionInfo(record));
     }
 
     if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
@@ -380,29 +417,37 @@ export function createWebApp(
   // ── S-09…S-16 video workspace shell (W-04, IP-03) ───────────────────────
 
   async function videoRoutes(input: {
+    readonly method: string;
     readonly pathname: string;
+    readonly search: URLSearchParams;
+    readonly body: string;
     readonly session: SessionInfo;
   }): Promise<WebResponse> {
     const gateway = deps.video;
     if (gateway === undefined) return json(503, 'not_ready', 'Video workspace is not mounted');
 
-    const rest = input.pathname.slice('/videos/'.length);
-    const segments = rest.split('/');
+    const segments = input.pathname.slice('/videos/'.length).split('/');
+    if (segments.length > 2) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     const rawId = segments[0];
-    const rawTab = segments[1];
-    if (rawId === undefined || rawId.length === 0 || segments.length > 2) {
-      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
-    }
-    if (rawTab !== undefined && !isTabKey(rawTab)) {
+    if (rawId === undefined || rawId.length === 0) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
 
     let videoId: string;
+    let rawTab: string | undefined;
     try {
       videoId = decodeURIComponent(rawId);
+      const second = segments[1];
+      rawTab = second === undefined ? undefined : decodeURIComponent(second);
     } catch {
-      return json(400, 'validation_failed', 'Malformed video id');
+      return json(400, 'validation_failed', 'Malformed video path');
     }
+
+    const isExportBuild = input.method === 'POST' && rawTab === 'export';
+    if (rawTab !== undefined && !isTabKey(rawTab)) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    }
+    if (input.method !== 'GET' && !isExportBuild) return methodNotAllowed('GET, HEAD, POST');
 
     let detail;
     try {
@@ -411,28 +456,256 @@ export function createWebApp(
       return json(503, 'not_ready', 'The video workspace is unavailable');
     }
     if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    const video = detail;
+    const base = '/videos/' + encodeURIComponent(videoId);
+
+    function workspacePage(view: {
+      readonly tab: TabKey;
+      readonly panel?: string;
+      readonly scripts?: readonly string[];
+      readonly status?: number;
+    }): WebResponse {
+      const parts = renderWorkspace(video, view.tab, {
+        ...(view.panel === undefined ? {} : { panel: view.panel }),
+        ...(view.scripts === undefined ? {} : { scripts: view.scripts }),
+      });
+      return html(
+        page({
+          title: video.series_name + ' · video ' + (video.position_in_batch + 1),
+          nav: null,
+          breadcrumbs: [
+            { label: 'Overview', href: '/' },
+            { label: video.series_name, href: '/series/' + encodeURIComponent(video.series_id) },
+            { label: 'Video ' + (video.position_in_batch + 1) },
+          ],
+          content: parts.content,
+          titleAside: parts.titleAside,
+          footer: parts.footer,
+          session: input.session,
+          scripts: parts.scripts,
+        }),
+        view.status ?? 200,
+      );
+    }
+
+    // ── S-16 export & provenance (US-026, R-014-1, R-002-4) ────────────────
+    async function exportPage(pageInput: {
+      readonly exports: ExportGateway;
+      readonly notice?: ExportNotice | null;
+      readonly status?: number;
+      readonly failed?: boolean;
+    }): Promise<WebResponse> {
+      let view: ExportView | null = null;
+      let failed = pageInput.failed ?? false;
+      if (!failed) {
+        try {
+          view = await pageInput.exports.get(videoId);
+        } catch {
+          failed = true;
+        }
+      }
+      const notice: ExportNotice | null = failed
+        ? {
+            kind: 'error',
+            message:
+              'The export could not be loaded. The rest of the workspace is unaffected; nothing was changed.',
+          }
+        : (pageInput.notice ?? null);
+      return workspacePage({
+        tab: 'export',
+        ...(failed
+          ? { status: 503 }
+          : pageInput.status === undefined
+            ? {}
+            : { status: pageInput.status }),
+        panel: renderExportPanel({
+          detail: video,
+          view,
+          buildWired: pageInput.exports.build !== undefined,
+          ...(notice === null ? {} : { notice }),
+        }),
+      });
+    }
+
+    if (isExportBuild) {
+      const exports = deps.exportPackage;
+      if (exports === undefined) {
+        return json(503, 'not_ready', 'The export surfaces are not mounted');
+      }
+      if (exports.build === undefined) {
+        return json(503, 'not_ready', 'The package build is not mounted');
+      }
+      try {
+        await exports.build(videoId);
+      } catch (error) {
+        const refused = error instanceof ExportRefusedError;
+        const message = error instanceof Error ? error.message : 'unknown error';
+        return exportPage({
+          exports,
+          status: refused ? 409 : 503,
+          notice: {
+            kind: 'error',
+            message: refused ? message : 'The package could not be built. Nothing was downloaded.',
+          },
+        });
+      }
+      return redirect(base + '/export?notice=built');
+    }
 
     // No tab in the URL: open the tab that holds the stage needing attention.
-    const tab: TabKey = rawTab === undefined ? tabKeyForStage(detail.current_stage) : rawTab;
-    const parts = renderWorkspace(detail, tab);
+    const tab: TabKey =
+      rawTab !== undefined && isTabKey(rawTab) ? rawTab : tabKeyForStage(video.current_stage);
+
+    // S-16 owns the export tab. Without an export gateway the F-04 stage
+    // summary stays in place — an honest fallback, never an invented package.
+    if (tab === 'export' && deps.exportPackage !== undefined) {
+      return exportPage({
+        exports: deps.exportPackage,
+        notice: exportNotice(input.search.get('notice')),
+      });
+    }
+
+    return workspacePage({ tab });
+  }
+
+  // ── S-19 failures & health, S-21 settings (US-003, US-011/012/013) ───────
+
+  function unavailablePage(input: {
+    readonly title: string;
+    readonly nav: NavKey;
+    readonly message: string;
+    readonly session: SessionInfo;
+  }): WebResponse {
     return html(
       page({
-        title: detail.series_name + ' · video ' + (detail.position_in_batch + 1),
-        nav: null,
-        breadcrumbs: [
-          { label: 'Overview', href: '/' },
-          { label: detail.series_name, href: '/series/' + encodeURIComponent(detail.series_id) },
-          { label: 'Video ' + (detail.position_in_batch + 1) },
-        ],
-        content: parts.content,
-        titleAside: parts.titleAside,
-        footer: parts.footer,
+        title: input.title,
+        nav: input.nav,
+        breadcrumbs: [{ label: 'Overview', href: '/' }, { label: input.title }],
+        content:
+          '<section class="ops-unavailable" role="status"><h2>' +
+          escapeHtml(input.title) +
+          ' is not available</h2><p>' +
+          escapeHtml(input.message) +
+          '</p></section>',
         session: input.session,
-        scripts: parts.scripts,
+      }),
+      503,
+    );
+  }
+
+  async function healthPage(input: {
+    readonly search: URLSearchParams;
+    readonly session: SessionInfo;
+  }): Promise<WebResponse> {
+    const ops = deps.ops;
+    if (ops === undefined) {
+      return unavailablePage({
+        title: 'Health',
+        nav: 'health',
+        message: 'Health data is not mounted in this deployment.',
+        session: input.session,
+      });
+    }
+
+    let report: HealthReport;
+    try {
+      report = await ops.health();
+    } catch {
+      return unavailablePage({
+        title: 'Health',
+        nav: 'health',
+        message: 'The health report could not be loaded. Nothing was changed.',
+        session: input.session,
+      });
+    }
+
+    const rawVideo = input.search.get('video');
+    const selectedVideo: string | null =
+      rawVideo !== null && UuidSchema.safeParse(rawVideo).success ? rawVideo : null;
+    const videoLabel =
+      selectedVideo === null
+        ? null
+        : (deps.overview.attention.find((item) => item.video_id === selectedVideo)?.video_label ??
+          null);
+
+    const rawStage = input.search.get('stage');
+    const parsedStage =
+      rawStage === null || rawStage.length === 0 ? null : StageCodeSchema.safeParse(rawStage);
+    const stage: StageCode | null =
+      parsedStage !== null && parsedStage.success ? parsedStage.data : null;
+
+    let rows: AttemptRow[] | null = null;
+    let error = false;
+    if (selectedVideo !== null) {
+      try {
+        rows = await ops.attempts(selectedVideo, { stage, limit: ATTEMPT_PAGE_SIZE });
+      } catch {
+        error = true;
+      }
+    }
+
+    const content = renderHealthPage({
+      summary: healthSummary(report),
+      degraded: degradedNotices(deps.overview, report),
+      overview: deps.overview,
+      attempts: attemptsView({
+        videoId: selectedVideo,
+        videoLabel,
+        stage,
+        rows,
+        now: now(),
+        error,
+      }),
+      now: now(),
+    });
+
+    return html(
+      page({
+        title: 'Health',
+        nav: 'health',
+        breadcrumbs: [{ label: 'Overview', href: '/' }, { label: 'Health' }],
+        content,
+        session: input.session,
+        health: report,
       }),
     );
   }
 
+  async function settingsPage(session: SessionInfo): Promise<WebResponse> {
+    const ops = deps.ops;
+    if (ops === undefined) {
+      return unavailablePage({
+        title: 'Settings',
+        nav: 'settings',
+        message: 'Provider settings are not mounted in this deployment.',
+        session,
+      });
+    }
+
+    let view: ProviderSettingsView;
+    try {
+      view = await ops.settings();
+    } catch {
+      return unavailablePage({
+        title: 'Settings',
+        nav: 'settings',
+        message: 'The provider key status could not be loaded. Nothing was changed.',
+        session,
+      });
+    }
+
+    return html(
+      page({
+        title: 'Settings',
+        nav: 'settings',
+        breadcrumbs: [{ label: 'Overview', href: '/' }, { label: 'Settings' }],
+        content: renderSettings(
+          settingsModel({ providers: view, rows: providerRows(view.providers) }),
+        ),
+        session,
+      }),
+    );
+  }
   function page(input: {
     readonly title: string;
     readonly nav: NavKey | null;
@@ -446,6 +719,8 @@ export function createWebApp(
     readonly session: SessionInfo;
     readonly scripts?: readonly string[];
     readonly liveStatus?: string;
+    /** A report fetched for this page, so the status strip and the page agree. */
+    readonly health?: HealthReport;
   }): string {
     const assets =
       input.scripts === undefined
@@ -456,7 +731,9 @@ export function createWebApp(
         title: input.title,
         nav: input.nav,
         overview: deps.overview,
-        ...(deps.health === undefined ? {} : { health: deps.health }),
+        ...((input.health ?? deps.health) === undefined
+          ? {}
+          : { health: input.health ?? deps.health }),
         session: input.session,
         breadcrumbs: input.breadcrumbs,
         content: input.content,
@@ -465,6 +742,7 @@ export function createWebApp(
         ...(input.aside === undefined ? {} : { aside: input.aside }),
         ...(assets === undefined ? {} : { assets }),
         ...(input.liveStatus === undefined ? {} : { liveStatus: input.liveStatus }),
+        ...(input.nav === 'health' ? { showDegradedBanner: false } : {}),
         now: now(),
       }),
     );

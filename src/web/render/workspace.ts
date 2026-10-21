@@ -161,7 +161,18 @@ function renderStageSummary(detail: VideoDetail, code: string, index: number): s
   );
 }
 
-export function renderWorkspace(detail: VideoDetail, tab: TabKey): WorkspaceParts {
+export interface WorkspaceRenderOptions {
+  /** Trusted HTML that replaces the tab's generic stage summaries (F-05…F-09). */
+  readonly panel?: string;
+  /** Extra client modules loaded after the workspace module. */
+  readonly scripts?: readonly string[];
+}
+
+export function renderWorkspace(
+  detail: VideoDetail,
+  tab: TabKey,
+  options: WorkspaceRenderOptions = {},
+): WorkspaceParts {
   const panel = stagePanelModel(detail, tab);
   const summaries = TAB_STAGES[tab]
     .map((code, index) => renderStageSummary(detail, code, index))
@@ -189,7 +200,7 @@ export function renderWorkspace(detail: VideoDetail, tab: TabKey): WorkspacePart
     '<h2 class="sr-only">' +
     escapeHtml(panel.label) +
     '</h2>' +
-    summaries +
+    (options.panel ?? summaries) +
     '</section>' +
     '</div>';
 
@@ -197,7 +208,7 @@ export function renderWorkspace(detail: VideoDetail, tab: TabKey): WorkspacePart
     content,
     titleAside: renderTitleAside(detail),
     footer: workspaceFooterItems(detail).join(' · '),
-    scripts: WORKSPACE_SCRIPTS,
+    scripts: options.scripts ?? WORKSPACE_SCRIPTS,
   };
 }
 

@@ -1,7 +1,7 @@
 // GENERATED FILE — do not edit by hand.
-//
 // Source of truth: src/web/styles/tokens.css, base.css, shell.css, auth.css,
-// series.css and workspace.css (UI_SPEC §2, §4, §6.1, §6.2, §6.5, §7).
+// series.css, workspace.css and operations.css (UI_SPEC §2, §4, §6.1,
+// §6.2, §6.5, §6.10, §7, §9.2, §9.6).
 // Regenerate with `npx tsx scripts/generate-embedded-css.ts`;
 // tests/web/embedded.test.ts fails the build if this file and the
 // stylesheets disagree.
@@ -2716,4 +2716,1226 @@ export const workspaceCss = String.raw`/*
   }
 }
 `;
-export const APP_CSS = [tokensCss, baseCss, shellCss, authCss, seriesCss, workspaceCss].join('\n');
+
+/** operations.css */
+export const operationsCss = String.raw`/*
+ * S-16 Export & provenance, S-19 Failures & health and S-21 Settings —
+ * UI_SPEC §2 tokens, §3.2 four-channel states, §5 UC-17/UC-23, §6.5/§6.10,
+ * §7 responsive bands and §9.6 number formatting.
+ *
+ * Tokens only: every colour, space, radius and duration comes from
+ * tokens.css. State is never colour-only — each state keeps a word, a glyph and
+ * a border structure, so the tables and provider blocks read in greyscale.
+ * Tables scroll inside their own region (never the page) and every download,
+ * build or filter control keeps a 44 px target.
+ */
+
+/* ══ shared tables (UC-17) ═════════════════════════════════════════════════ */
+
+.export-table-wrap,
+.export-pin-table-wrap,
+.health-table-wrap,
+.settings-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+}
+
+.export-table-wrap:focus-visible,
+.health-table-wrap:focus-visible,
+.settings-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.export-table,
+.export-pin-table,
+.health-attempt-table,
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+.export-table {
+  min-width: 680px;
+}
+
+.export-pin-table {
+  min-width: 340px;
+}
+
+.health-attempt-table {
+  min-width: 900px;
+}
+
+.settings-table {
+  min-width: 680px;
+}
+
+.export-table caption,
+.export-pin-table caption,
+.health-attempt-table caption,
+.settings-table caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.export-table thead th,
+.export-pin-table thead th,
+.health-attempt-table thead th,
+.settings-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky-head);
+  padding: var(--s-2) var(--s-4);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.export-table tbody th,
+.export-table tbody td,
+.export-pin-table tbody th,
+.export-pin-table tbody td,
+.health-attempt-table tbody th,
+.health-attempt-table tbody td,
+.settings-table tbody th,
+.settings-table tbody td {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+  text-align: left;
+}
+
+.export-table tbody tr:last-child th,
+.export-table tbody tr:last-child td,
+.export-pin-table tbody tr:last-child th,
+.export-pin-table tbody tr:last-child td,
+.health-attempt-table tbody tr:last-child th,
+.health-attempt-table tbody tr:last-child td,
+.settings-table tbody tr:last-child th,
+.settings-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.export-table tbody th,
+.settings-table tbody th {
+  font-weight: var(--fw-semibold);
+}
+
+/* ══ S-16 — export & provenance ═══════════════════════════════════════════ */
+
+.export {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-6) 0 var(--s-8);
+}
+
+.export-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.export-head h3 {
+  margin: 0;
+  font-size: var(--t-60);
+  line-height: var(--lh-60);
+  font-weight: var(--fw-semibold);
+}
+
+.export-summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.export-line {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.export-line-first {
+  color: var(--text-primary);
+}
+
+.export-notice {
+  padding: var(--s-4) var(--s-5);
+  border-left: 4px solid var(--success);
+  border-radius: var(--r-2);
+  background: var(--surface-success-tint);
+  color: var(--text-primary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.export-notice p {
+  margin: 0;
+}
+
+.export-notice[data-notice='error'] {
+  border-left-color: var(--danger);
+  background: var(--surface-danger-tint);
+}
+
+.export-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--aside-wide);
+  gap: var(--s-8);
+  align-items: start;
+}
+
+.export-package,
+.export-pins,
+.export-manifest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.export-package h4,
+.export-pins h4,
+.export-manifest h4 {
+  margin: 0;
+  font-size: var(--t-50);
+  line-height: var(--lh-50);
+}
+
+.export-download {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-panel);
+  padding: var(--s-5);
+}
+
+.export-download-summary {
+  min-height: var(--target-review);
+  width: 100%;
+  justify-content: space-between;
+  gap: var(--s-5);
+  cursor: pointer;
+  list-style: none;
+}
+
+.export-download-summary::-webkit-details-marker {
+  display: none;
+}
+
+.export-sub {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--t-20);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.export-download-body {
+  margin-top: var(--s-4);
+}
+
+.export-download-note {
+  margin: 0 0 var(--s-4);
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.export-download-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-file-download,
+.export-row-download {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: var(--target-review);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-2);
+  color: var(--text-link);
+  text-decoration: none;
+  font-size: var(--t-30);
+}
+
+.export-file-download:hover,
+.export-row-download:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.export-file-download:focus-visible,
+.export-row-download:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.export-download-kind {
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+
+.export-download-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.export-download-size {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.export-expected-line {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.export-kind-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-kind {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-inset);
+}
+
+.export-kind-label {
+  color: var(--text-primary);
+  font-size: var(--t-30);
+  font-weight: var(--fw-semibold);
+}
+
+.export-kind-detail {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.export-file-name {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.export-file-kind {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-20);
+}
+
+.export-table tbody tr {
+  height: 44px;
+}
+
+.export-file-size {
+  white-space: nowrap;
+}
+
+.export-file-hash code {
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.export-file-action {
+  white-space: nowrap;
+}
+
+.export-no-link {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.export-row-download {
+  width: max-content;
+}
+
+/* pins ------------------------------------------------------------------- */
+
+.export-pin-summary {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--t-30);
+}
+
+.export-pin-line {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.export-pin-table tbody tr {
+  height: 28px;
+}
+
+.export-pin-code {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.export-pin-value {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.export-pin-source {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.export-pin-table .vchip {
+  white-space: nowrap;
+}
+
+.export-pin-ids summary {
+  min-height: var(--target-min);
+  color: var(--text-link);
+  font-size: var(--t-20);
+  cursor: pointer;
+}
+
+.export-pin-ids ul {
+  margin: var(--s-2) 0 0;
+  padding: 0 0 0 var(--s-5);
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  overflow-wrap: anywhere;
+}
+
+/* manifest and footer ---------------------------------------------------- */
+
+.export-manifest-empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--t-30);
+}
+
+.export-manifest-details summary {
+  min-height: var(--target-min);
+  color: var(--text-link);
+  font-size: var(--t-30);
+  cursor: pointer;
+}
+
+.export-manifest-json {
+  margin: var(--s-3) 0 0;
+  padding: var(--s-4);
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.export-build {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.export-build-button {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.export-build-reason {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  max-width: 60ch;
+}
+
+.export-eligibility-action {
+  margin: 0;
+}
+
+.export-render-link {
+  min-height: var(--target-review);
+}
+
+.export-band-note {
+  display: none;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+/* ══ S-19 — failures & health ═════════════════════════════════════════════ */
+
+.health {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  padding: var(--s-6) 0 var(--s-8);
+}
+
+.health-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.health-head h2 {
+  margin: 0;
+}
+
+.health-checked {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.health-degraded {
+  padding: var(--s-5);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--r-2);
+  background: var(--surface-warning-tint);
+}
+
+.health-degraded[data-state='ready'] {
+  border-left-color: var(--success);
+  background: var(--surface-success-tint);
+}
+
+.health-degraded-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.health-degraded-head h3 {
+  margin: 0;
+  font-size: var(--t-50);
+}
+
+.health-degraded-detail {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.health-degraded-detail dt {
+  color: var(--text-secondary);
+  font-weight: var(--fw-semibold);
+}
+
+.health-degraded-detail dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.health-degraded-block + .health-degraded-block {
+  margin-top: var(--s-5);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border-default);
+}
+
+.health-ready-line {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.health-degraded-more {
+  margin: var(--s-4) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.health-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.health-section h3 {
+  margin: 0;
+  font-size: var(--t-50);
+  line-height: var(--lh-50);
+}
+
+.health-note {
+  margin: 0;
+  max-width: 90ch;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.health-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.health-provider {
+  min-width: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+}
+
+.health-provider[data-state='ok'] {
+  border-left: 3px solid var(--success);
+}
+
+.health-provider[data-state='key_absent'],
+.health-provider[data-state='not_qualified'] {
+  border: 3px double var(--warning);
+  background: var(--surface-warning-tint);
+}
+
+.health-provider-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.health-provider-head h4 {
+  margin: 0;
+  font-size: var(--t-40);
+}
+
+.health-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.health-state[data-state='ok'] {
+  color: var(--success);
+}
+
+.health-state[data-state='key_absent'],
+.health-state[data-state='not_qualified'] {
+  color: var(--warning);
+}
+
+.health-state-glyph {
+  font-size: var(--t-20);
+}
+
+.health-provider-detail {
+  margin: var(--s-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.health-provider-kv {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--s-1) var(--s-4);
+  margin: var(--s-3) 0 0;
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.health-provider-kv dt {
+  color: var(--text-tertiary);
+}
+
+.health-provider-kv dd {
+  margin: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.health-qual-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.health-qual {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.health-qual-label {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.health-kv {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
+.health-kv dt {
+  color: var(--text-secondary);
+  font-weight: var(--fw-semibold);
+}
+
+.health-kv dd {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.health-missing {
+  color: var(--text-tertiary);
+}
+
+.health-warning {
+  color: var(--warning);
+}
+
+.health-disk-meter {
+  display: block;
+  width: min(360px, 100%);
+  height: 2px;
+  margin-top: var(--s-2);
+  border: 0;
+  background: var(--surface-inset);
+  color: var(--running);
+  appearance: none;
+}
+
+.health-disk-meter::-webkit-progress-bar {
+  background: var(--surface-inset);
+}
+
+.health-disk-meter::-webkit-progress-value {
+  background: var(--running);
+}
+
+.health-disk-meter::-moz-progress-bar {
+  background: var(--running);
+}
+
+.health-disk-headroom {
+  display: block;
+  margin-top: var(--s-2);
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.health-disk-headroom[data-headroom='low'] {
+  color: var(--warning);
+}
+
+.health-att-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-4);
+}
+
+.health-limit {
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-1);
+  color: var(--text-secondary);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+}
+
+.health-att-video {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.health-video-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.health-video-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.health-video-reason {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.health-video-current a {
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+
+.health-picker-line {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+}
+
+.health-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.health-filter-label {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.health-filter-select {
+  min-height: var(--target-min);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-2);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--t-30);
+}
+
+.health-filter-submit {
+  min-height: var(--target-min);
+}
+
+.health-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  color: var(--text-link);
+  font-size: var(--t-20);
+}
+
+.health-limit-line {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+.health-attempt-table tbody tr {
+  height: 36px;
+}
+
+.health-attempt-table tbody th,
+.health-attempt-table tbody td {
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+  vertical-align: middle;
+}
+
+.health-att-hash,
+.health-att-req {
+  max-width: 18ch;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+}
+
+.health-att-empty {
+  color: var(--text-tertiary);
+}
+
+.health-att-charge[data-charge='unknown'],
+.health-attempt-table tr[data-charge='unknown'] .health-att-charge {
+  border-left: 3px solid var(--danger);
+  background: var(--surface-danger-tint);
+  color: var(--danger);
+}
+
+.health-attempt-table tr[data-charge='billed'] .health-att-charge {
+  color: var(--text-primary);
+}
+
+.health-att-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  white-space: nowrap;
+}
+
+.health-att-error {
+  color: var(--danger);
+  font-size: var(--t-10);
+}
+
+.health-att-backoff {
+  color: var(--text-tertiary);
+  font-size: var(--t-10);
+}
+
+.health-att-time {
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.health-att-message td {
+  padding: var(--s-5);
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+}
+
+/* ══ S-21 — settings ══════════════════════════════════════════════════════ */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-6) 0 var(--s-8);
+  max-width: 1100px;
+}
+
+.settings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.settings-head h2 {
+  margin: 0;
+}
+
+.settings-readonly {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.settings-summary {
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font-size: var(--t-40);
+  line-height: var(--lh-40);
+}
+
+.settings-qualification {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: var(--t-50);
+}
+
+.settings-table tbody tr {
+  height: 44px;
+}
+
+.settings-provider {
+  display: block;
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+
+.settings-provider-detail {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  font-weight: var(--fw-regular);
+}
+
+.settings-key {
+  white-space: nowrap;
+}
+
+.settings-key-word {
+  display: inline-block;
+  margin-right: var(--s-3);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-1);
+  color: var(--text-secondary);
+  font-size: var(--t-10);
+  line-height: var(--lh-10);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settings-key-word[data-key='present'] {
+  border-left: 3px solid var(--success);
+  color: var(--success);
+}
+
+.settings-key-word[data-key='absent'] {
+  border: 3px double var(--warning);
+  background: var(--surface-warning-tint);
+  color: var(--warning);
+}
+
+.settings-env {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.settings-qual {
+  white-space: nowrap;
+}
+
+.settings-qual-time {
+  display: block;
+  margin-top: var(--s-1);
+  color: var(--text-tertiary);
+  font-size: var(--t-10);
+}
+
+.settings-idem {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.settings-note {
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+}
+
+.settings-key-note,
+.settings-setup {
+  margin: 0;
+  max-width: 80ch;
+  color: var(--text-tertiary);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
+/* ══ unavailable ══════════════════════════════════════════════════════════ */
+
+.ops-unavailable {
+  padding: var(--s-7);
+  border: 3px double var(--warning);
+  border-radius: var(--r-3);
+  background: var(--surface-warning-tint);
+}
+
+.ops-unavailable p {
+  margin: var(--s-3) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+}
+
+/* ══ responsive (UI_SPEC §7) ══════════════════════════════════════════════ */
+
+@media (max-width: 1023px) {
+  .export-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .export-kind-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .export-build {
+    display: none;
+  }
+
+  .export-band-note {
+    display: block;
+  }
+
+  .health-provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .health-degraded-detail,
+  .health-kv {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-1);
+  }
+
+  .health-provider-kv {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .export,
+  .health,
+  .settings {
+    padding-top: var(--s-4);
+  }
+
+  .export-download {
+    padding: var(--s-4);
+  }
+
+  .export-file-download {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .export-download,
+  .health-disk-meter {
+    transition: none;
+  }
+}
+
+/* Three providers fit on one line on wide screens; two below it. */
+@media (min-width: 1200px) {
+  .health-provider-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The package table has four dense columns; below 768 px the same rows are a
+   stacked list so every filename and its 44 px download stay readable. */
+.export-file-list {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-inset);
+}
+
+.export-file-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4);
+}
+
+.export-file-item + .export-file-item {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.export-file-item-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.export-file-item .export-file-download {
+  min-height: var(--target-primary);
+}
+
+@media (max-width: 767px) {
+  .export-package-table {
+    display: none;
+  }
+
+  .export-file-list {
+    display: block;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Eleven pins keep their columns readable by scrolling inside the region. */
+  .export-pin-table {
+    min-width: 460px;
+  }
+
+  .export-pin-table th,
+  .export-pin-table td {
+    white-space: nowrap;
+  }
+}
+`;
+export const APP_CSS = [
+  tokensCss,
+  baseCss,
+  shellCss,
+  authCss,
+  seriesCss,
+  workspaceCss,
+  operationsCss,
+].join('\n');

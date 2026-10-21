@@ -566,7 +566,7 @@ const healthReport = {
     },
   ],
   queue: { waiting: 2, active: 1, failed: 0 },
-  disk: { free_bytes: 40_802_304_000, total_bytes: 236_223_283_200, headroom_ok: true },
+  disk: { free_bytes: 40_802_304_000, total_bytes: 236_223_283_200, headroom_ok: false },
   degraded_reasons: ['disk headroom below 20 %'],
 };
 
