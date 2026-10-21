@@ -54,6 +54,7 @@ import { savedAnnouncement } from './series/commit.js';
 import {
   changedFields,
   createReady,
+  deriveSlug,
   profileToValues,
   validateSeriesValues,
   valuesFromForm,
@@ -189,7 +190,7 @@ const MAX_LOGIN_BODY_CHARS = 4096;
 /** A series profile is a few dozen short fields; 64 KiB is generous. */
 const MAX_FORM_BODY_CHARS = 65_536;
 
-const SLUG_TAKEN_MESSAGE = 'That slug is already used by another series.';
+const NAME_TAKEN_MESSAGE = 'That name is already used by another series.';
 const SAVE_FAILED_MESSAGE = 'The series could not be saved. Nothing was changed.';
 const CREATE_FAILED_MESSAGE = 'The series could not be created. Nothing was saved.';
 
@@ -1577,16 +1578,18 @@ export function createWebApp(
     try {
       const created = await gateway.create({
         name: (values['name'] ?? '').trim(),
-        slug: (values['slug'] ?? '').trim(),
+        slug: deriveSlug(values['name'] ?? ''),
         profile: validation.profile,
       });
       return redirect('/series/' + encodeURIComponent(created.id) + '?saved=1');
     } catch (error) {
       if (error instanceof SeriesSlugTakenError) {
+        // The slug is derived from the name, so a collision is a name problem:
+        // surface it on the name field rather than a 500.
         return renderCreatePage({
           session,
           values,
-          errors: { slug: SLUG_TAKEN_MESSAGE },
+          errors: { name: NAME_TAKEN_MESSAGE },
           status: 422,
         });
       }

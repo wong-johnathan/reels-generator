@@ -106,7 +106,6 @@ const post = (path: string, body: Record<string, string>, cookie: string): WebRe
 
 const formValues = (summary: SeriesSummary = detail, overrides: Record<string, string> = {}) => ({
   name: summary.name,
-  slug: summary.slug,
   'niche.subject': 'psychology for founders',
   'niche.audience': 'solo builders',
   'niche.boundaries': 'no medical advice',
@@ -222,12 +221,13 @@ describe('S-03 Series list', () => {
 });
 
 describe('S-04 create (US-008, UX A-4/A-5)', () => {
-  it('serves the blank five-block form with the version-1 commit panel', async () => {
+  it('serves the collapsed form with the version-1 commit panel', async () => {
     const { handle, cookie } = await signedIn();
     const response = await handle(get('/series/new', cookie));
     expect(response.status).toBe(200);
     const doc = parseHtml(response.body);
-    expect(byTag(doc, 'fieldset')).toHaveLength(5);
+    expect(byTag(doc, 'fieldset')).toHaveLength(2);
+    expect(byTag(doc, 'details')).toHaveLength(1);
     expect(textOf(byTag(doc, 'h1')[0]!)).toBe('New series');
     expect(textOf(parseHtml(response.body))).toContain('This creates the series and mints v1.');
     expect(response.body).toContain('Create series');
@@ -236,11 +236,7 @@ describe('S-04 create (US-008, UX A-4/A-5)', () => {
   it('creates version 1 and redirects to the saved editor', async () => {
     const { handle, cookie, gateway } = await signedIn();
     const response = await handle(
-      post(
-        '/series/new',
-        formValues(detail, { name: 'Second series', slug: 'second-series' }),
-        cookie,
-      ),
+      post('/series/new', formValues(detail, { name: 'Second series' }), cookie),
     );
     expect(response.status).toBe(303);
     const location = response.headers['location'] ?? '';
@@ -256,17 +252,10 @@ describe('S-04 create (US-008, UX A-4/A-5)', () => {
   it('returns 422 with field errors and the typed values intact', async () => {
     const { handle, cookie, gateway } = await signedIn();
     const response = await handle(
-      post(
-        '/series/new',
-        formValues(detail, { name: '', slug: 'not a slug', target_duration_s: '400' }),
-        cookie,
-      ),
+      post('/series/new', formValues(detail, { name: '', target_duration_s: '400' }), cookie),
     );
     expect(response.status).toBe(422);
     expect(response.body).toContain('Enter a series name.');
-    expect(response.body).toContain(
-      'Use lower-case words separated by single hyphens, like founders-quietly.',
-    );
     expect(response.body).toContain(
       'Target duration must be a whole number of seconds from 10 to 180.',
     );
@@ -274,13 +263,13 @@ describe('S-04 create (US-008, UX A-4/A-5)', () => {
     expect(gateway.seriesCount()).toBe(1);
   });
 
-  it('rejects a slug another series already uses, without minting', async () => {
+  it('rejects a name whose derived slug another series already uses, without minting', async () => {
     const { handle, cookie, gateway } = await signedIn();
     const response = await handle(
-      post('/series/new', formValues(detail, { name: 'Clash', slug: detail.slug }), cookie),
+      post('/series/new', formValues(detail, { name: detail.name }), cookie),
     );
     expect(response.status).toBe(422);
-    expect(response.body).toContain('That slug is already used by another series.');
+    expect(response.body).toContain('That name is already used by another series.');
     expect(gateway.seriesCount()).toBe(1);
   });
 });

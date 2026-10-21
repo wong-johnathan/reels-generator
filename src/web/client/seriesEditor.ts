@@ -8,7 +8,7 @@
  * `series/commit.ts`, the same modules the server renderer uses.
  */
 import { commitState } from '../series/commit.js';
-import { changedFields, createReady, type ChangedField } from '../series/fields.js';
+import { changedFields, createReady, createSummary, type ChangedField } from '../series/fields.js';
 
 export interface EditorEventLike {
   preventDefault(): void;
@@ -114,6 +114,7 @@ export function initSeriesEditor(doc: EditorDocumentLike): boolean {
   const update = (): void => {
     const values = valuesFromElements(fields);
     const changed: readonly ChangedField[] = mode === 'edit' ? changedFields(initial, values) : [];
+    const createRows = mode === 'create' ? createSummary(values) : undefined;
     const ready = mode === 'create' ? createReady(values) : undefined;
     const state = commitState({
       mode,
@@ -149,14 +150,25 @@ export function initSeriesEditor(doc: EditorDocumentLike): boolean {
     }
     for (const item of summaries) {
       const path = item.getAttribute?.('data-summary-for') ?? '';
-      const change = changed.find((candidate) => candidate.path === path);
-      setText(
-        item,
-        change === undefined ? '' : change.label + ': ' + change.from + ' → ' + change.to,
-      );
-      setHidden(item, change === undefined);
+      if (createRows !== undefined) {
+        const row = createRows.find((candidate) => candidate.path === path);
+        setText(
+          item,
+          row === undefined
+            ? ''
+            : row.label + ': ' + (row.value.trim().length === 0 ? '(empty)' : row.value),
+        );
+        setHidden(item, row === undefined);
+      } else {
+        const change = changed.find((candidate) => candidate.path === path);
+        setText(
+          item,
+          change === undefined ? '' : change.label + ': ' + change.from + ' → ' + change.to,
+        );
+        setHidden(item, change === undefined);
+      }
     }
-    setHidden(empty, changed.length > 0);
+    setHidden(empty, createRows !== undefined ? true : changed.length > 0);
   };
 
   form.addEventListener?.('input', () => {

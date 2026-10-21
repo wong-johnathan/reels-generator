@@ -1,8 +1,15 @@
 /**
- * S-04 field model — the five profile blocks (UX_SPEC A-4), the flattening
- * between the contract's jsonb profile and the form, the changed-field diff
- * that the IP-02 commit panel reports, and the validation the route applies
- * before a version is minted.
+ * S-04 field model — the collapsed primary form plus the Advanced defaults,
+ * the flattening between the contract's jsonb profile and the form, the
+ * changed-field diff that the IP-02 commit panel reports, and the validation
+ * the route applies before a version is minted.
+ *
+ * The operator sees seven primary inputs (name, niche, example script,
+ * duration, language, voice id, art style) and a factual/creative mode radio;
+ * every other profile leaf lives in a single collapsed "Advanced (defaults are
+ * fine)" block so nothing is lost but the common case stays short. The slug is
+ * derived from the name rather than asked for, because a slug is a lossy,
+ * machine-friendly echo of the name and asking for both invites disagreement.
  *
  * Pure: no DOM, no network, no database. The server renderer and the client
  * enhancer import this same module, so a live edit and a re-rendered page
@@ -14,20 +21,18 @@ import type { SeriesProfileSchema } from '../../../contract/api.js';
 
 export type SeriesProfile = z.infer<typeof SeriesProfileSchema>;
 
-export type BlockId = 'identity' | 'voice' | 'art' | 'output' | 'mode';
+export type BlockId = 'primary' | 'mode' | 'advanced';
 
 export interface Block {
   readonly id: BlockId;
   readonly title: string;
 }
 
-/** UX_SPEC A-4 names these five blocks in this order. */
+/** The primary inputs first, then mode, then the collapsed Advanced defaults. */
 export const BLOCKS: readonly Block[] = [
-  { id: 'identity', title: 'Identity & niche' },
-  { id: 'voice', title: 'Voice & narration' },
-  { id: 'art', title: 'Art & references' },
-  { id: 'output', title: 'Output' },
+  { id: 'primary', title: 'Series' },
   { id: 'mode', title: 'Mode' },
+  { id: 'advanced', title: 'Advanced (defaults are fine)' },
 ];
 
 export type FieldKind = 'text' | 'textarea' | 'lines' | 'number' | 'checkbox' | 'select' | 'radio';
@@ -45,7 +50,7 @@ export interface FieldSpec {
   readonly kind: FieldKind;
   /** Visible helper below the control (UC-19: helper, never a placeholder). */
   readonly helper: string;
-  /** False for the series-row fields (name, slug) that the snapshot excludes. */
+  /** False for the series-row fields (name) that the snapshot excludes. */
   readonly profile?: false;
   /** Textarea rows for the multi-line kinds. */
   readonly rows?: number;
@@ -55,6 +60,8 @@ export interface FieldSpec {
   readonly max?: number;
   readonly step?: number;
   readonly required?: boolean;
+  /** Omit the key from the profile when the value is blank (optional inputs). */
+  readonly omitWhenBlank?: boolean;
 }
 
 /** R-009-1: range 10–180 s, recommended ceiling ≤90 s, default 75 s. */
@@ -64,160 +71,37 @@ export const MAX_DURATION_S = 180;
 const LINES_HELPER = 'One item per line.';
 
 export const FIELDS: readonly FieldSpec[] = [
-  // ── Identity & niche ────────────────────────────────────────────────────
+  // ── Primary inputs ──────────────────────────────────────────────────────
   {
     path: 'name',
     label: 'Series name',
-    block: 'identity',
+    block: 'primary',
     kind: 'text',
     profile: false,
     required: true,
     helper: 'Shown in the rail and on every batch and export row of this series.',
   },
   {
-    path: 'slug',
-    label: 'Slug',
-    block: 'identity',
-    kind: 'text',
-    profile: false,
-    required: true,
-    helper: 'Lower-case words separated by single hyphens, like founders-quietly.',
-  },
-  {
     path: 'niche.subject',
-    label: 'Subject',
-    block: 'identity',
+    label: 'Niche',
+    block: 'primary',
     kind: 'text',
-    helper: 'What the series is about. Used to propose topics and draft scripts.',
+    required: true,
+    helper: 'What the series is about. This seeds topic proposals and script drafts.',
   },
   {
-    path: 'niche.audience',
-    label: 'Audience',
-    block: 'identity',
-    kind: 'text',
-    helper: 'Who the scripts are written for.',
-  },
-  {
-    path: 'niche.boundaries',
-    label: 'Boundaries',
-    block: 'identity',
-    kind: 'lines',
-    rows: 3,
-    helper: LINES_HELPER + ' Content the series must not cross.',
-  },
-  {
-    path: 'niche.language',
-    label: 'Language',
-    block: 'identity',
-    kind: 'text',
-    helper: 'Language code for the niche, like en.',
-  },
-  {
-    path: 'niche.location',
-    label: 'Location',
-    block: 'identity',
-    kind: 'text',
-    helper: 'Geographic focus, or global.',
-  },
-  {
-    path: 'niche.prohibited_topics',
-    label: 'Prohibited topics',
-    block: 'identity',
-    kind: 'lines',
-    rows: 3,
-    helper: LINES_HELPER + ' Topics the series must refuse.',
-  },
-  {
-    path: 'niche.preferred_sources',
-    label: 'Preferred sources',
-    block: 'identity',
-    kind: 'lines',
-    rows: 3,
-    helper: LINES_HELPER + ' Research prefers these sources.',
-  },
-  {
-    path: 'script_style.tone',
-    label: 'Tone',
-    block: 'identity',
-    kind: 'text',
-    helper: 'How the narration should read.',
-  },
-  {
-    path: 'script_style.structure',
-    label: 'Structure',
-    block: 'identity',
-    kind: 'lines',
-    rows: 4,
-    helper: 'One item per line, in order.',
-  },
-  // ── Voice & narration ───────────────────────────────────────────────────
-  {
-    path: 'voice_config.voice_id',
-    label: 'Voice',
-    block: 'voice',
-    kind: 'text',
-    helper: 'Provider voice identifier used for narration.',
-  },
-  {
-    path: 'voice_config.speed',
-    label: 'Speed',
-    block: 'voice',
-    kind: 'number',
-    step: 0.01,
-    helper: 'Playback speed multiplier.',
-  },
-  {
-    path: 'voice_config.style',
-    label: 'Voice style',
-    block: 'voice',
-    kind: 'text',
-    helper: 'Delivery note passed to the voice provider.',
-  },
-  {
-    path: 'narration_language',
-    label: 'Narration language',
-    block: 'voice',
-    kind: 'text',
-    helper: 'Language code for narration and captions.',
-  },
-  // ── Art & references ────────────────────────────────────────────────────
-  {
-    path: 'art_style.preset',
-    label: 'Art preset',
-    block: 'art',
-    kind: 'text',
-    helper: 'Image style preset used for scene art.',
-  },
-  {
-    path: 'art_style.palette',
-    label: 'Palette',
-    block: 'art',
-    kind: 'text',
-    helper: 'Colour direction for scene art.',
-  },
-  {
-    path: 'art_style.recurring_protagonist',
-    label: 'Recurring protagonist',
-    block: 'art',
-    kind: 'checkbox',
-    helper: 'When set, scene art keeps the same protagonist across scenes.',
-  },
-  // ── Output ──────────────────────────────────────────────────────────────
-  {
-    path: 'default_aspect_ratio',
-    label: 'Aspect ratio',
-    block: 'output',
-    kind: 'select',
-    options: [
-      { value: '9:16', label: '9:16 — 1080×1920', helper: '' },
-      { value: '4:5', label: '4:5', helper: '' },
-    ],
-    helper: '9:16 is the default (1080×1920).',
+    path: 'script_style.example_script',
+    label: 'Example script',
+    block: 'primary',
+    kind: 'textarea',
+    rows: 6,
+    omitWhenBlank: true,
+    helper: 'A script you like. The writer matches its shape, pace and voice.',
   },
   {
     path: 'target_duration_s',
-    label: 'Target duration',
-    block: 'output',
+    label: 'Duration',
+    block: 'primary',
     kind: 'number',
     min: MIN_DURATION_S,
     max: MAX_DURATION_S,
@@ -226,15 +110,26 @@ export const FIELDS: readonly FieldSpec[] = [
     helper: '10–180 s. The default is 75 s.',
   },
   {
-    path: 'image_resolution',
-    label: 'Image resolution',
-    block: 'output',
-    kind: 'select',
-    options: [
-      { value: '1K', label: '1K', helper: '' },
-      { value: '2K', label: '2K', helper: '' },
-    ],
-    helper: '1K is the default (768×1376).',
+    path: 'narration_language',
+    label: 'Language',
+    block: 'primary',
+    kind: 'text',
+    helper: 'Language code for narration and captions. Pre-filled with en.',
+  },
+  {
+    path: 'voice_config.voice_id',
+    label: 'Voice ID',
+    block: 'primary',
+    kind: 'text',
+    helper: "Optional. Blank means 'use ELEVENLABS_VOICE_ID from the environment'.",
+  },
+  {
+    path: 'art_style.preset',
+    label: 'Art style',
+    block: 'primary',
+    kind: 'textarea',
+    rows: 3,
+    helper: 'Look of the scenes — e.g. clean 2D illustration, flat shading, muted palette.',
   },
   // ── Mode ────────────────────────────────────────────────────────────────
   {
@@ -259,6 +154,118 @@ export const FIELDS: readonly FieldSpec[] = [
     ],
     helper: 'Mode is stored on the version and cannot be changed by an existing project.',
   },
+  // ── Advanced (defaults are fine) ────────────────────────────────────────
+  {
+    path: 'niche.audience',
+    label: 'Audience',
+    block: 'advanced',
+    kind: 'text',
+    helper: 'Who the scripts are written for.',
+  },
+  {
+    path: 'niche.boundaries',
+    label: 'Boundaries',
+    block: 'advanced',
+    kind: 'lines',
+    rows: 3,
+    helper: LINES_HELPER + ' Content the series must not cross.',
+  },
+  {
+    path: 'niche.language',
+    label: 'Niche language',
+    block: 'advanced',
+    kind: 'text',
+    helper: 'Language code for the niche, like en.',
+  },
+  {
+    path: 'niche.location',
+    label: 'Location',
+    block: 'advanced',
+    kind: 'text',
+    helper: 'Geographic focus, or global.',
+  },
+  {
+    path: 'niche.prohibited_topics',
+    label: 'Prohibited topics',
+    block: 'advanced',
+    kind: 'lines',
+    rows: 3,
+    helper: LINES_HELPER + ' Topics the series must refuse.',
+  },
+  {
+    path: 'niche.preferred_sources',
+    label: 'Preferred sources',
+    block: 'advanced',
+    kind: 'lines',
+    rows: 3,
+    helper: LINES_HELPER + ' Research prefers these sources.',
+  },
+  {
+    path: 'script_style.tone',
+    label: 'Tone',
+    block: 'advanced',
+    kind: 'text',
+    helper: 'How the narration should read.',
+  },
+  {
+    path: 'script_style.structure',
+    label: 'Structure',
+    block: 'advanced',
+    kind: 'lines',
+    rows: 4,
+    helper: 'One item per line, in order.',
+  },
+  {
+    path: 'voice_config.speed',
+    label: 'Speed',
+    block: 'advanced',
+    kind: 'number',
+    step: 0.01,
+    helper: 'Playback speed multiplier.',
+  },
+  {
+    path: 'voice_config.style',
+    label: 'Voice style',
+    block: 'advanced',
+    kind: 'text',
+    helper: 'Delivery note passed to the voice provider.',
+  },
+  {
+    path: 'art_style.palette',
+    label: 'Palette',
+    block: 'advanced',
+    kind: 'text',
+    helper: 'Colour direction for scene art.',
+  },
+  {
+    path: 'art_style.recurring_protagonist',
+    label: 'Recurring protagonist',
+    block: 'advanced',
+    kind: 'checkbox',
+    helper: 'When set, scene art keeps the same protagonist across scenes.',
+  },
+  {
+    path: 'default_aspect_ratio',
+    label: 'Aspect ratio',
+    block: 'advanced',
+    kind: 'select',
+    options: [
+      { value: '9:16', label: '9:16 — 1080×1920', helper: '' },
+      { value: '4:5', label: '4:5', helper: '' },
+    ],
+    helper: '9:16 is the default (1080×1920).',
+  },
+  {
+    path: 'image_resolution',
+    label: 'Image resolution',
+    block: 'advanced',
+    kind: 'select',
+    options: [
+      { value: '1K', label: '1K', helper: '' },
+      { value: '2K', label: '2K', helper: '' },
+    ],
+    helper: '1K is the default (768×1376).',
+  },
 ];
 
 export const FIELD_BY_PATH: ReadonlyMap<string, FieldSpec> = new Map(
@@ -282,6 +289,22 @@ export function normaliseLines(value: string): string[] {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+}
+
+/**
+ * The slug for a new series, derived from the name so the operator never has
+ * to type one: lower-case, runs of non-alphanumerics collapse to a single
+ * hyphen, and leading/trailing hyphens are trimmed. Importing the export
+ * module's `slugify` would couple the form to packaging and its 'video' and
+ * max-length fallbacks are wrong for a series slug, so the rule lives here.
+ */
+export function deriveSlug(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function getPath(source: Record<string, unknown>, path: string): unknown {
@@ -338,10 +361,10 @@ export function defaultProfile(): Record<string, unknown> {
     },
     script_style: { tone: '', structure: [] },
     voice_config: { voice_id: '', speed: 1, style: '' },
-    art_style: { preset: '', palette: '', recurring_protagonist: false },
+    art_style: { preset: '', palette: '', recurring_protagonist: true },
     default_aspect_ratio: '9:16',
     target_duration_s: 75,
-    narration_language: '',
+    narration_language: 'en',
     captions_preset: null,
     music_config: null,
     image_resolution: '1K',
@@ -364,9 +387,9 @@ export function profileToValues(profile: SeriesProfile): Record<string, string> 
 }
 
 /**
- * Only the known field paths survive; an absent checkbox means false. The
- * output block starts from the product defaults (9:16, 75 s, 1K) so a form
- * that does not submit a select still yields a complete profile.
+ * Only the known field paths survive; an absent checkbox means its default.
+ * The output block starts from the product defaults (9:16, 75 s, 1K, en) so a
+ * form that does not submit a control still yields a complete profile.
  */
 export function valuesFromForm(fields: Readonly<Record<string, string>>): Record<string, string> {
   const values: Record<string, string> = profileToValues(
@@ -401,7 +424,9 @@ function valueForProfile(field: FieldSpec, value: string): unknown {
 /**
  * Rebuild the profile from the form. `base` supplies everything the form does
  * not edit — captions, music and any key this UI does not know about — so an
- * edit never silently drops data from the immutable snapshot.
+ * edit never silently drops data from the immutable snapshot. Optional inputs
+ * marked `omitWhenBlank` leave the stored key untouched rather than writing an
+ * empty string, which keeps a blank example script out of the snapshot.
  */
 export function valuesToProfile(
   values: SeriesValues,
@@ -411,7 +436,9 @@ export function valuesToProfile(
     base === null ? defaultProfile() : (structuredClone(base) as Record<string, unknown>);
   for (const field of FIELDS) {
     if (field.profile === false) continue;
-    setPath(profile, field.path, valueForProfile(field, values[field.path] ?? ''));
+    const raw = values[field.path] ?? '';
+    if (field.omitWhenBlank === true && raw.trim() === '') continue;
+    setPath(profile, field.path, valueForProfile(field, raw));
   }
   return profile;
 }
@@ -470,10 +497,38 @@ export function changedFields(before: SeriesValues, after: SeriesValues): Change
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Validation
+// Create summary
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export interface CreateSummaryRow {
+  readonly path: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * The few inputs that actually define a new series, shown on the create commit
+ * bar instead of a diff — a diff would list every pre-filled default (75 s,
+ * 9:16, 1K) as a "change", which misleads. The optional inputs (example
+ * script, voice id, art style) are deliberately excluded.
+ */
+const CREATE_SUMMARY_PATHS: readonly string[] = [
+  'name',
+  'niche.subject',
+  'target_duration_s',
+  'mode',
+];
+
+export function createSummary(values: SeriesValues): readonly CreateSummaryRow[] {
+  return CREATE_SUMMARY_PATHS.map((path) => {
+    const field = FIELD_BY_PATH.get(path);
+    return { path, label: field?.label ?? path, value: values[path] ?? '' };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ValidationResult {
   readonly errors: Readonly<Record<string, string>>;
@@ -490,11 +545,16 @@ export function validateSeriesValues(
 
   if ((values['name'] ?? '').trim().length === 0) {
     errors['name'] = 'Enter a series name.';
+  } else if (mode === 'create' && deriveSlug(values['name'] ?? '').length === 0) {
+    // The slug is derived, never typed, and the API requires it to look like
+    // lower-case words joined by hyphens. A name with no letters or digits —
+    // punctuation or emoji only — derives an empty slug, so the failure belongs
+    // on the name field with something the owner can act on.
+    errors['name'] = 'Use at least one letter or number in the series name.';
   }
 
-  const slug = (values['slug'] ?? '').trim();
-  if (mode === 'create' && !SLUG_PATTERN.test(slug)) {
-    errors['slug'] = 'Use lower-case words separated by single hyphens, like founders-quietly.';
+  if ((values['niche.subject'] ?? '').trim().length === 0) {
+    errors['niche.subject'] = 'Enter a niche.';
   }
 
   const duration = (values['target_duration_s'] ?? '').trim();
@@ -507,6 +567,12 @@ export function validateSeriesValues(
       errors['target_duration_s'] =
         'Target duration must be a whole number of seconds from 10 to 180.';
     }
+  }
+
+  // The create form pre-fills 'en'; only creation guards against emptying it,
+  // because a legacy profile saved before the default existed must stay editable.
+  if (mode === 'create' && (values['narration_language'] ?? '').trim().length === 0) {
+    errors['narration_language'] = 'Enter a language.';
   }
 
   const seriesMode = values['mode'] ?? '';
@@ -538,14 +604,21 @@ export function validateSeriesValues(
 }
 
 /**
- * A new profile is ready to submit once it has a name, a slug and an explicit
- * mode (IP-02's "nothing to save" state; R-027-1 forbids a silent default).
+ * A new profile is ready to submit once it has a name, a niche, a whole-number
+ * duration in range and an explicit mode (R-027-1 forbids a silent default).
+ * The slug no longer gates this — it is derived from the name — and the
+ * pre-filled language default is not treated as operator input.
  */
 export function createReady(values: SeriesValues): boolean {
   const mode = values['mode'] ?? '';
+  const duration = (values['target_duration_s'] ?? '').trim();
+  const seconds = /^\d+$/.test(duration) ? Number(duration) : NaN;
   return (
     (values['name'] ?? '').trim().length > 0 &&
-    (values['slug'] ?? '').trim().length > 0 &&
+    (values['niche.subject'] ?? '').trim().length > 0 &&
+    Number.isInteger(seconds) &&
+    seconds >= MIN_DURATION_S &&
+    seconds <= MAX_DURATION_S &&
     (mode === 'factual' || mode === 'creative')
   );
 }

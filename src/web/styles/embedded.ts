@@ -1430,6 +1430,16 @@ export const seriesCss = String.raw`/*
   line-height: var(--lh-60);
 }
 
+/* The Advanced disclosure mirrors the block legend so the two read alike. */
+.series-block summary {
+  padding: 0 0 var(--s-5);
+  color: var(--text-primary);
+  font-size: var(--t-60);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-60);
+  cursor: pointer;
+}
+
 .series-fields {
   display: flex;
   flex-direction: column;

@@ -67,27 +67,62 @@ describe('the editor is a five-block form (UX A-4, UI_SPEC §4.3)', () => {
     expect(hidden?.attrs['value']).toBe(String(detail.revision));
   });
 
-  it('groups the fields into the five named blocks in order', () => {
+  it('groups the fields into the primary and mode fieldsets, then the Advanced disclosure', () => {
     const { doc } = edit();
-    expect(byTag(doc, 'fieldset')).toHaveLength(5);
-    expect(byTag(doc, 'legend').map((node) => textOf(node))).toEqual([
-      'Identity & niche',
-      'Voice & narration',
-      'Art & references',
-      'Output',
-      'Mode',
-    ]);
+    expect(byTag(doc, 'fieldset')).toHaveLength(2);
+    expect(byTag(doc, 'legend').map((node) => textOf(node))).toEqual(['Series', 'Mode']);
+    expect(textOf(byTag(doc, 'summary')[0]!)).toBe('Advanced (defaults are fine)');
   });
 
   it('closes every fieldset it opens, so the mode radios stay inside the Mode block', () => {
     const { html, doc } = edit();
-    expect((html.match(/<fieldset/g) ?? []).length).toBe(5);
-    expect((html.match(/<\/fieldset>/g) ?? []).length).toBe(5);
+    expect((html.match(/<fieldset/g) ?? []).length).toBe(2);
+    expect((html.match(/<\/fieldset>/g) ?? []).length).toBe(2);
     const mode = byTag(doc, 'fieldset').find((node) =>
       textOf(byTag(node, 'legend')[0]!).startsWith('Mode'),
     )!;
     const radios = byTag(mode, 'input').filter((node) => node.attrs['name'] === 'mode');
     expect(radios).toHaveLength(2);
+  });
+
+  it('shows the seven primary labels and folds the removed fields into Advanced only', () => {
+    const { doc } = edit();
+    const labels = byTag(doc, 'label').map((node) => textOf(node));
+    for (const label of [
+      'Series name',
+      'Niche',
+      'Example script',
+      'Duration',
+      'Language',
+      'Voice ID',
+      'Art style',
+    ]) {
+      expect(labels, label).toContain(label);
+    }
+
+    const details = byTag(doc, 'details')[0]!;
+    const namesIn = (node: ReturnType<typeof parseHtml>): string[] =>
+      [...byTag(node, 'input'), ...byTag(node, 'select'), ...byTag(node, 'textarea')]
+        .map((control) => control.attrs['name'])
+        .filter((name): name is string => name !== undefined);
+
+    const inside = namesIn(details);
+    const outside = namesIn(doc).filter((name) => !inside.includes(name));
+
+    for (const name of [
+      'niche.audience',
+      'art_style.palette',
+      'art_style.recurring_protagonist',
+      'default_aspect_ratio',
+      'image_resolution',
+      'voice_config.speed',
+    ]) {
+      expect(inside, name).toContain(name);
+      expect(outside, name).not.toContain(name);
+    }
+    // The visible primary art style stays outside the disclosure.
+    expect(outside).toContain('art_style.preset');
+    expect(inside).not.toContain('art_style.preset');
   });
 
   it('labels every control visibly and wires help and error text with aria-describedby', () => {
@@ -114,15 +149,13 @@ describe('the editor is a five-block form (UX A-4, UI_SPEC §4.3)', () => {
     }
   });
 
-  it('renders the slug as a fixed value on an existing series and as a field on create', () => {
+  it('never asks for a slug in either mode — it is derived from the name', () => {
     const { doc } = edit();
     expect(byTag(doc, 'input').some((node) => node.attrs['name'] === 'slug')).toBe(false);
-    expect(textOf(doc)).toContain('founders-quietly');
-    expect(textOf(doc)).toContain('The slug is fixed when the series is created.');
+    expect(textOf(doc)).not.toContain('The slug is fixed when the series is created.');
 
     const created = parseHtml(create().main);
-    const slug = byTag(created, 'input').find((node) => node.attrs['name'] === 'slug')!;
-    expect(slug.attrs['required']).toBeDefined();
+    expect(byTag(created, 'input').some((node) => node.attrs['name'] === 'slug')).toBe(false);
   });
 
   it('shows the current version, mode, duration, aspect and open batches in the header', () => {
@@ -222,8 +255,8 @@ describe('the IP-02 commit panel', () => {
     const summary = byTag(panel, 'ul').find((node) => hasClass(node, 'series-summary'))!;
     const items = byTag(summary, 'li').filter((node) => node.attrs['hidden'] === undefined);
     expect(items.map((item) => textOf(item))).toEqual([
+      'Art style: inking-comic → flat-comic',
       'Speed: 1 → 1.1',
-      'Art preset: inking-comic → flat-comic',
     ]);
 
     for (const path of ['art_style.preset', 'voice_config.speed']) {

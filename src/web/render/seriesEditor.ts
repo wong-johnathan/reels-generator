@@ -10,7 +10,7 @@
  */
 import { isoSeconds } from '../format.js';
 import { commitState } from '../series/commit.js';
-import { BLOCKS, FIELDS, type FieldSpec } from '../series/fields.js';
+import { BLOCKS, createSummary, FIELDS, type FieldSpec } from '../series/fields.js';
 import type { SeriesEditorModel } from '../series/model.js';
 import { escapeAttr, escapeHtml } from './html.js';
 
@@ -260,20 +260,6 @@ function radioGroup(field: FieldSpec, model: SeriesEditorModel): string {
   );
 }
 
-function readOnlySlug(value: string): string {
-  return (
-    '<div class="series-field" data-field-row="slug" data-changed="false">' +
-    '<span class="series-label">Slug</span>' +
-    '<div class="series-control-cell">' +
-    '<output class="series-readonly mono" id="slug-value">' +
-    escapeHtml(value) +
-    '</output>' +
-    '<p class="series-help" id="help-slug">The slug is fixed when the series is created.</p>' +
-    '</div>' +
-    '</div>'
-  );
-}
-
 function renderForm(model: SeriesEditorModel): string {
   const action =
     model.mode === 'create' ? '/series' : '/series/' + escapeAttr(model.detail?.id ?? '');
@@ -281,12 +267,20 @@ function renderForm(model: SeriesEditorModel): string {
 
   const blocks = BLOCKS.map((block) => {
     const fields = FIELDS.filter((field) => field.block === block.id)
-      .map((field) =>
-        model.mode === 'edit' && field.path === 'slug'
-          ? readOnlySlug(String(model.detail?.slug ?? ''))
-          : fieldMarkup(field, model),
-      )
+      .map((field) => fieldMarkup(field, model))
       .join('');
+    // The advanced block is the only one collapsed away, because its defaults
+    // are fine and the primary form stays short; it must remain a disclosure so
+    // nothing is lost, not a fieldset that competes with the primary inputs.
+    if (block.id === 'advanced') {
+      return (
+        '<details class="series-block series-advanced"><summary>' +
+        escapeHtml(block.title) +
+        '</summary><div class="series-fields">' +
+        fields +
+        '</div></details>'
+      );
+    }
     return (
       '<fieldset class="series-block"><legend>' +
       escapeHtml(block.title) +
@@ -338,20 +332,34 @@ function renderPanel(model: SeriesEditorModel): string {
     archived: model.status === 'archived',
   });
 
-  const summary = FIELDS.map((field) => {
-    const change = model.changed.find((candidate) => candidate.path === field.path);
-    return (
-      '<li data-summary-for="' +
-      escapeAttr(field.path) +
-      '"' +
-      (change === undefined ? ' hidden' : '') +
-      '>' +
-      (change === undefined
-        ? ''
-        : escapeHtml(change.label + ': ' + change.from + ' → ' + change.to)) +
-      '</li>'
-    );
-  }).join('');
+  const summaryItems =
+    model.mode === 'create'
+      ? createSummary(model.values).map((row) => ({
+          path: row.path,
+          text: row.label + ': ' + (row.value.trim().length === 0 ? '(empty)' : row.value),
+          hidden: false,
+        }))
+      : FIELDS.map((field) => {
+          const change = model.changed.find((candidate) => candidate.path === field.path);
+          return {
+            path: field.path,
+            text: change === undefined ? '' : change.label + ': ' + change.from + ' → ' + change.to,
+            hidden: change === undefined,
+          };
+        });
+
+  const summary = summaryItems
+    .map(
+      (item) =>
+        '<li data-summary-for="' +
+        escapeAttr(item.path) +
+        '"' +
+        (item.hidden ? ' hidden' : '') +
+        '>' +
+        (item.hidden ? '' : escapeHtml(item.text)) +
+        '</li>',
+    )
+    .join('');
 
   const button =
     model.status === 'archived'
@@ -381,9 +389,11 @@ function renderPanel(model: SeriesEditorModel): string {
     '<p class="series-commit-body" data-commit-body>' + escapeHtml(state.body) + '</p>',
     '<h3 class="series-change-heading">What changed</h3>',
     '<ul class="series-summary">' + summary + '</ul>',
-    '<p class="series-change-empty" data-change-empty' +
-      (model.changed.length > 0 ? ' hidden' : '') +
-      '>No changes</p>',
+    model.mode === 'create'
+      ? ''
+      : '<p class="series-change-empty" data-change-empty' +
+        (model.changed.length > 0 ? ' hidden' : '') +
+        '>No changes</p>',
     button,
     model.status === 'archived'
       ? ''

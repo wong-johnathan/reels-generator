@@ -142,7 +142,6 @@ function page(
 
 const baseValues: Record<string, string> = {
   name: 'Founders, Quietly',
-  slug: 'founders-quietly',
   'niche.subject': 'psychology for founders',
   'niche.boundaries': 'no medical advice',
   'script_style.structure': 'hook\ntension\nturn\nlanding',
@@ -231,18 +230,34 @@ describe('live changed marks and commit panel (UI_SPEC §6.1 S-04)', () => {
     );
   });
 
-  it('keeps a blank create form disabled until name, slug and mode exist', () => {
-    const p = page({}, { mode: 'create' });
+  it('keeps a blank create form disabled until name, niche and mode exist', () => {
+    const p = page({ target_duration_s: '75' }, { mode: 'create' });
     expect(initSeriesEditor(p.doc)).toBe(true);
     expect(p.button.textContent).toBe('Create series');
     expect(p.reason.textContent).toBe('Nothing to save.');
     type(p, 'name', 'Second series');
-    type(p, 'slug', 'second-series');
+    expect(p.button.disabled).toBe(true);
+    type(p, 'niche.subject', 'psychology');
     expect(p.button.disabled).toBe(true);
     type(p, 'mode', 'factual');
     expect(p.button.disabled).toBe(false);
     expect(p.version.textContent).toBe('v1');
     expect(p.body.textContent).toBe('No project exists yet, so nothing is invalidated.');
+  });
+
+  it('summarises the create form with name, niche, duration and mode, not defaults', () => {
+    const p = page({ target_duration_s: '75' }, { mode: 'create' });
+    initSeriesEditor(p.doc);
+    type(p, 'name', 'Founders, Quietly');
+    type(p, 'niche.subject', 'psychology');
+    type(p, 'mode', 'factual');
+    expect(p.summaries.get('name')?.hidden).toBe(false);
+    expect(p.summaries.get('name')?.textContent).toBe('Series name: Founders, Quietly');
+    expect(p.summaries.get('niche.subject')?.textContent).toBe('Niche: psychology');
+    expect(p.summaries.get('target_duration_s')?.textContent).toBe('Duration: 75');
+    expect(p.summaries.get('mode')?.textContent).toBe('Mode: factual');
+    expect(p.summaries.get('image_resolution')?.hidden).toBe(true);
+    expect(p.empty.hidden).toBe(true);
   });
 });
 
@@ -263,10 +278,7 @@ describe('submitting (UC-18 loading label)', () => {
   });
 
   it('uses the present-participle create label on a first save', () => {
-    const p = page(
-      { name: 'Second series', slug: 'second-series', mode: 'factual' },
-      { mode: 'create' },
-    );
+    const p = page({ name: 'Second series', mode: 'factual' }, { mode: 'create' });
     initSeriesEditor(p.doc);
     p.form.emit('submit');
     expect(p.button.textContent).toBe('Creating…');

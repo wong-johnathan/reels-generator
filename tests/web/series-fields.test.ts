@@ -7,6 +7,9 @@ import {
   FIELDS,
   FIELD_BY_PATH,
   changedFields,
+  createReady,
+  createSummary,
+  deriveSlug,
   profileToValues,
   validateSeriesValues,
   valuesFromForm,
@@ -14,9 +17,10 @@ import {
 } from '../../src/web/series/fields.js';
 
 /**
- * S-04 field model (UX_SPEC A-4: five blocks — identity & niche, voice &
- * narration, art & references, output, mode) and R-002-1: every save is a
- * version mint, so the form must be able to say exactly which fields changed.
+ * S-04 field model: the seven primary inputs plus a mode radio, with every
+ * remaining profile leaf folded into the Advanced block, and R-002-1: every
+ * save is a version mint, so the form must be able to say exactly which fields
+ * changed.
  *
  * These are the pure rules the server renderer and the client enhancer share;
  * no DOM, no network, no provider.
@@ -26,16 +30,14 @@ const profile = SeriesProfileSchema.parse(
   SeriesVersionDetailSchema.parse(FIXTURES['series.versions.get']).snapshot,
 );
 
-describe('the five field blocks (UX_SPEC A-4)', () => {
-  it('renders identity, voice, art, output and mode in that order', () => {
+describe('the field blocks', () => {
+  it('renders the primary inputs, mode and Advanced in that order', () => {
     expect(BLOCKS.map((block) => block.title)).toEqual([
-      'Identity & niche',
-      'Voice & narration',
-      'Art & references',
-      'Output',
+      'Series',
       'Mode',
+      'Advanced (defaults are fine)',
     ]);
-    expect(BLOCKS.map((block) => block.id)).toEqual(['identity', 'voice', 'art', 'output', 'mode']);
+    expect(BLOCKS.map((block) => block.id)).toEqual(['primary', 'mode', 'advanced']);
   });
 
   it('gives every field one block, one visible label and one unique path', () => {
@@ -51,6 +53,30 @@ describe('the five field blocks (UX_SPEC A-4)', () => {
     }
   });
 
+  it('keeps exactly the seven primary inputs and the mode radio outside Advanced', () => {
+    const primary = FIELDS.filter((field) => field.block === 'primary').map((field) => field.path);
+    expect(primary).toEqual([
+      'name',
+      'niche.subject',
+      'script_style.example_script',
+      'target_duration_s',
+      'narration_language',
+      'voice_config.voice_id',
+      'art_style.preset',
+    ]);
+    expect(FIELDS.filter((field) => field.block === 'mode').map((field) => field.path)).toEqual([
+      'mode',
+    ]);
+    const advanced = FIELDS.filter((field) => field.block === 'advanced').map(
+      (field) => field.path,
+    );
+    expect(advanced).toContain('art_style.palette');
+    expect(advanced).toContain('art_style.recurring_protagonist');
+    expect(advanced).not.toContain('art_style.preset');
+    expect(advanced).not.toContain('name');
+    expect(advanced).not.toContain('mode');
+  });
+
   it('covers every editable profile leaf the contract exposes', () => {
     const paths = new Set(FIELDS.map((field) => field.path));
     for (const path of [
@@ -62,6 +88,7 @@ describe('the five field blocks (UX_SPEC A-4)', () => {
       'niche.location',
       'niche.prohibited_topics',
       'niche.preferred_sources',
+      'script_style.example_script',
       'script_style.tone',
       'script_style.structure',
       'voice_config.voice_id',
@@ -80,11 +107,21 @@ describe('the five field blocks (UX_SPEC A-4)', () => {
     }
   });
 
-  it('keeps the series-level fields out of the version snapshot', () => {
-    expect(FIELD_BY_PATH.has('slug')).toBe(true);
-    // Name and slug live on the series row, not inside the version snapshot.
+  it('derives the slug instead of asking for it, so it is not a form field', () => {
+    expect(FIELD_BY_PATH.has('slug')).toBe(false);
+    // Name lives on the series row, not inside the version snapshot.
     expect(profile).not.toHaveProperty('name');
     expect(profile).not.toHaveProperty('slug');
+  });
+});
+
+describe('slug derivation', () => {
+  it('derives kebab-case from the name, collapsing non-alphanumerics', () => {
+    expect(deriveSlug('Nick & Grace!')).toBe('nick-grace');
+    expect(deriveSlug('Founders, Quietly')).toBe('founders-quietly');
+    expect(deriveSlug('Café Society')).toBe('cafe-society');
+    expect(deriveSlug('  ---  ')).toBe('');
+    expect(deriveSlug('')).toBe('');
   });
 });
 
@@ -95,10 +132,13 @@ describe('profile <-> form values', () => {
     expect(values['niche.boundaries']).toBe('no medical advice');
     expect(values['niche.prohibited_topics']).toBe('politics');
     expect(values['script_style.structure']).toBe('hook\ntension\nturn\nlanding');
+    expect(values['script_style.example_script']).toBe('');
     expect(values['voice_config.speed']).toBe('1');
+    expect(values['art_style.preset']).toBe('inking-comic');
     expect(values['art_style.recurring_protagonist']).toBe('true');
     expect(values['default_aspect_ratio']).toBe('9:16');
     expect(values['target_duration_s']).toBe('75');
+    expect(values['narration_language']).toBe('en');
     expect(values.mode).toBe('creative');
   });
 
@@ -106,6 +146,18 @@ describe('profile <-> form values', () => {
     const rebuilt = valuesToProfile(profileToValues(profile), profile);
     expect(rebuilt).toEqual(profile);
     expect(SeriesProfileSchema.parse(rebuilt)).toEqual(profile);
+  });
+
+  it('keeps a blank example script out of the snapshot (it is optional)', () => {
+    const rebuilt = valuesToProfile(profileToValues(profile), profile);
+    expect((rebuilt['script_style'] as Record<string, unknown>)['example_script']).toBeUndefined();
+    const filled = valuesToProfile(
+      { ...profileToValues(profile), 'script_style.example_script': 'A sample narration.' },
+      profile,
+    );
+    expect((filled['script_style'] as Record<string, unknown>)['example_script']).toBe(
+      'A sample narration.',
+    );
   });
 
   it('preserves fields the form does not edit (captions, music) and unknown keys', () => {
@@ -124,7 +176,6 @@ describe('profile <-> form values', () => {
   it('builds a complete, schema-valid profile for a new series', () => {
     const values = valuesFromForm({
       name: 'New series',
-      slug: 'new-series',
       'niche.subject': 'psychology',
       mode: 'factual',
       target_duration_s: '75',
@@ -135,8 +186,19 @@ describe('profile <-> form values', () => {
     expect(parsed.target_duration_s).toBe(75);
     expect(parsed.default_aspect_ratio).toBe('9:16');
     expect(parsed.image_resolution).toBe('1K');
+    expect(parsed.narration_language).toBe('en');
     expect(parsed.niche).toMatchObject({ subject: 'psychology' });
     expect(parsed.music_config).toBeNull();
+  });
+
+  it('defaults the hidden leaves: 9:16, 1K, recurring protagonist, en', () => {
+    const values = valuesFromForm({});
+    expect(values['default_aspect_ratio']).toBe('9:16');
+    expect(values['image_resolution']).toBe('1K');
+    expect(values['art_style.recurring_protagonist']).toBe('true');
+    expect(values['target_duration_s']).toBe('75');
+    expect(values['narration_language']).toBe('en');
+    expect(values['voice_config.speed']).toBe('1');
   });
 
   it('normalises an absent checkbox and ignores unknown form keys', () => {
@@ -147,6 +209,7 @@ describe('profile <-> form values', () => {
     });
     expect(values['art_style.recurring_protagonist']).toBe('true');
     expect(values).not.toHaveProperty('not.a.field');
+    expect(values).not.toHaveProperty('slug');
   });
 });
 
@@ -163,8 +226,8 @@ describe('changed fields — the change summary IP-02 requires', () => {
       {
         path: 'voice_config.speed',
         label: 'Speed',
-        block: 'voice',
-        blockTitle: 'Voice & narration',
+        block: 'advanced',
+        blockTitle: 'Advanced (defaults are fine)',
         from: '1',
         to: '1.2',
       },
@@ -212,10 +275,60 @@ describe('changed fields — the change summary IP-02 requires', () => {
   });
 });
 
+describe('the create summary', () => {
+  it('lists name, niche, duration and mode — never the defaulted fields', () => {
+    const summary = createSummary(valuesFromForm({}));
+    expect(summary.map((row) => row.path)).toEqual([
+      'name',
+      'niche.subject',
+      'target_duration_s',
+      'mode',
+    ]);
+    expect(summary.map((row) => row.label)).toEqual(['Series name', 'Niche', 'Duration', 'Mode']);
+    expect(summary.map((row) => row.path)).not.toContain('image_resolution');
+    expect(summary.map((row) => row.path)).not.toContain('default_aspect_ratio');
+  });
+});
+
+describe('createReady — the readiness rule', () => {
+  const base = valuesFromForm({});
+
+  it('is false for a blank form', () => {
+    expect(createReady(base)).toBe(false);
+  });
+
+  it('needs a name, a niche, a valid duration and a mode', () => {
+    expect(createReady({ ...base, name: 'X', 'niche.subject': 'Y', mode: 'factual' })).toBe(true);
+    expect(createReady({ ...base, 'niche.subject': 'Y', mode: 'factual' })).toBe(false);
+    expect(createReady({ ...base, name: 'X', mode: 'factual' })).toBe(false);
+    expect(createReady({ ...base, name: 'X', 'niche.subject': 'Y' })).toBe(false);
+  });
+
+  it('does not require a slug or a voice id', () => {
+    expect(
+      createReady({
+        ...base,
+        name: 'X',
+        'niche.subject': 'Y',
+        mode: 'factual',
+        'voice_config.voice_id': '',
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects a blank, non-numeric or out-of-range duration', () => {
+    const rest = { ...base, name: 'X', 'niche.subject': 'Y', mode: 'factual' };
+    expect(createReady({ ...rest, target_duration_s: '' })).toBe(false);
+    expect(createReady({ ...rest, target_duration_s: 'abc' })).toBe(false);
+    expect(createReady({ ...rest, target_duration_s: '9' })).toBe(false);
+    expect(createReady({ ...rest, target_duration_s: '181' })).toBe(false);
+  });
+});
+
 describe('validation (R-001-1, R-009-1, R-027-1)', () => {
   const valid = valuesFromForm({
     name: 'Founders, Quietly',
-    slug: 'founders-quietly',
+    'niche.subject': 'psychology',
     mode: 'creative',
     target_duration_s: '75',
   });
@@ -230,24 +343,34 @@ describe('validation (R-001-1, R-009-1, R-027-1)', () => {
     );
   });
 
-  it('requires a lower-case hyphenated slug on create only', () => {
-    expect(validateSeriesValues({ ...valid, slug: 'Not A Slug' }, 'create').errors.slug).toBe(
-      'Use lower-case words separated by single hyphens, like founders-quietly.',
-    );
-    expect(validateSeriesValues({ ...valid, slug: '' }, 'edit').errors.slug).toBeUndefined();
+  it('requires a niche', () => {
+    expect(
+      validateSeriesValues({ ...valid, 'niche.subject': ' ' }, 'create').errors['niche.subject'],
+    ).toBe('Enter a niche.');
   });
 
   it('holds the PRD duration range of 10-180 s (R-009-1)', () => {
+    const message = 'Target duration must be a whole number of seconds from 10 to 180.';
+    expect(
+      validateSeriesValues({ ...valid, target_duration_s: '' }, 'create').errors[
+        'target_duration_s'
+      ],
+    ).toBe(message);
+    expect(
+      validateSeriesValues({ ...valid, target_duration_s: 'abc' }, 'create').errors[
+        'target_duration_s'
+      ],
+    ).toBe(message);
     expect(
       validateSeriesValues({ ...valid, target_duration_s: '9' }, 'create').errors[
         'target_duration_s'
       ],
-    ).toBe('Target duration must be a whole number of seconds from 10 to 180.');
+    ).toBe(message);
     expect(
       validateSeriesValues({ ...valid, target_duration_s: '181' }, 'create').errors[
         'target_duration_s'
       ],
-    ).toBe('Target duration must be a whole number of seconds from 10 to 180.');
+    ).toBe(message);
     expect(
       validateSeriesValues({ ...valid, target_duration_s: '75.5' }, 'create').errors[
         'target_duration_s'
@@ -268,6 +391,25 @@ describe('validation (R-001-1, R-009-1, R-027-1)', () => {
     expect(validateSeriesValues({ ...valid, mode: 'other' }, 'create').errors.mode).toBe(
       'Choose factual or creative.',
     );
+  });
+
+  it('allows a blank voice id, which means the environment default', () => {
+    expect(
+      validateSeriesValues({ ...valid, 'voice_config.voice_id': '' }, 'create').errors,
+    ).toEqual({});
+  });
+
+  it('guards an emptied language on create but not on edit (legacy profiles)', () => {
+    expect(
+      validateSeriesValues({ ...valid, narration_language: '' }, 'create').errors[
+        'narration_language'
+      ],
+    ).toBe('Enter a language.');
+    expect(
+      validateSeriesValues({ ...valid, narration_language: '' }, 'edit').errors[
+        'narration_language'
+      ],
+    ).toBeUndefined();
   });
 
   it('rejects an aspect ratio outside the two documented frames', () => {
@@ -295,5 +437,33 @@ describe('validation (R-001-1, R-009-1, R-027-1)', () => {
     const result = validateSeriesValues(valid, 'create');
     expect(result.profile?.mode).toBe('creative');
     expect(result.profile?.target_duration_s).toBe(75);
+    expect(result.profile?.narration_language).toBe('en');
+  });
+});
+
+describe('derived slug edge cases', () => {
+  const base: Record<string, string> = {
+    name: 'Nick and Grace',
+    'niche.subject': 'Flatmates who fix things badly',
+    target_duration_s: '75',
+    narration_language: 'en',
+    mode: 'creative',
+  };
+
+  it('derives a valid slug from punctuation and accents', () => {
+    expect(deriveSlug('Nick & Grace!')).toBe('nick-grace');
+    expect(deriveSlug('Café Société')).toBe('cafe-societe');
+    expect(deriveSlug('  Spaced   Out  ')).toBe('spaced-out');
+  });
+
+  it('rejects a name that cannot produce a slug', () => {
+    // The slug is derived, so a name of pure punctuation fails the API's slug
+    // rule. That failure must land on the name, where the owner can fix it.
+    const result = validateSeriesValues({ ...base, name: '🦄🦄' }, 'create');
+    expect(result.errors['name']).toContain('at least one letter or number');
+  });
+
+  it('accepts an ordinary name', () => {
+    expect(validateSeriesValues(base, 'create').errors['name']).toBeUndefined();
   });
 });
