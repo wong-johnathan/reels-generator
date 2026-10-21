@@ -156,14 +156,16 @@ describe.skipIf(!hasDatabase)('EX stage', () => {
     // the file the operator uploads must carry the video's name (title.mp4), not
     // the batch's internal video.mp4. Every entry is therefore stored again.
     const assets = await exAssets(db.pool, fixture.projectId);
-    expect(assets.map((asset) => asset.name).sort()).toEqual([
-      'metadata.json',
-      'package-manifest.json',
-      'sources.json',
-      `${result.package_stem}.mp4`,
-      `${result.package_stem}.srt`,
-      `${result.package_stem}.vtt`,
-    ]);
+    expect(assets.map((asset) => asset.name).sort()).toEqual(
+      [
+        'metadata.json',
+        'package-manifest.json',
+        'sources.json',
+        `${result.package_stem}.mp4`,
+        `${result.package_stem}.srt`,
+        `${result.package_stem}.vtt`,
+      ].sort(),
+    );
     for (const asset of assets) expect(asset.sha).toMatch(/^[0-9a-f]{64}$/);
 
     const manifestRow = assets.find((asset) => asset.name === 'package-manifest.json');

@@ -203,9 +203,10 @@ describe.skipIf(!hasDatabase)('narration stage (US-021)', () => {
 
     // Each project's audio sits in its own batch folder, so the two keys differ.
     const keys = await db.pool.query<{ object_key: string }>(
-      `SELECT object_key FROM asset WHERE kind = 'audio' AND content_sha256 = $1
+      `SELECT object_key FROM asset
+        WHERE kind = 'audio' AND content_sha256 = $1 AND project_id = ANY($2::uuid[])
         ORDER BY object_key`,
-      [first.narration.content_sha256],
+      [first.narration.content_sha256, [seeded.projectId, other.projectId]],
     );
     expect(new Set(keys.rows.map((row) => row.object_key)).size).toBe(2);
     expect(keys.rows.every((row) => row.object_key.endsWith('/narration.mp3'))).toBe(true);
