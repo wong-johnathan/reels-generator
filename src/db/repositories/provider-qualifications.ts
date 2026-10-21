@@ -23,7 +23,7 @@ export interface NewProviderQualification {
   readonly adapter: string;
   readonly passed: boolean;
   /** Serialised into `jsonb`. Must never contain a credential (R-015-5). */
-  readonly details: Record<string, unknown>;
+  readonly details: unknown;
   /** Measurement time; defaults to the database clock. Set explicitly in tests/backfills. */
   readonly runAt?: Date;
 }
