@@ -64,6 +64,8 @@ jobs:
       - run: npm run build
       - name: Contract regeneration is clean (openapi.yaml matches api.ts)
         run: npm run contract:openapi && git diff --exit-code -- contract/openapi.yaml
+      - name: Env template is current (matches src/config/env.ts)
+        run: npm run env:template && git diff --exit-code -- .env.template
       - name: No .env file ever entered the history
         run: |
           if git log --all --format=%H -- .env | grep -q .; then

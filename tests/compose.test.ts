@@ -267,56 +267,67 @@ describe('deployment guide (R-016-1/2/4)', () => {
  * application images. These assertions keep it a faithful mirror of
  * compose.yaml — a service added to the base file but missed here would leave
  * the NAS pulling GHCR for that one container, which fails only at deploy time.
+
+/**
+ * compose.dockerhub.yaml is the convenience path: same services as compose.yaml,
+ * application images track `:latest` on Docker Hub, third-party images stay
+ * digest-pinned. It is a standalone file, not an override, so that bringing the
+ * NAS up needs no RELEASE_TAG/digest variables at all.
  */
-describe('compose.dockerhub.yaml mirrors the base file', () => {
+describe('compose.dockerhub.yaml stays a faithful copy of compose.yaml', () => {
   const hub = parse(readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8'), {
     merge: true,
   }) as ComposeFile;
 
-  const hubServices = Object.entries(hub.services);
-  const dockerHubImage =
-    /^\$\{DOCKERHUB_USER:-wongjohnathanwh741\}\/reels-generator-[a-z]+:\$\{RELEASE_TAG:\?[^}]*\}@sha256:\$\{(WEB|WORKER|OPS)_DIGEST:\?[^}]*\}$/;
+  const APP_SERVICES = ['web', 'content-worker', 'render-worker', 'migrate', 'backup'];
 
-  it('only overrides services that exist in compose.yaml', () => {
-    for (const [name] of hubServices) {
-      expect(Object.keys(compose.services), `${name} is not in compose.yaml`).toContain(name);
+  it('declares exactly the same services as compose.yaml', () => {
+    expect(Object.keys(hub.services).sort()).toEqual(Object.keys(compose.services).sort());
+  });
+
+  it('differs from compose.yaml only in application image references', () => {
+    for (const [name, base] of Object.entries(compose.services)) {
+      const copy = hub.services[name];
+      expect(copy, name).toBeDefined();
+      const { image: baseImage, ...baseRest } = base;
+      const { image: hubImage, ...hubRest } = copy ?? {};
+      if (APP_SERVICES.includes(name)) {
+        expect(hubImage, `${name} must move to Docker Hub`).not.toBe(baseImage);
+      } else {
+        expect(hubImage, `${name} is a third-party image and must stay identical`).toBe(baseImage);
+      }
+      expect(hubRest, `${name} drifted from compose.yaml`).toEqual(baseRest);
     }
   });
 
-  it('covers every application image, leaving no container on GHCR', () => {
-    const fromGhcr = Object.entries(compose.services)
-      .filter(([, service]) => service.image?.includes('ghcr.io/'))
-      .map(([name]) => name);
-    expect(fromGhcr.length).toBeGreaterThanOrEqual(5);
-    expect(fromGhcr.filter((name) => !hub.services[name])).toEqual([]);
-  });
-
-  it('overrides the image only — never build, ports, volumes or profiles', () => {
-    for (const [name, service] of hubServices) {
-      expect(Object.keys(service), `${name} sets more than image`).toEqual(['image']);
-    }
-  });
-
-  it('pins the same release tag and digest variables as the base file', () => {
-    for (const [name, service] of hubServices) {
-      const base = compose.services[name]?.image ?? '';
-      const override = service.image ?? '';
-      expect(override, name).toMatch(dockerHubImage);
-      expect(override.match(/\$\{RELEASE_TAG:\?/g)?.length, name).toBe(1);
-      const baseDigest = base.match(/\$\{(WEB|WORKER|OPS)_DIGEST:\?/)?.[1];
-      const overrideDigest = override.match(/\$\{(WEB|WORKER|OPS)_DIGEST:\?/)?.[1];
-      expect(overrideDigest, `${name} digest variable drifted`).toBe(baseDigest);
-    }
-  });
-
-  it('uses the Docker Hub organisation that CI publishes to', () => {
-    // Cross-check against the workflow, not a hardcoded string: if the CI
-    // namespace ever changes, the NAS must not keep pulling the old one.
+  it('pulls application images from Docker Hub by tag, not by digest', () => {
     const prefix = workflow.env?.['DOCKERHUB_PREFIX'];
     expect(prefix, 'workflow env DOCKERHUB_PREFIX').toBeTruthy();
     const [org, repo] = String(prefix).split('/');
-    for (const [name, service] of hubServices) {
-      expect(service.image, name).toContain(`\${DOCKERHUB_USER:-${org}}/${repo}-`);
+    // Which published repository each service consumes.
+    const published: Readonly<Record<string, string>> = {
+      web: `${repo}-web`,
+      'content-worker': `${repo}-worker`,
+      'render-worker': `${repo}-worker`,
+      migrate: `${repo}-worker`,
+      backup: `${repo}-ops`,
+    };
+    for (const name of APP_SERVICES) {
+      expect(hub.services[name]?.image, name).toBe(
+        `\${DOCKERHUB_USER:-${org}}/${published[name]}:latest`,
+      );
     }
+  });
+
+  it('leaves no application image on GHCR', () => {
+    for (const [name, service] of Object.entries(hub.services)) {
+      expect(service.image ?? '', name).not.toContain('ghcr.io');
+    }
+  });
+
+  it('keeps the release pins out of the file, so compose can start without them', () => {
+    const text = readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8');
+    expect(text).not.toContain('RELEASE_TAG');
+    expect(text).not.toMatch(/\$\{(WEB|WORKER|OPS)_DIGEST/);
   });
 });

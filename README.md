@@ -67,9 +67,12 @@ docker compose up -d
 
 Then open `http://<host>:${APP_PORT}` and log in with the single seeded operator account. There is no registration, no password reset and no user management — this is a one-person tool on a private network.
 
-Images are pulled by **tag + digest** for `linux/amd64` and are never built on the NAS. `RELEASE_TAG`, `WEB_DIGEST`, `WORKER_DIGEST` and `OPS_DIGEST` are produced by the CI release job. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Two compose files ship:
 
-Every image is published twice from the same build — `ghcr.io/wong-johnathan/reels-generator-<service>` and the Docker Hub mirror `wongjohnathanwh741/reels-generator-<service>`. Same manifest, same digest, so either registry satisfies the same pin. CI needs two repository secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
+- **`compose.yaml`** — pins every application image by **tag + digest** for `linux/amd64` (reproducible; the audit-friendly path). Needs `RELEASE_TAG` and the three `*_DIGEST` values from the CI release job.
+- **`compose.dockerhub.yaml`** — same services, but application images come from Docker Hub on `:latest` and it needs **no release variables at all**. Not reproducible by design: it gives you whatever CI last built. Everything else — networks, volumes, env contract — is identical, and a test fails the build if the two files diverge.
+
+CI publishes each image to **both** registries from one build (`ghcr.io/wong-johnathan/reels-generator-<service>` and `wongjohnathanwh741/reels-generator-<service>`), so the same build serves either file. CI needs two repository secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
 
 ### Environment
 

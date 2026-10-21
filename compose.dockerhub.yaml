@@ -1,34 +1,199 @@
-# Docker Hub variant of compose.yaml.
+# Docker Hub variant of compose.yaml — pulls the latest published release.
 #
-# Pull the same release from Docker Hub instead of GHCR — no GitHub credentials
-# on the NAS, no `docker login` to ghcr.io. Every other line comes from
-# compose.yaml: same services, same networks, same named volumes, same env
-# contract, same digest pins.
+#   docker compose -f compose.dockerhub.yaml up -d
 #
-#   docker compose -f compose.yaml -f compose.dockerhub.yaml up -d
-#   docker compose -f compose.yaml -f compose.dockerhub.yaml --profile ops run --rm migrate
-#   docker compose -f compose.yaml -f compose.dockerhub.yaml down
+# No GHCR login, no digest pins: every application image tracks `:latest`, which
+# CI republishes on each push to main. Trade-off, stated plainly — this file is
+# NOT reproducible: bring up the same file a week apart and you get different
+# builds. compose.yaml remains the pinned, audit-friendly path (R-016-1); use
+# this one when you just want the current build running on the NAS.
 #
-# The registry organisation defaults to wongjohnathanwh741; override it with
-# DOCKERHUB_USER in .env if the Docker Hub account ever changes.
-#
-# Why an override and not a second complete file: 200 duplicated lines drift the
-# moment either copy is edited, and the drift stays invisible until a deploy
-# fails on the NAS. tests/compose.test.ts fails the build if a service here is
-# missing from compose.yaml, if any application service is left pointing at
-# GHCR, or if the tag/digest placeholders stop matching the base file.
+# Everything except the five application images is identical to compose.yaml,
+# and tests/compose.test.ts fails the build if the two ever diverge.
+name: reels-generator
+
+x-app: &app
+  platform: linux/amd64
+  env_file: .env
+  networks: [private]
+  stop_grace_period: 30s
+
 services:
   web:
-    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-web:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WEB_DIGEST:?WEB_DIGEST must be the digest printed by the CI release job}
+    <<: *app
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-web:latest
+    restart: unless-stopped
+    environment:
+      ROLE: web
+    # R-016-3: the only published port in the whole stack.
+    ports:
+      - '8080:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', 'dist/src/api/healthcheck.js']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 512m
 
   content-worker:
-    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WORKER_DIGEST:?WORKER_DIGEST must be the digest printed by the CI release job}
+    <<: *app
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:latest
+    restart: unless-stopped
+    environment:
+      ROLE: content
+      WORKER_HTTP_PORT: '8081'
+      HEALTHCHECK_URL: http://127.0.0.1:8081/readyz
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', 'dist/src/api/healthcheck.js']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 512m
 
   render-worker:
-    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WORKER_DIGEST:?WORKER_DIGEST must be the digest printed by the CI release job}
+    <<: *app
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:latest
+    restart: unless-stopped
+    environment:
+      ROLE: render
+      WORKER_HTTP_PORT: '8082'
+      HEALTHCHECK_URL: http://127.0.0.1:8082/readyz
+      RENDER_MEM_LIMIT_MB: ${RENDER_MEM_LIMIT_MB:-2048}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', 'dist/src/api/healthcheck.js']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # The only 2 GB service: FFmpeg at 1080x1920 (TECH_DESIGN §2.1, risk #2).
+    mem_limit: 2g
 
+  postgres:
+    # Pinned by tag + digest; resolve a new one with `docker buildx imagetools inspect`.
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    platform: linux/amd64
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [private]
+    mem_limit: 2g
+
+  redis:
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    platform: linux/amd64
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [private]
+    mem_limit: 256m
+
+  minio:
+    # The object store image is operator-supplied: `minio/minio` is no longer published on
+    # Docker Hub (404 as of 2026-10-20) and quay.io/minio/minio requires registry auth.
+    # MINIO_IMAGE must be a digest-pinned ref, e.g. quay.io/minio/minio:vX@sha256:…
+    image: ${MINIO_IMAGE:?MINIO_IMAGE must be a digest-pinned object-store image (see docs/DEPLOYMENT.md)}
+    platform: linux/amd64
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    command: ['server', '/data', '--console-address', ':9001']
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      # The official image ships `mc`; `mc ready local` is the documented probe.
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [private]
+    mem_limit: 512m
+
+  # ── profile-gated one-shots ──
   migrate:
-    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WORKER_DIGEST:?WORKER_DIGEST must be the digest printed by the CI release job}
+    profiles: ['migrate']
+    <<: *app
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:latest
+    restart: 'no'
+    # The worker image's ENTRYPOINT hard-codes --role worker; the one-shot must
+    # validate as the migrate role (stores only) and run the migration runner, not the
+    # queue consumer.
+    entrypoint: ['node', 'dist/src/boot/validate-env.js', '--role', 'migrate', '--exec']
+    command: ['node', 'dist/src/db/migrate.js']
+    environment:
+      ROLE: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
 
   backup:
-    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-ops:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${OPS_DIGEST:?OPS_DIGEST must be the digest printed by the CI release job}
+    profiles: ['backup']
+    platform: linux/amd64
+    env_file: .env
+    networks: [private]
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-ops:latest
+    restart: 'no'
+    environment:
+      ROLE: ops
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # R-016-4: backups live on the host, outside the compose project.
+    volumes:
+      - ./backups:/backups
+      - ./config:/app/config:ro
+    mem_limit: 512m
+
+networks:
+  private:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
