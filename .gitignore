@@ -46,3 +46,8 @@ data/
 *.swp
 .idea/
 .vscode/
+
+# Synology metadata (the workspace lives on a NAS volume)
+@eaDir/
+**/@eaDir/
+.DS_Store
