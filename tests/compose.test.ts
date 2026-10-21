@@ -49,6 +49,7 @@ interface Step {
 }
 
 interface Workflow {
+  readonly env?: Readonly<Record<string, string>>;
   readonly permissions?: Readonly<Record<string, string>>;
   readonly jobs: Readonly<
     Record<
@@ -258,5 +259,64 @@ describe('deployment guide (R-016-1/2/4)', () => {
     expect(guide).toContain('down -v');
     expect(guide.toLowerCase()).toContain('rollback');
     expect(guide).toContain('linux/amd64');
+  });
+});
+
+/**
+ * The Docker Hub variant: compose.dockerhub.yaml overrides only the five
+ * application images. These assertions keep it a faithful mirror of
+ * compose.yaml — a service added to the base file but missed here would leave
+ * the NAS pulling GHCR for that one container, which fails only at deploy time.
+ */
+describe('compose.dockerhub.yaml mirrors the base file', () => {
+  const hub = parse(readFileSync(join(ROOT, 'compose.dockerhub.yaml'), 'utf8'), {
+    merge: true,
+  }) as ComposeFile;
+
+  const hubServices = Object.entries(hub.services);
+  const dockerHubImage =
+    /^\$\{DOCKERHUB_USER:-wongjohnathanwh741\}\/reels-generator-[a-z]+:\$\{RELEASE_TAG:\?[^}]*\}@sha256:\$\{(WEB|WORKER|OPS)_DIGEST:\?[^}]*\}$/;
+
+  it('only overrides services that exist in compose.yaml', () => {
+    for (const [name] of hubServices) {
+      expect(Object.keys(compose.services), `${name} is not in compose.yaml`).toContain(name);
+    }
+  });
+
+  it('covers every application image, leaving no container on GHCR', () => {
+    const fromGhcr = Object.entries(compose.services)
+      .filter(([, service]) => service.image?.includes('ghcr.io/'))
+      .map(([name]) => name);
+    expect(fromGhcr.length).toBeGreaterThanOrEqual(5);
+    expect(fromGhcr.filter((name) => !hub.services[name])).toEqual([]);
+  });
+
+  it('overrides the image only — never build, ports, volumes or profiles', () => {
+    for (const [name, service] of hubServices) {
+      expect(Object.keys(service), `${name} sets more than image`).toEqual(['image']);
+    }
+  });
+
+  it('pins the same release tag and digest variables as the base file', () => {
+    for (const [name, service] of hubServices) {
+      const base = compose.services[name]?.image ?? '';
+      const override = service.image ?? '';
+      expect(override, name).toMatch(dockerHubImage);
+      expect(override.match(/\$\{RELEASE_TAG:\?/g)?.length, name).toBe(1);
+      const baseDigest = base.match(/\$\{(WEB|WORKER|OPS)_DIGEST:\?/)?.[1];
+      const overrideDigest = override.match(/\$\{(WEB|WORKER|OPS)_DIGEST:\?/)?.[1];
+      expect(overrideDigest, `${name} digest variable drifted`).toBe(baseDigest);
+    }
+  });
+
+  it('uses the Docker Hub organisation that CI publishes to', () => {
+    // Cross-check against the workflow, not a hardcoded string: if the CI
+    // namespace ever changes, the NAS must not keep pulling the old one.
+    const prefix = workflow.env?.['DOCKERHUB_PREFIX'];
+    expect(prefix, 'workflow env DOCKERHUB_PREFIX').toBeTruthy();
+    const [org, repo] = String(prefix).split('/');
+    for (const [name, service] of hubServices) {
+      expect(service.image, name).toContain(`\${DOCKERHUB_USER:-${org}}/${repo}-`);
+    }
   });
 });

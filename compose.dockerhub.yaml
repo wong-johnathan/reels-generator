@@ -1,0 +1,34 @@
+# Docker Hub variant of compose.yaml.
+#
+# Pull the same release from Docker Hub instead of GHCR — no GitHub credentials
+# on the NAS, no `docker login` to ghcr.io. Every other line comes from
+# compose.yaml: same services, same networks, same named volumes, same env
+# contract, same digest pins.
+#
+#   docker compose -f compose.yaml -f compose.dockerhub.yaml up -d
+#   docker compose -f compose.yaml -f compose.dockerhub.yaml --profile ops run --rm migrate
+#   docker compose -f compose.yaml -f compose.dockerhub.yaml down
+#
+# The registry organisation defaults to wongjohnathanwh741; override it with
+# DOCKERHUB_USER in .env if the Docker Hub account ever changes.
+#
+# Why an override and not a second complete file: 200 duplicated lines drift the
+# moment either copy is edited, and the drift stays invisible until a deploy
+# fails on the NAS. tests/compose.test.ts fails the build if a service here is
+# missing from compose.yaml, if any application service is left pointing at
+# GHCR, or if the tag/digest placeholders stop matching the base file.
+services:
+  web:
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-web:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WEB_DIGEST:?WEB_DIGEST must be the digest printed by the CI release job}
+
+  content-worker:
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WORKER_DIGEST:?WORKER_DIGEST must be the digest printed by the CI release job}
+
+  render-worker:
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WORKER_DIGEST:?WORKER_DIGEST must be the digest printed by the CI release job}
+
+  migrate:
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-worker:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${WORKER_DIGEST:?WORKER_DIGEST must be the digest printed by the CI release job}
+
+  backup:
+    image: ${DOCKERHUB_USER:-wongjohnathanwh741}/reels-generator-ops:${RELEASE_TAG:?RELEASE_TAG must be the release tag printed by the CI release job}@sha256:${OPS_DIGEST:?OPS_DIGEST must be the digest printed by the CI release job}
