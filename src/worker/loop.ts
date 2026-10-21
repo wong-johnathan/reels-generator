@@ -72,6 +72,13 @@ export interface WorkerLoopOptions {
   /** Polled between jobs; SIGTERM flips this so the loop exits after the current job. */
   readonly shouldStop?: () => boolean;
   readonly sleep?: SleepFn;
+  /**
+   * Test and one-shot hook: return as soon as a claim finds nothing queued.
+   * A long-lived worker must keep polling; a test that expects a fixed number of
+   * jobs must not spin for its whole timeout when the chain stops early — that
+   * hides the stage failure behind a timeout.
+   */
+  readonly drainWhenEmpty?: boolean;
   /** Test hook: stop after N jobs (null jobs are not counted). */
   readonly maxJobs?: number;
 }
@@ -91,6 +98,7 @@ export async function runWorkerLoop(options: WorkerLoopOptions): Promise<number>
   while (!(options.shouldStop?.() ?? false)) {
     const job = await claimNextJob(options.pool, options.stages);
     if (job === null) {
+      if (options.drainWhenEmpty === true) break;
       await sleep(pollIntervalMs);
       continue;
     }

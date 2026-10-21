@@ -19,8 +19,11 @@ ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false
 WORKDIR /app
 # ffmpeg/ffprobe are baked into the image, never installed on the NAS host (TECH_DESIGN §9.7).
+# fontconfig + a real font family are required by libass: `subtitles=` and
+# `drawtext=` resolve fonts through fontconfig, so a minimal image with ffmpeg
+# but no fonts renders captions as silent no-ops or fails outright.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates fontconfig fonts-dejavu-core \
  && apt-get clean
 COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules

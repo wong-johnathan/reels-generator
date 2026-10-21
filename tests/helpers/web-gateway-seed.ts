@@ -8,7 +8,7 @@
  * keeps that boilerplate in one place so the four test files only express what
  * they are actually asserting.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Pool } from 'pg';
 
@@ -29,7 +29,9 @@ export async function seedProject(
   pool: Pool,
   options: { readonly slug?: string; readonly targetDurationS?: number } = {},
 ): Promise<SeededProject> {
-  const slug = options.slug ?? 'test-series';
+  // A fixed slug collides the second time this helper runs in one file: the
+  // series_slug_key constraint is global, not per-test.
+  const slug = options.slug ?? `test-series-${randomUUID().slice(0, 8)}`;
   const target = options.targetDurationS ?? 75;
 
   const series = await pool.query<{ id: string }>(

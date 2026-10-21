@@ -118,6 +118,10 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       advanceAfterStage: (job) => advanceAfterStage(db.pool, job),
       maxJobs: CONTENT_JOB_COUNT,
       pollIntervalMs: 5,
+      // Fail on the first empty claim rather than timing out: a stopped chain
+      // must surface the stage error, not 300 s of silence.
+      drainWhenEmpty: true,
+      logger: (line) => console.error(line),
     });
     expect(contentProcessed).toBe(CONTENT_JOB_COUNT);
 
@@ -128,6 +132,8 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       advanceAfterStage: (job) => advanceAfterStage(db.pool, job),
       maxJobs: RENDER_JOB_COUNT,
       pollIntervalMs: 5,
+      drainWhenEmpty: true,
+      logger: (line) => console.error(line),
     });
     expect(renderProcessed).toBe(RENDER_JOB_COUNT);
 
