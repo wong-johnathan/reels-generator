@@ -221,6 +221,26 @@ describe('.github/workflows/build.yml (R-016-1/2)', () => {
     }
   });
 
+  it('writes the digest in the form compose interpolates after @sha256: (R-016-1/2)', () => {
+    // docker/build-push-action outputs `digest` as `sha256:<64 hex>`, while
+    // compose.yaml pins `@sha256:${WEB_DIGEST}`. If CI kept the prefix, every
+    // image ref would become `@sha256:sha256:<hex>` and the NAS pull would fail.
+    // images.env must therefore carry the bare 64-hex digest.
+    const manifest = workflow.jobs['release-manifest']?.steps?.find(
+      (step) => typeof step.run === 'string' && step.run.includes('WEB_DIGEST'),
+    );
+    const run = manifest?.run ?? '';
+    for (const key of ['WEB_DIGEST', 'WORKER_DIGEST', 'OPS_DIGEST']) {
+      expect(run, `${key} must be stripped of the sha256: prefix`).toContain(
+        `${key}="\${${key}#sha256:}"`,
+      );
+    }
+    expect(run, 'a malformed pin must fail the release job').toContain('[0-9a-f]{64}');
+    expect(run, 'compose keeps the sha256: prefix').not.toMatch(
+      /@\$\{?RELEASE_TAG.*@\$\{WEB_DIGEST/,
+    );
+  });
+
   it('fails CI if the real environment file ever enters history (R-015-5)', () => {
     const guard = workflow.jobs['verify']?.steps?.find((step) =>
       step.name?.toLowerCase().includes('history'),
