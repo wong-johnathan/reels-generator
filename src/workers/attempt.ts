@@ -216,10 +216,29 @@ export interface ProviderAttemptJob {
   readonly workerId?: string | null;
 }
 
+/** The committed ledger rows a result hook may reference (R-012-1, R-013-1). */
+export interface AttemptResultRef {
+  readonly runId: string;
+  readonly jobAttemptId: string;
+  readonly jobId: string;
+}
+
 export interface AttemptDeps {
   readonly pool: Pool;
   /** The adapter for exactly this stage; `executePersisted` checks the match. */
   readonly adapter: ProviderAdapter<unknown>;
+  /**
+   * Called with the adapter's result after the call returns and **before** the
+   * run is closed billed/succeeded. That is TECH_DESIGN §2's step (c): the asset
+   * is stored between the provider call and the cost row's terminal update, so a
+   * crash leaves a `pending` run for the <=1-billable rule (5.5) instead of a
+   * `billed` row whose asset was never written.
+   *
+   * A throw here is an attempt failure like any other: the run closes
+   * `failed`/`unknown` (the call did reach the provider) and nothing downstream
+   * may treat the take as reusable. Optional: stages with no asset omit it.
+   */
+  readonly onResult?: (result: unknown, ref: AttemptResultRef) => Promise<void>;
 }
 
 export type AttemptCharge = 'billed' | 'unbilled' | 'unknown';
@@ -393,7 +412,14 @@ export async function runProviderAttempt(
 
   let error: unknown = null;
   try {
-    await executePersisted({ pool: deps.pool }, deps.adapter, run);
+    const result = await executePersisted({ pool: deps.pool }, deps.adapter, run);
+    if (deps.onResult !== undefined) {
+      await deps.onResult(result, {
+        runId: run.id,
+        jobAttemptId: run.jobAttemptId,
+        jobId: job.jobId,
+      });
+    }
   } catch (caught) {
     error = caught;
   }

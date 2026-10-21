@@ -179,3 +179,24 @@ export async function markGenerationRunUnknownCharge(
   );
   return (result.rowCount ?? 0) > 0;
 }
+
+/**
+ * Record the provider's request id on a run that is still `pending` (R-008-4,
+ * R-013-1). The stage worker learns the id only from the response, i.e. after
+ * the call but before the run is closed, so it writes it inside its `onResult`
+ * hook. `finishGenerationRun` uses `COALESCE`, so the value survives the close.
+ */
+export async function recordPendingRunProviderRequestId(
+  db: Queryable,
+  runId: string,
+  providerRequestId: string | null,
+): Promise<boolean> {
+  if (providerRequestId === null || providerRequestId.trim() === '') return false;
+  const result = await db.query(
+    `UPDATE generation_run
+        SET provider_request_id = $2
+      WHERE id = $1 AND status = 'pending'`,
+    [runId, providerRequestId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
