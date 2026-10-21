@@ -536,6 +536,10 @@ paths:
                         type: integer
                         minimum: 15
                         maximum: 300
+                      videos_per_batch:
+                        type: integer
+                        minimum: 1
+                        maximum: 30
                       narration_language:
                         type: string
                       captions_preset:
@@ -655,6 +659,10 @@ paths:
                       type: integer
                       minimum: 15
                       maximum: 300
+                    videos_per_batch:
+                      type: integer
+                      minimum: 1
+                      maximum: 30
                     narration_language:
                       type: string
                     captions_preset:
@@ -782,6 +790,10 @@ paths:
                         type: integer
                         minimum: 15
                         maximum: 300
+                      videos_per_batch:
+                        type: integer
+                        minimum: 1
+                        maximum: 30
                       narration_language:
                         type: string
                       captions_preset:
@@ -952,6 +964,10 @@ paths:
                         type: integer
                         minimum: 15
                         maximum: 300
+                      videos_per_batch:
+                        type: integer
+                        minimum: 1
+                        maximum: 30
                       narration_language:
                         type: string
                       captions_preset:
@@ -1079,6 +1095,10 @@ paths:
                       type: integer
                       minimum: 15
                       maximum: 300
+                    videos_per_batch:
+                      type: integer
+                      minimum: 1
+                      maximum: 30
                     narration_language:
                       type: string
                     captions_preset:
@@ -1265,6 +1285,10 @@ paths:
                         type: integer
                         minimum: 15
                         maximum: 300
+                      videos_per_batch:
+                        type: integer
+                        minimum: 1
+                        maximum: 30
                       narration_language:
                         type: string
                       captions_preset:
@@ -1408,6 +1432,10 @@ paths:
                       type: integer
                       minimum: 15
                       maximum: 300
+                    videos_per_batch:
+                      type: integer
+                      minimum: 1
+                      maximum: 30
                     narration_language:
                       type: string
                     captions_preset:
@@ -1520,6 +1548,10 @@ paths:
                         type: integer
                         minimum: 15
                         maximum: 300
+                      videos_per_batch:
+                        type: integer
+                        minimum: 1
+                        maximum: 30
                       narration_language:
                         type: string
                       captions_preset:
