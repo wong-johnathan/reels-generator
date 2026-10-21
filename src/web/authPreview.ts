@@ -47,18 +47,19 @@ function transpile(relativePath: string, label: string): string | null {
   }).outputText;
 }
 
+/** Wire names (kebab-case, from the script tags) to the module files on disk. */
+const CLIENT_MODULE_FILES: Readonly<Record<string, string>> = {
+  login: 'login',
+  shell: 'shell',
+  behaviours: 'behaviours',
+  'series-editor': 'seriesEditor',
+  workspace: 'workspace',
+  'scene-grid': 'sceneGrid',
+};
+
 function readClientModule(name: string): string | null {
-  if (
-    name !== 'login' &&
-    name !== 'shell' &&
-    name !== 'behaviours' &&
-    name !== 'series-editor' &&
-    name !== 'workspace'
-  ) {
-    return null;
-  }
-  const file = name === 'series-editor' ? 'seriesEditor' : name;
-  return transpile('./client/' + file + '.ts', name);
+  const file = CLIENT_MODULE_FILES[name];
+  return file === undefined ? null : transpile('./client/' + file + '.ts', name);
 }
 
 /** The enhancer's shared rules, served from the same source the server uses. */

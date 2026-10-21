@@ -50,6 +50,15 @@ describe('preview routes', () => {
     expect(response.body).not.toContain('interface ');
   });
 
+  it('serves the scene grid enhancer as browser ESM beside its behaviours import', () => {
+    const response = get('/assets/client/scene-grid.js');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toBe('text/javascript; charset=utf-8');
+    expect(response.body).toContain('initSceneGrid');
+    expect(response.body).toContain("from './behaviours.js'");
+    expect(response.body).not.toContain('interface ');
+  });
+
   it('serves the token stylesheet with the measured hex values', () => {
     const response = get('/assets/app.css');
     expect(response.status).toBe(200);

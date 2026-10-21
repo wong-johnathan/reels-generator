@@ -69,7 +69,12 @@ const JS_HEADERS = {
   'cache-control': 'no-store',
 } as const;
 
-const CLIENT_MODULES = new Set(['shell', 'behaviours', 'series-editor']);
+/** Wire name (kebab-case from the script tag) to the module file on disk. */
+const CLIENT_MODULE_FILES: Readonly<Record<string, string>> = {
+  'series-editor': 'seriesEditor',
+  'scene-grid': 'sceneGrid',
+};
+const CLIENT_MODULES = new Set(['shell', 'behaviours', 'series-editor', 'scene-grid']);
 const SERIES_MODULES = new Set(['fields', 'commit']);
 
 /** The fixture series the demo routes render. */
@@ -103,7 +108,7 @@ function clientModule(name: string): PreviewResponse {
   if (!CLIENT_MODULES.has(name)) {
     return json(404, { error: { code: 'not_found', message: 'No preview module ' + name } });
   }
-  const file = name === 'series-editor' ? 'seriesEditor' : name;
+  const file = CLIENT_MODULE_FILES[name] ?? name;
   return transpiled('./client/' + file + '.ts', name);
 }
 
