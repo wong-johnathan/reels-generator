@@ -27,6 +27,27 @@ jobs:
   verify:
     name: lint · typecheck · test · build
     runs-on: ubuntu-24.04
+    # The schema and attempt-row-guard tests need a real Postgres 16 with
+    # pgcrypto + pgvector (B-02, evidence/B-02.md). A service container keeps
+    # that honest in CI instead of silently skipping the suite. Pinned by
+    # linux/amd64 digest like every other image here (R-016).
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16@sha256:a97d77306ff47cc1d8add4d000cec2207da2e110746318df3137ce53c337ca30
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reels_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d reels_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Each DB-backed test file provisions its own throwaway database here.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/reels_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
