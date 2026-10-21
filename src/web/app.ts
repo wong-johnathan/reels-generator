@@ -61,6 +61,10 @@ import { NarrationRefusedError, type NarrationGateway } from './narration/gatewa
 import { ACCEPT_UNWIRED_REASON, type NarrationView } from './narration/model.js';
 import { NARRATION_SCRIPTS, renderNarrationPanel } from './render/narration.js';
 import { audioNotice } from './narration/notice.js';
+import { RenderRefusedError, type RenderGateway } from './quality/gateway.js';
+import type { RenderView } from './quality/model.js';
+import { qualityNotice, type QualityNotice } from './quality/notice.js';
+import { renderQualityPanel } from './render/quality.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
 type HealthReport = z.infer<typeof HealthReportSchema>;
@@ -85,6 +89,8 @@ export interface WebAppDependencies {
   readonly script?: ScriptGateway;
   /** S-14 narration & timing. Absent builds fall back to the F-04 stage summary. */
   readonly narration?: NarrationGateway;
+  /** S-15 render output and the final-approval gate. Absent builds fall back to F-04. */
+  readonly render?: RenderGateway;
   readonly assets?: {
     readonly css?: string;
     /** Returns browser ESM for a client module name, or null when absent. */
@@ -109,6 +115,8 @@ export interface WebResponse {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string;
+  /** Set only by the preview's asset stand-ins; the production proxy streams from MinIO. */
+  readonly bodyBytes?: Uint8Array;
 }
 
 const CSP =
@@ -215,6 +223,17 @@ function methodNotAllowed(allow: string): WebResponse {
     body: JSON.stringify({ error: { code: 'method_not_allowed', message: 'Allowed: ' + allow } }),
   };
 }
+
+/**
+ * S-15 copy the route owns. Both sentences are commitments: nothing was
+ * approved, nothing was changed. They are shown as an error notice inside the
+ * render panel, never as a bare JSON error page.
+ */
+const RENDER_LOAD_FAILED =
+  'The render could not be loaded. The rest of the workspace is unaffected; nothing was changed.';
+const APPROVAL_NOT_SENT_REASON =
+  'The approval was not sent: the page did not carry the revision the contract requires. ' +
+  'Reload the page and try again. Nothing was approved.';
 
 export function parseFormEncoded(body: string): Record<string, string> {
   const fields: Record<string, string> = {};
@@ -492,6 +511,8 @@ export function createWebApp(
       tail.length === 2 &&
       rawTab === 'audio' &&
       (action === 'rerun' || action === 'accept');
+    const isRenderCommit =
+      input.method === 'POST' && tail.length === 2 && rawTab === 'render' && action === 'approve';
 
     if (tail.length === 1 && rawTab !== undefined && !isTabKey(rawTab)) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
@@ -502,11 +523,12 @@ export function createWebApp(
       !isRelease &&
       !isApprove &&
       !isReplace &&
-      !isAudioCommit
+      !isAudioCommit &&
+      !isRenderCommit
     ) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 404);
     }
-    const isCommit = isRelease || isApprove || isReplace || isAudioCommit;
+    const isCommit = isRelease || isApprove || isReplace || isAudioCommit || isRenderCommit;
     if (input.method !== 'GET' && !isCommit) return methodNotAllowed('GET, HEAD');
 
     let detail: VideoDetail;
@@ -573,6 +595,50 @@ export function createWebApp(
       } catch {
         return null;
       }
+    }
+
+    async function revisionOrNull(renders: RenderGateway): Promise<number | null> {
+      if (renders.revision === undefined) return null;
+      try {
+        const revision = await renders.revision(videoId);
+        return typeof revision === 'number' && Number.isInteger(revision) && revision >= 1
+          ? revision
+          : null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function renderPage(input: {
+      readonly renders: RenderGateway;
+      readonly notice?: QualityNotice | null;
+      readonly status?: number;
+      /** Set when the read itself failed; the page then carries the error notice. */
+      readonly failed?: boolean;
+    }): Promise<WebResponse> {
+      let view: RenderView | null = null;
+      let failed = input.failed ?? false;
+      if (!failed) {
+        try {
+          view = await input.renders.get(videoId);
+        } catch {
+          failed = true;
+        }
+      }
+      const revision = failed ? null : await revisionOrNull(input.renders);
+      const notice: QualityNotice | null =
+        failed === true ? { kind: 'error', message: RENDER_LOAD_FAILED } : (input.notice ?? null);
+      return workspacePage({
+        tab: 'render',
+        ...(failed ? { status: 503 } : input.status === undefined ? {} : { status: input.status }),
+        panel: renderQualityPanel({
+          detail,
+          render: view,
+          revision,
+          approveWired: input.renders.approve !== undefined,
+          ...(notice === null ? {} : { notice }),
+        }),
+      });
     }
 
     // ── commits ─────────────────────────────────────────────────────────────
@@ -820,6 +886,45 @@ export function createWebApp(
       return redirect(base + '/audio?notice=accepted');
     }
 
+    // ── S-15 render & QC + final approval (US-024, US-025, R-005-3/4) ───────
+
+    if (isRenderCommit) {
+      const renders = deps.render;
+      if (renders === undefined) {
+        return json(503, 'not_ready', 'The render surfaces are not mounted');
+      }
+      const fields = parseFormEncoded(input.body);
+      const note = (fields['note'] ?? '').trim();
+      if (note.length > 2000) {
+        return json(400, 'validation_failed', 'The note is longer than 2000 characters');
+      }
+      const revision = Number((fields['revision'] ?? '').trim());
+      if (!Number.isInteger(revision) || revision < 1) {
+        return renderPage({
+          renders,
+          status: 422,
+          notice: { kind: 'error', message: APPROVAL_NOT_SENT_REASON },
+        });
+      }
+      try {
+        await renders.approve(videoId, note.length === 0 ? { revision } : { revision, note });
+      } catch (error) {
+        const refused = error instanceof RenderRefusedError;
+        const message = error instanceof Error ? error.message : 'unknown error';
+        return renderPage({
+          renders,
+          status: refused ? 409 : 503,
+          notice: {
+            kind: 'error',
+            message: refused
+              ? message
+              : 'The approval could not be sent. Nothing was approved and no stage re-ran.',
+          },
+        });
+      }
+      return redirect(base + '/render?notice=approved');
+    }
+
     // ── scene detail (S-13) ────────────────────────────────────────────────
 
     if (isSceneDetail) {
@@ -881,6 +986,15 @@ export function createWebApp(
     const tab: TabKey = isTabKey(rawTab ?? '')
       ? (rawTab as TabKey)
       : tabKeyForStage(detail.current_stage);
+
+    // S-15 owns the render tab. Without a render gateway the F-04 stage summary
+    // stays in place — an honest fallback, never an invented QC result.
+    if (tab === 'render' && deps.render !== undefined) {
+      return renderPage({
+        renders: deps.render,
+        notice: qualityNotice(input.search.get('notice')),
+      });
+    }
 
     if (tab === 'script' && deps.script !== undefined) {
       const scriptGateway = deps.script;
