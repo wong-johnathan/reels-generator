@@ -78,3 +78,37 @@ export async function findStalledJobs(
   );
   return result.rows;
 }
+
+export interface QueuedJobInput {
+  readonly projectId: string;
+  readonly stage: string;
+  readonly sceneId?: string | null;
+  readonly priority?: number;
+  /** IP-06's computed scope, stored before the job runs (R-022-2). */
+  readonly retryScope?: unknown;
+}
+
+/**
+ * Insert a `queued` job — the durable half of an enqueue (X-3: Redis is
+ * transport, Postgres is the source of truth). The caller owns the transaction
+ * so the job commits with whatever edit it belongs to.
+ */
+export async function insertQueuedJob(db: Queryable, input: QueuedJobInput): Promise<JobRow> {
+  const result = await db.query<JobRow>(
+    'INSERT INTO job (project_id, stage, scene_id, status, priority, retry_scope) ' +
+      "VALUES ($1, $2, $3, 'queued', $4, $5) RETURNING " +
+      COLUMNS,
+    [
+      input.projectId,
+      input.stage,
+      input.sceneId ?? null,
+      input.priority ?? 0,
+      input.retryScope === undefined || input.retryScope === null
+        ? null
+        : JSON.stringify(input.retryScope),
+    ],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error('job insert returned no row');
+  return row;
+}
