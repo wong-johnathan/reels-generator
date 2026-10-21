@@ -20,6 +20,8 @@ permissions:
 
 env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+  # Mirror of the same images on Docker Hub, so the NAS can pull without GHCR auth.
+  DOCKERHUB_PREFIX: wongjohnathanwh741/reels-generator
   RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
   NODE_VERSION: '20'
 
@@ -92,7 +94,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push (linux/amd64, tag + digest)
+      # Docker Hub mirror. Same linux/amd64 manifest, same digest: the NAS may pull
+      # either registry and the release pin stays one digest per image.
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push (linux/amd64, tag + digest) to GHCR and Docker Hub
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -100,7 +109,10 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ env.RELEASE_TAG }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ env.RELEASE_TAG }}
+            ${{ env.DOCKERHUB_PREFIX }}-${{ matrix.name }}:${{ env.RELEASE_TAG }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}-{1}:latest', env.DOCKERHUB_PREFIX, matrix.name) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -108,7 +120,9 @@ jobs:
         run: |
           mkdir -p digests
           echo "${{ steps.build.outputs.digest }}" > "digests/${{ matrix.name }}.digest"
-          echo "### ${{ matrix.name }}: \`${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ env.RELEASE_TAG }}@${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### ${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ghcr: \`${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ env.RELEASE_TAG }}@${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- hub:  \`${{ env.DOCKERHUB_PREFIX }}-${{ matrix.name }}:${{ env.RELEASE_TAG }}@${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: digest-${{ matrix.name }}

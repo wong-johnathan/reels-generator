@@ -69,6 +69,8 @@ Then open `http://<host>:${APP_PORT}` and log in with the single seeded operator
 
 Images are pulled by **tag + digest** for `linux/amd64` and are never built on the NAS. `RELEASE_TAG`, `WEB_DIGEST`, `WORKER_DIGEST` and `OPS_DIGEST` are produced by the CI release job. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
+Every image is published twice from the same build — `ghcr.io/wong-johnathan/reels-generator-<service>` and the Docker Hub mirror `wongjohnathanwh741/reels-generator-<service>`. Same manifest, same digest, so either registry satisfies the same pin. CI needs two repository secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
+
 ### Environment
 
 All names, no values — `.env.example` is the contract:
