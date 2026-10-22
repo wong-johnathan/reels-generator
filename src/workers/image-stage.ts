@@ -392,9 +392,9 @@ async function loadCharacterAnchor(
 ): Promise<InlineImageData | null> {
   const result = await deps.pool.query<{ object_key: string; mime_type: string; asset_id: string }>(
     `SELECT a.object_key, a.mime_type, a.id AS asset_id
-       FROM asset a
-       JOIN scene s ON s.image_asset_id = a.id
-      WHERE s.project_id = $1 AND a.kind = 'image'
+       FROM scene s
+       JOIN asset a ON a.id = s.asset_id
+      WHERE s.project_id = $1 AND a.kind = 'image' AND s.uses_protagonist
       ORDER BY s.position ASC
       LIMIT 1`,
     [projectId],
