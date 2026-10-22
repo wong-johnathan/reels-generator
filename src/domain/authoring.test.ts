@@ -439,9 +439,8 @@ describe('US-017 draftScript pipeline', () => {
     let call = 0;
     const generate = vi.fn(async () => {
       call += 1;
-      if (call === 1)
-        return { hook: '', narration: '', ending: '', title: '', description: '', hashtags: [] };
-      if (call === 2) return { hook: 'Only a hook.' };
+      if (call === 1) return { script: '', title: '', description: '', hashtags: [] };
+      if (call === 2) return { script: 'Only a script.' };
       return structuredClone(QUIET_MACHINES_FIXTURES.script);
     });
 

@@ -43,9 +43,7 @@ describe.skipIf(!hasDatabase)('ScriptGateway (postgres)', { timeout: DB_TEST_TIM
     ]);
 
     const content = {
-      hook: 'You are not stuck.',
-      narration: 'You are not stuck. You are narrating.',
-      ending: 'Say less.',
+      script: 'You are not stuck. You are narrating. Say less.',
       title: 'The cost of narrating your own work',
       description: 'A short note on explaining early.',
       hashtags: ['#psychology', '#founders'],

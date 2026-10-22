@@ -16,7 +16,7 @@ import {
  */
 describe('unwrapTextDocument', () => {
   it('returns the document inside the adapter envelope', () => {
-    const document = { hook: 'h', narration: 'n', ending: 'e' };
+    const document = { script: 's' };
     expect(
       unwrapTextDocument({
         content: document,
