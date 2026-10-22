@@ -431,6 +431,8 @@ export const AssetViewSchema = z.object({
   height: z.int().nullable(),
   size_bytes: z.int().min(0),
   content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  /** Public MinIO original (full resolution); null when public access is unconfigured. */
+  public_url: z.string().nullable(),
   /** Served by `web` at `/asset/:id/:variant`, proxying a presigned MinIO URL. */
   urls: z.object({
     thumb: z.string(),

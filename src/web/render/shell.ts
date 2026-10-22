@@ -11,6 +11,7 @@
  * only trusted HTML is `content`, `aside.content` and `footer`, which later
  * cards render from their own components.
  */
+import { automaticApprovalActive } from '../../config/auto-approval.js';
 import type { z } from 'zod';
 
 import type {
@@ -465,6 +466,9 @@ export function renderShell(model: ShellModel): string {
     '<body class="shell">' +
     '<a class="skip-link" href="#main">Skip to content</a>' +
     renderStatusStrip(model.status) +
+    (automaticApprovalActive()
+      ? '<div class="degraded-banner" role="status" data-auto-approve-all="true">Automatic approval active — SB and final approval are confirmed automatically after validation passes.</div>'
+      : '') +
     renderRail(model) +
     '<main id="main" tabindex="-1" class="main">' +
     '<div class="content">' +

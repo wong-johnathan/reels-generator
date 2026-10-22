@@ -42,8 +42,10 @@ import { targetSceneCount } from '../../domain/authoring.js';
 import { IllegalTransitionError, transitionStage } from '../../domain/state-machine.js';
 import type { StageState } from '../../shared/stages.js';
 import type { CameraMove } from '../../shared/states.js';
+import { publicAssetUrl } from '../gateways/public-asset-url.js';
 import {
   SceneConflictError,
+  SceneBlockedError,
   SceneNotFoundError,
   type ReplaceImageInput,
   type SceneGateway,
@@ -74,6 +76,7 @@ interface SceneAssetRow {
   readonly uses_protagonist: boolean;
   readonly revision: number;
   readonly asset_id: string | null;
+  readonly asset_object_key: string | null;
   readonly asset_stage: string | null;
   readonly asset_kind: string | null;
   readonly asset_width: number | null;
@@ -94,6 +97,7 @@ const SCENE_ASSET_SELECT = /* sql */ `
   s.id, s.scene_no, s.position, s.narration_start_ms, s.narration_end_ms,
   s.image_prompt, s.camera_move, s.caption_emphasis, s.fallback_text,
   s.uses_protagonist, s.revision, s.asset_id,
+  a.object_key AS asset_object_key,
   a.stage     AS asset_stage,
   a.kind      AS asset_kind,
   a.width     AS asset_width,
@@ -160,6 +164,7 @@ function toAssetView(row: SceneAssetRow): AssetView {
     height: row.asset_height,
     size_bytes: row.asset_size_bytes === null ? 0 : Number(row.asset_size_bytes),
     content_sha256: row.asset_sha256 ?? '',
+    public_url: row.asset_object_key === null ? null : publicAssetUrl(row.asset_object_key),
     urls: assetUrls(assetId),
     provenance: {
       provider: row.asset_provider,
@@ -285,6 +290,30 @@ export function createPostgresSceneGateway(pool: Pool): SceneGateway {
 
         if (row.storyboard_revision !== input.revision) {
           throw new SceneConflictError(row.storyboard_revision);
+        }
+
+        const prerequisites = await client.query<{ stage: string; state: string }>(
+          `SELECT stage, state FROM video_stage
+            WHERE project_id = $1 AND stage IN ('T', 'RS', 'SC', 'SB') FOR UPDATE`,
+          [videoId],
+        );
+        const sbState = prerequisites.rows.find((stage) => stage.stage === 'SB')?.state;
+        if (
+          (sbState !== 'awaiting_approval' && sbState !== 'done') ||
+          prerequisites.rows.some(
+            (stage) => stage.stage !== 'SB' && stage.state !== 'done' && stage.state !== 'not_run',
+          )
+        ) {
+          throw new SceneBlockedError(
+            'Storyboard approval is blocked by an unfinished or stale stage.',
+          );
+        }
+        const sceneRows = await client.query<{ id: string }>(
+          'SELECT id FROM scene WHERE project_id = $1',
+          [videoId],
+        );
+        if (sceneRows.rows.length === 0) {
+          throw new SceneBlockedError('Storyboard approval is blocked: no scenes exist.');
         }
 
         await recordReviewDecision(client, {

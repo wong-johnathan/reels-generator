@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { autoApproveFinal } from '../../worker/auto-approval.js';
 
 import { RenderViewSchema } from '../../../contract/api.js';
 import {
@@ -24,6 +25,49 @@ const DB_TEST_TIMEOUT_MS = 120_000;
 
 describe.skipIf(!hasDatabase)('Postgres RenderGateway', { timeout: DB_TEST_TIMEOUT_MS }, () => {
   let db: TestDatabase;
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('serializes concurrent automatic FA confirmations into one decision and one export job', async () => {
+    vi.stubEnv('AUTO_APPROVE_ALL', 'true');
+    const { projectId } = await seedRender('auto-fa-concurrent');
+    const results = await Promise.allSettled([
+      autoApproveFinal(db.pool, projectId, 1),
+      autoApproveFinal(db.pool, projectId, 1),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const decisions = await db.pool.query(
+      "SELECT reason FROM review_decision WHERE project_id = $1 AND stage = 'FA'",
+      [projectId],
+    );
+    expect(decisions.rows).toEqual([{ reason: 'auto_approve_all' }]);
+    const jobs = await db.pool.query("SELECT id FROM job WHERE project_id = $1 AND stage = 'EX'", [
+      projectId,
+    ]);
+    expect(jobs.rows).toHaveLength(1);
+  });
+
+  it.each(['true', 'false'])(
+    'FA automatic confirmation flag=%s persists a normal decision only when ON',
+    async (flag) => {
+      vi.stubEnv('AUTO_APPROVE_ALL', flag);
+      const { projectId } = await seedRender('auto-fa-' + flag);
+      expect(await autoApproveFinal(db.pool, projectId)).toBe(flag === 'true');
+      const decisions = await db.pool.query(
+        "SELECT decision, reason, revision_at_decision FROM review_decision WHERE project_id = $1 AND stage = 'FA'",
+        [projectId],
+      );
+      expect(decisions.rows).toEqual(
+        flag === 'true'
+          ? [{ decision: 'approve', reason: 'auto_approve_all', revision_at_decision: 1 }]
+          : [],
+      );
+      const jobs = await db.pool.query(
+        "SELECT stage FROM job WHERE project_id = $1 AND stage = 'EX'",
+        [projectId],
+      );
+      expect(jobs.rows).toHaveLength(flag === 'true' ? 1 : 0);
+    },
+  );
 
   beforeAll(async () => {
     db = await createTestDatabase();
