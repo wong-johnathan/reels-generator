@@ -4,7 +4,11 @@
  * The final video is the newest RE `video` asset linked to the project through
  * `asset_ref.role = 'video'` — the same resolution the render gateway and the
  * export stage use, so the download cannot disagree with either about which MP4
- * is "the" render. The filename is derived from the series slug and the video's
+ * is "the" render.
+ *
+ * The path segment is a *project* id (that is what the quality panel links). It
+ * also accepts an asset id, because the Batches page links the asset it is already
+ * showing and a 404 there is indistinguishable from a missing file. The filename is derived from the series slug and the video's
  * 1-indexed `position_in_batch` (NULL for the Milestone-A single-video slice,
  * which downloads as position 1).
  */
@@ -45,7 +49,7 @@ export function createPostgresDownloadGateway(
            JOIN asset_ref r ON r.asset_id = a.id AND r.role = 'video'
            JOIN project p ON p.id = r.project_id
            JOIN series s ON s.id = p.series_id
-          WHERE r.project_id = $1 AND a.stage = 'RE' AND a.kind = 'video'
+          WHERE (r.project_id = $1 OR a.id = $1) AND a.stage = 'RE' AND a.kind = 'video'
           ORDER BY r.created_at DESC, a.id DESC
           LIMIT 1`,
         [videoId],

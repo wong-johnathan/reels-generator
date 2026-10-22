@@ -48,7 +48,9 @@ describe('batches page', () => {
     expect(html).toContain('1 of 2 videos downloadable');
     expect(html).toContain('started 30 s ago');
     expect(html).toContain('href="/series/s1"');
-    expect(html).toContain('href="/videos/a1/download"');
+    // The route resolves a project id; the asset id only ever decides whether a
+    // download link is shown at all.
+    expect(html).toContain('href="/videos/p1/download"');
     expect(html).toContain('no file yet');
   });
 

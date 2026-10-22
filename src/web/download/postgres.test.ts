@@ -75,6 +75,36 @@ describe.skipIf(!hasDatabase)(
       expect(file!.filename).toBe('quiet-machines-1.mp4');
     });
 
+    it('also accepts an asset id, because the Batches page links the asset it shows', async () => {
+      const { projectId, seriesVersionId } = await seedProject(db.pool, { slug: 'asset-id' });
+      const contentSha256 = sha256For('asset-id-video');
+      const bytes = new TextEncoder().encode('asset-id-video');
+      await insertAsset(db.pool, {
+        projectId,
+        stage: 'RE',
+        kind: 'video',
+        contentSha256,
+        role: 'video',
+        mimeType: 'video/mp4',
+        sizeBytes: bytes.byteLength,
+        seriesVersionId,
+      });
+      const assetRow = await db.pool.query<{ asset_id: string }>(
+        "SELECT asset_id FROM asset_ref WHERE project_id = $1 AND role = 'video'",
+        [projectId],
+      );
+      const assetId = assetRow.rows[0]!.asset_id;
+
+      const blobs = new InMemoryContentAddressedStore();
+      await blobs.put('sha256:' + contentSha256, bytes, 'video/mp4');
+      const gateway = createPostgresDownloadGateway(db.pool, blobs);
+
+      const file = await gateway.download(assetId);
+      expect(file).not.toBeNull();
+      expect(file!.bytes).toEqual(bytes);
+      expect(file!.filename).toBe('asset-id-1.mp4');
+    });
+
     it('downloads position 1 for the Milestone-A single video (NULL position_in_batch)', async () => {
       const { projectId, seriesVersionId } = await seedProject(db.pool, { slug: 'solo' });
       await db.pool.query('UPDATE project SET position_in_batch = NULL WHERE id = $1', [projectId]);

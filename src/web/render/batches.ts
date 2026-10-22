@@ -41,7 +41,7 @@ function videoRow(video: BatchVideo): string {
   const download =
     video.videoAssetId === null
       ? '<span class="muted">no file yet</span>'
-      : `<a class="btn btn-small" href="/videos/${escapeAttr(video.videoAssetId)}/download">Download MP4</a>`;
+      : `<a class="btn btn-small" href="/videos/${escapeAttr(video.projectId)}/download">Download MP4</a>`;
   return (
     '<tr>' +
     `<td>${video.position}</td>` +
