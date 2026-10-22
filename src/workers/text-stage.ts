@@ -31,7 +31,7 @@ import {
   type StoryboardDocument,
 } from '../domain/authoring.js';
 import { TEXT_SCHEMAS, type TextSchema, type TextStageCode } from '../adapters/text-schemas.js';
-import type { ChatMessage, TextAdapter, TextRequest } from '../adapters/text.js';
+import type { ChatMessage, TextAdapter, TextRequest, TextResult } from '../adapters/text.js';
 import { withTransaction } from '../db/client.js';
 import { insertAsset, linkAssetToProject } from '../db/repositories/assets.js';
 import {
@@ -46,6 +46,9 @@ import {
 } from '../storage/object-key.js';
 import { jsonBytes, sha256Hex, type AssetBlobStore } from './asset-store.js';
 import { runProviderAttempt, type AttemptOutcome } from './attempt.js';
+import { finishGenerationRun } from '../db/repositories/generation-runs.js';
+import { openRunInAttempt } from '../domain/generation-run.js';
+import type { ProviderAdapter } from '../domain/generation-run.js';
 
 /** The sidecar document that carries the storyboard's word ranges to TC. */
 export const STORYBOARD_PLAN_SCHEMA_VERSION = 'storyboard-plan.v1';
@@ -486,6 +489,98 @@ async function loadPreviousFailure(pool: Pool, jobId: string): Promise<string | 
   return message === null || message.trim() === '' ? null : message;
 }
 
+/**
+ * R-011-2's three attempts exist for flakiness. A narration that is simply too
+ * short is not flaky: retrying it later, against the same prompt, buys the same
+ * answer — measured 171, 167, 177 words over three attempts. So SC expands in
+ * place instead: up to five queries, each with its own committed run (R-012-1) and
+ * its own prompt hash (R-013-1), and the attempt machinery still judges only the
+ * answer that comes back.
+ *
+ * The repair shows the model the draft it just wrote and asks it to develop that
+ * draft. Asked to "add exactly 57 words" it added 15; asked to expand a draft it
+ * could see, it landed in band three times out of three.
+ */
+export const MAX_SCRIPT_QUERIES = 5;
+
+function expandInstruction(check: ReturnType<typeof checkWordBudget>): ChatMessage {
+  const budget = check.budget;
+  const short = check.word_count < budget.min_words;
+  const direction = short
+    ? `Expand it to ${budget.target_words} words by developing the concrete detail already implied — ` +
+      'specific images, the moment itself, the sensory beat.'
+    : `Cut it to ${budget.target_words} words without losing the argument.`;
+  return {
+    role: 'user',
+    content:
+      `That narration is ${check.word_count} words (~${check.estimated_runtime_s.toFixed(1)} s); ` +
+      `the target needs ${budget.min_words}–${budget.max_words} words (R-009-1).\n\n` +
+      `${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
+      'and return the full JSON.',
+  };
+}
+
+function scriptNarrationOf(result: TextResult<unknown>): string | null {
+  try {
+    const document = normalizeDocument(unwrapTextDocument(result)) as { narration?: unknown };
+    return typeof document.narration === 'string' ? document.narration : null;
+  } catch {
+    return null;
+  }
+}
+
+function scriptExpansionAdapter(input: {
+  readonly deps: TextStageDeps;
+  readonly first: ProviderAdapter<TextResult<unknown>>;
+  readonly messages: readonly ChatMessage[];
+  readonly request: TextRequest<unknown>;
+  readonly context: SeriesContext;
+  readonly job: TextStageJob;
+  readonly attemptNo: number;
+}): ProviderAdapter<TextResult<unknown>> {
+  const { deps, first, messages, request, context, job, attemptNo } = input;
+  return {
+    provider: first.provider,
+    stage: first.stage,
+    async execute(run) {
+      let result = await first.execute(run);
+      for (let query = 2; query <= MAX_SCRIPT_QUERIES; query += 1) {
+        const narration = scriptNarrationOf(result);
+        if (narration === null) return result;
+        const check = checkWordBudget(narration, context.targetDurationS);
+        if (check.within_band) return result;
+
+        const repairMessages = [...messages, expandInstruction(check)];
+        const adapter = deps.text.forRequest({ ...request, messages: repairMessages });
+        const extra = await openRunInAttempt(deps.pool, {
+          jobAttemptId: run.jobAttemptId,
+          projectId: job.projectId,
+          stage: 'SC',
+          provider: adapter.provider,
+          model: deps.text.model,
+          promptHash: promptHash(repairMessages),
+          seriesVersionId: context.seriesVersionId,
+          attemptNo,
+        });
+        try {
+          result = await adapter.execute(extra);
+        } catch (error) {
+          await finishGenerationRun(deps.pool, extra.id, {
+            status: 'failed',
+            chargeStatus: 'unknown',
+          });
+          throw error;
+        }
+        await finishGenerationRun(deps.pool, extra.id, {
+          status: 'succeeded',
+          chargeStatus: 'billed',
+        });
+      }
+      return result;
+    },
+  };
+}
+
 export async function runTextStage(
   deps: TextStageDeps,
   stage: TextStageCode,
@@ -513,7 +608,18 @@ export async function runTextStage(
   const outcome = await runProviderAttempt(
     {
       pool: deps.pool,
-      adapter: deps.text.forRequest(attemptRequest),
+      adapter:
+        stage === 'SC'
+          ? scriptExpansionAdapter({
+              deps,
+              first: deps.text.forRequest(attemptRequest),
+              messages,
+              request,
+              context,
+              job,
+              attemptNo: job.attemptNo,
+            })
+          : deps.text.forRequest(attemptRequest),
       onResult: async (result, ref) => {
         // runProviderAttempt hands back the adapter's envelope (TextResult), not
         // the document. Casting the envelope to ScriptDocument left `hook`,
