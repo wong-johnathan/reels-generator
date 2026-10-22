@@ -313,3 +313,35 @@ describe('SY-3 and transport rules', () => {
     expect(response.headers['location']?.startsWith('/login?')).toBe(true);
   });
 });
+
+describe('sign out', () => {
+  it('revokes the session, clears both cookies and returns to the login page', async () => {
+    const revoked: string[] = [];
+    const handler = app({
+      logout: async (token: string) => {
+        revoked.push(token);
+      },
+    });
+    const signedIn = await handler(login(undefined, form(CREDENTIALS)));
+    const cookie = sessionCookie(signedIn);
+
+    const out = await handler({ method: 'POST', url: '/logout', headers: { cookie } });
+
+    expect(out.status).toBe(303);
+    expect(out.headers['location']).toBe('/login');
+    const cleared = (out.setCookies ?? []).join('\n');
+    expect(cleared).toContain('reels_session=;');
+    expect(cleared).toContain('reels_csrf=;');
+    expect(cleared).toContain('Max-Age=0');
+    // The row is revoked server-side, so a copied cookie dies with it.
+    expect(revoked).toHaveLength(1);
+  });
+
+  it('refuses GET /logout, because a pre-fetched GET would sign the operator out', async () => {
+    const handler = app();
+    const signedIn = await handler(login(undefined, form(CREDENTIALS)));
+    const cookie = sessionCookie(signedIn);
+    const out = await handler(get('/logout', cookie));
+    expect(out.status).toBe(405);
+  });
+});

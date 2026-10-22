@@ -331,8 +331,18 @@ function renderRail(model: ShellModel): string {
     );
   });
 
+  // Signing out is a POST: a GET that clears cookies is a CSRF-able side effect and
+  // gets pre-fetched by browsers.
+  const signOut =
+    '<form class="rail-signout" method="post" action="/logout">' +
+    '<button class="rail-signout-button" type="submit">Sign out</button></form>';
+
   return (
-    '<nav class="rail" aria-label="Primary"><ul class="rail-list">' + items.join('') + '</ul></nav>'
+    '<nav class="rail" aria-label="Primary"><ul class="rail-list">' +
+    items.join('') +
+    '</ul>' +
+    signOut +
+    '</nav>'
   );
 }
 

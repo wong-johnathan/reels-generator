@@ -371,6 +371,8 @@ async function handleLogout(request: HttpRequest, auth: AuthRuntime): Promise<Ha
 function webDeps(auth: AuthRuntime, content?: ContentRuntime): WebAppDependencies {
   return {
     sessions: createDbSessionStore(auth.service),
+    // Sign-out revokes the row, not just the cookie, so a copied cookie dies too.
+    logout: (sessionToken: string) => auth.service.logout(sessionToken),
     authenticate: async ({ username, password }) => {
       const result = await auth.service.login({ username, password });
       if (result.ok) {

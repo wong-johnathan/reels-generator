@@ -121,7 +121,11 @@ describe('GET /videos/:id/render — S-15', () => {
     const page = parseHtml(response.body);
     const notice = byTag(page, 'div').find((node) => node.attrs['data-notice'] === 'error');
     expect(textOf(notice as never)).toContain('could not be loaded');
-    expect(byTag(page, 'form')).toHaveLength(0);
+    // Sign-out is the one form every page carries; the assertion is about this
+    // page offering no state-changing control of its own.
+    expect(byTag(page, 'form').filter((node) => node.attrs['action'] !== '/logout')).toHaveLength(
+      0,
+    );
   });
 
   it('renders the approval notice the redirect carries', async () => {
@@ -154,7 +158,9 @@ describe('POST /videos/:id/render/approve — the final-approval gate', () => {
       (node.attrs['href'] ?? '').endsWith('/export'),
     );
     expect(exportLink?.attrs['href']).toBe('/videos/' + detail.id + '/export');
-    expect(byTag(page, 'form')).toHaveLength(0);
+    expect(byTag(page, 'form').filter((node) => node.attrs['action'] !== '/logout')).toHaveLength(
+      0,
+    );
   });
 
   it('carries the operator note to the contract request', async () => {

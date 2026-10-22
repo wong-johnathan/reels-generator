@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { sceneRowPosition, unwrapTextDocument } from './text-stage.js';
+import { TEXT_SCHEMAS } from '../adapters/text-schemas.js';
+import {
+  normalizeDocument,
+  sceneRowPosition,
+  systemPrompt,
+  unwrapTextDocument,
+} from './text-stage.js';
 
 /**
  * `runProviderAttempt` hands the adapter's envelope to `onResult`. Reading the
@@ -37,5 +43,51 @@ describe('sceneRowPosition', () => {
     // scene_position_check requires >= 1, and the checkpoint filter reads 1..3.
     expect(sceneRowPosition(0)).toBe(1);
     expect(sceneRowPosition(16)).toBe(17);
+  });
+});
+
+/**
+ * Real providers reply with *some* JSON, not our JSON: without the schema in the
+ * prompt DeepSeek invented its own keys and T failed topic.v1 on every live run.
+ * These two shapes are unambiguous, so they are unwrapped rather than failed.
+ */
+describe('normalizeDocument', () => {
+  it('unwraps a one-key envelope around the document', () => {
+    expect(normalizeDocument({ topic: { title: 't', description: 'd', rationale: null } })).toEqual(
+      { title: 't', description: 'd', rationale: null },
+    );
+  });
+
+  it('parses a fenced code block', () => {
+    const fenced = '```json\n{ "title": "t", "description": "d", "rationale": null }\n```';
+    expect(normalizeDocument(fenced)).toEqual({
+      title: 't',
+      description: 'd',
+      rationale: null,
+    });
+  });
+
+  it('leaves a real document untouched', () => {
+    const doc = { title: 't', description: 'd', rationale: 'because' };
+    expect(normalizeDocument(doc)).toBe(doc);
+  });
+
+  it('does not guess at arbitrary nesting', () => {
+    const nested = { a: { b: 1 }, c: 2 };
+    expect(normalizeDocument(nested)).toBe(nested);
+  });
+});
+
+describe('systemPrompt', () => {
+  it('sends the schema version and its fields, not just the phrase "the schema"', () => {
+    const prompt = systemPrompt(TEXT_SCHEMAS.topic as never);
+    expect(prompt).toContain('topic.v1');
+    expect(prompt).toContain('"title"');
+    expect(prompt).toContain('"description"');
+    expect(prompt).toContain('"rationale"');
+  });
+
+  it('names the stage schema, so a script call cannot be answered with a topic', () => {
+    expect(systemPrompt(TEXT_SCHEMAS.script as never)).toContain('script.v1');
   });
 });

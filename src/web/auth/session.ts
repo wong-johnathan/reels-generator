@@ -75,6 +75,10 @@ export function serializeClearedSessionCookie(): string {
 }
 
 /** First exact-name match wins; accepts the raw `Cookie` header. */
+export function serializeClearedCsrfCookie(): string {
+  return CSRF_COOKIE + '=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
+}
+
 export function readSessionToken(cookieHeader: string | undefined): string | null {
   if (cookieHeader === undefined || cookieHeader.length === 0) return null;
   for (const part of cookieHeader.split(';')) {

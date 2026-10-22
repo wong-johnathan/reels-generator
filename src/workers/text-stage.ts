@@ -130,9 +130,47 @@ function promptHash(messages: unknown): string {
   return createHash('sha256').update(JSON.stringify(messages)).digest('hex');
 }
 
-const SYSTEM_PROMPT =
-  'You are a video-production assistant. Reply with exactly one JSON object ' +
-  'matching the schema, with no prose, markdown fences or commentary.';
+/**
+ * The system prompt carries the JSON Schema itself.
+ *
+ * It used to say "matching the schema" and then never send one: with
+ * `response_format: json_object` the provider is only told to reply with *some*
+ * JSON, so DeepSeek invented its own keys and every real run failed validation at
+ * the first stage. The fakes hid it, because FakeTextAdapter ignores the prompt and
+ * returns a fixture that already parses.
+ */
+export function systemPrompt(schema: TextSchema<unknown>): string {
+  return (
+    'You are a video-production assistant. Reply with exactly one JSON object that ' +
+    `validates against ${schema.version}. No prose, no markdown fences, no commentary.\n` +
+    `JSON Schema: ${JSON.stringify(schema.jsonSchema)}`
+  );
+}
+
+/**
+ * Tolerate the two shapes providers actually return: a fenced code block, and a
+ * one-key envelope like `{"topic": {…}}`. Both are unambiguous, so unwrapping them
+ * is safer than failing the stage and paying for the same call again.
+ */
+export function normalizeDocument(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(value);
+    const text = fenced?.[1] ?? value;
+    try {
+      return JSON.parse(text.trim());
+    } catch {
+      return value;
+    }
+  }
+  if (typeof value === 'object' && value !== null) {
+    const keys = Object.keys(value);
+    if (keys.length === 1) {
+      const inner = (value as Record<string, unknown>)[keys[0]!];
+      if (typeof inner === 'object' && inner !== null) return inner;
+    }
+  }
+  return value;
+}
 
 function requestFor<Out>(
   stage: TextStageCode,
@@ -143,7 +181,7 @@ function requestFor<Out>(
     stage,
     schema: schema as unknown as TextSchema<unknown>,
     messages: [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'system' as const, content: systemPrompt(schema as unknown as TextSchema<unknown>) },
       { role: 'user' as const, content: JSON.stringify(user) },
     ],
   };
@@ -425,7 +463,7 @@ export async function runTextStage(
         // the document. Casting the envelope to ScriptDocument left `hook`,
         // `narration` and `ending` undefined: SC then threw on `undefined.trim()`,
         // and T wrote an empty title because normalisedText tolerates undefined.
-        const document = unwrapTextDocument(result);
+        const document = normalizeDocument(unwrapTextDocument(result));
 
         if (stage === 'T') {
           await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));

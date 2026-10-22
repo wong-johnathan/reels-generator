@@ -26,6 +26,8 @@ import { guardRequest, LOGIN_PATH, safeNextPath } from './auth/guard.js';
 import {
   readSessionToken,
   serializeCsrfCookie,
+  serializeClearedCsrfCookie,
+  serializeClearedSessionCookie,
   serializeSessionCookie,
   type SessionStore,
 } from './auth/session.js';
@@ -124,6 +126,11 @@ export interface WebAppDependencies {
   readonly reloadOverview?: () => Promise<Overview>;
   /** S-05/S-06 batches. Absent builds answer 503 rather than inventing rows. */
   readonly batches?: BatchesGateway;
+  /**
+   * Revokes a session server-side on sign-out. Without it the browser's cookies are
+   * still cleared, but the row stays valid until it expires.
+   */
+  readonly logout?: (sessionToken: string) => Promise<void>;
   readonly health?: HealthReport;
   readonly now?: () => number;
   /** B-13's synchroniser token (contract `SessionInfo.csrf_token`). */
@@ -347,6 +354,7 @@ export function createWebApp(
       target,
       record,
       body: request.body ?? '',
+      sessionToken: token,
     });
     return isHead ? { ...response, body: '', bodyBytes: undefined } : response;
   };
@@ -357,6 +365,7 @@ export function createWebApp(
     readonly target: URL;
     readonly record: { readonly operator: string; readonly expiresAt: number } | null;
     readonly body: string;
+    readonly sessionToken: string | null;
   }): Promise<WebResponse> {
     const { effective, pathname, target, record } = input;
 
@@ -423,6 +432,29 @@ export function createWebApp(
       }
       if (effective === 'POST') return signIn(input.body);
       return methodNotAllowed('GET, HEAD, POST');
+    }
+
+    // Sign out. POST only: a GET that revokes a session is pre-fetched by browsers
+    // and rideable by a cross-site <img>. The cookies are cleared either way, so a
+    // stale or already-revoked session still ends up at the login page.
+    if (pathname === '/logout') {
+      if (effective !== 'POST') return methodNotAllowed('POST');
+      if (input.sessionToken !== null && deps.logout !== undefined) {
+        await deps.logout(input.sessionToken).catch((error: unknown) => {
+          console.error(
+            'web: session revoke failed on sign-out — ' +
+              redactText(error instanceof Error ? error.message : String(error), {
+                env: process.env,
+              }),
+          );
+        });
+      }
+      return {
+        status: 303,
+        headers: { location: LOGIN_PATH, ...NO_STORE },
+        body: '',
+        setCookies: [serializeClearedSessionCookie(), serializeClearedCsrfCookie()],
+      };
     }
 
     if (pathname === '/series' || pathname.startsWith('/series/')) {
