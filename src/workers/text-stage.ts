@@ -166,7 +166,9 @@ export function normalizeDocument(value: unknown): unknown {
     const keys = Object.keys(value);
     if (keys.length === 1) {
       const inner = (value as Record<string, unknown>)[keys[0]!];
-      if (typeof inner === 'object' && inner !== null) return inner;
+      // Not an array: `{scenes: […]}` is the storyboard document itself, and
+      // descending into it handed the validator an array where an object belongs.
+      if (typeof inner === 'object' && inner !== null && !Array.isArray(inner)) return inner;
     }
   }
   return value;

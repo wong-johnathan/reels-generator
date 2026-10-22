@@ -72,6 +72,11 @@ describe('normalizeDocument', () => {
     expect(normalizeDocument(doc)).toBe(doc);
   });
 
+  it('leaves the storyboard document alone: its only key holds an array', () => {
+    const storyboard = { scenes: [{ index: 1, narration: 'x' }] };
+    expect(normalizeDocument(storyboard)).toBe(storyboard);
+  });
+
   it('does not guess at arbitrary nesting', () => {
     const nested = { a: { b: 1 }, c: 2 };
     expect(normalizeDocument(nested)).toBe(nested);
