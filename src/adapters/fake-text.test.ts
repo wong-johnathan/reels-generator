@@ -4,6 +4,7 @@ import { fakePersistedRun, FIXED_RUN_ID } from '../../tests/helpers/runs.js';
 import { ProviderHttpError, ProviderSchemaError, ProviderTimeoutError } from './errors.js';
 import { FakeTextAdapter } from './fake-text.js';
 import { QUIET_MACHINES_FIXTURES } from './text-fixtures.js';
+import { SCRIPT_FRAME_PART, SCRIPT_NARRATION_PART } from '../domain/script-generation.js';
 import { TEXT_SCHEMAS, type TextSchema } from './text-schemas.js';
 import type { ChatMessage } from './text.js';
 
@@ -54,6 +55,21 @@ describe('FakeTextAdapter (TECH_DESIGN §6: deterministic, in-memory)', () => {
       expect(() => schema.schema.parse(result.content)).not.toThrow();
       expect(result.http_status).toBe(200);
       expect(result.model).toBe('fake-text');
+    }
+  });
+
+  it('serves fixtures for the internal two-phase script parts', async () => {
+    const fake = new FakeTextAdapter();
+    for (const part of [SCRIPT_FRAME_PART, SCRIPT_NARRATION_PART]) {
+      const result = await fake.generate(
+        {
+          stage: 'SC',
+          schema: part as unknown as TextSchema<unknown>,
+          messages: MESSAGES,
+        },
+        fakePersistedRun({ stage: 'SC' }),
+      );
+      expect(() => part.schema.parse(result.content)).not.toThrow();
     }
   });
 

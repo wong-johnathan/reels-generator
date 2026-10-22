@@ -240,6 +240,11 @@ export const QUIET_MACHINES_FIXTURES = {
 
 /** The fixture for a schema name, cloned so a caller cannot mutate the canonical copy. */
 export function fixtureFor(name: string): unknown {
+  const aliases: Record<string, keyof typeof QUIET_MACHINES_FIXTURES> = {
+    'script-frame': 'frame',
+    'script-narration': 'narration',
+  };
+  const fixtureName = aliases[name] ?? name;
   const fixtures = QUIET_MACHINES_FIXTURES as unknown as Record<string, unknown>;
-  return structuredClone(fixtures[name]);
+  return structuredClone(fixtures[fixtureName]);
 }
