@@ -27,6 +27,10 @@ import {
   markAttemptRunning,
 } from '../db/repositories/job-attempts.js';
 import { settleAfterStage } from './settle.js';
+import { automaticApprovalActive } from '../config/auto-approval.js';
+import { autoApproveStoryboard } from './auto-approval.js';
+import { runQcStage } from '../render/qc-stage.js';
+import { runExportStage } from '../export/stage.js';
 import { MAX_ATTEMPTS_PER_JOB } from '../workers/attempt.js';
 import type { ContentAddressedStore } from '../storage/object-store.js';
 import type { AssetBlobStore } from '../workers/asset-store.js';
@@ -50,7 +54,7 @@ import { resolveVoiceId } from './providers.js';
 /** Stages the content worker claims. */
 export const CONTENT_STAGES: readonly StageCode[] = ['T', 'RS', 'SC', 'SB', 'IM', 'NA', 'TC'];
 /** Stages the render worker claims. */
-export const RENDER_STAGES: readonly StageCode[] = ['RE'];
+export const RENDER_STAGES: readonly StageCode[] = ['RE', 'QC', 'EX'];
 
 /** What the content worker produces next after a stage succeeds. */
 const NEXT_STAGE: Partial<Record<StageCode, StageCode>> = {
@@ -61,7 +65,7 @@ const NEXT_STAGE: Partial<Record<StageCode, StageCode>> = {
   IM: 'NA',
   NA: 'TC',
   TC: 'RE',
-  // RE is terminal for this milestone: QC/FA/EX are operator gates (B-04).
+  // RE stays terminal in manual mode; AUTO_APPROVE_ALL connects QC/FA/EX below.
 };
 
 export interface ClaimedJob {
@@ -514,6 +518,26 @@ async function runStageBody(
       return { status: 'failed', message: result.error ?? 'render failed' };
     }
 
+    case 'QC': {
+      const result = await runQcStage(
+        { pool: deps.pool, blobs: deps.renderBlobs, runner: deps.runner },
+        { jobId: job.id, projectId: job.projectId },
+      );
+      return result.status === 'pass'
+        ? { status: 'succeeded' }
+        : { status: 'failed', message: result.error ?? 'QC failed' };
+    }
+
+    case 'EX': {
+      const result = await runExportStage(
+        { pool: deps.pool, blobs: deps.renderBlobs },
+        { jobId: job.id, projectId: job.projectId },
+      );
+      return result.status === 'built'
+        ? { status: 'succeeded' }
+        : { status: 'failed', message: result.error ?? 'export refused' };
+    }
+
     default:
       return { status: 'failed', message: `no runner for stage ${String(job.stage)}` };
   }
@@ -556,6 +580,7 @@ export async function advanceAfterStage(pool: Pool, job: ClaimedJob): Promise<St
   if (job.stage === 'SB' && (await storyboardGateApplies(pool, job.projectId))) {
     await applyStageEvent(pool, job.projectId, 'SB', 'gate');
     await setProjectCurrentStage(pool, job.projectId, 'SB');
+    await autoApproveStoryboard(pool, job.projectId);
     return null;
   }
 
@@ -567,11 +592,19 @@ export async function advanceAfterStage(pool: Pool, job: ClaimedJob): Promise<St
     `SELECT state FROM video_stage WHERE project_id = $1 AND stage = $2`,
     [job.projectId, job.stage],
   );
-  if (own.rows[0]?.state === 'stale') return null;
+  const ownState = own.rows[0]?.state;
+  if (ownState === 'awaiting_approval' && job.stage === 'SB') {
+    await autoApproveStoryboard(pool, job.projectId);
+    return null;
+  }
+  // A duplicate/recovered advance must never mint past a waiting/failed gate.
+  if (ownState !== 'done') return null;
 
-  const next = NEXT_STAGE[job.stage];
+  // QC opens FA itself; only the normal approval transaction may mint EX.
+  if (job.stage === 'QC') return null;
+  const next = job.stage === 'RE' && automaticApprovalActive() ? 'QC' : NEXT_STAGE[job.stage];
   if (next === undefined) {
-    // RE is the end of the rail for this milestone, so this is where a finished
+    // RE (manual mode) or EX is the end of the rail, so this is where a finished
     // video (and possibly its batch) is marked complete. Without this the batch
     // read ACTIVE forever and the UI could not say a video was ready.
     await settleAfterStage(pool, job.projectId);

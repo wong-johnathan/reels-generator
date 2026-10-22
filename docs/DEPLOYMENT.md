@@ -45,6 +45,11 @@ validator, with required keys marked and working defaults filled in) and
 
 Fill every line marked REQUIRED and delete the rest you do not need.
 
+Optional `AUTO_APPROVE_ALL=true` enables auditable automatic SB and FA
+confirmation after validation succeeds (default `false`). Configure it
+consistently across web and both workers; set `false` and restart to disable.
+See [automatic approval](AUTO_APPROVE_ALL.md) for checks, audit records and limits.
+
 The template ships no values. At minimum:
 
 - `SESSION_SECRET`: at least 32 random characters (`openssl rand -hex 32`).

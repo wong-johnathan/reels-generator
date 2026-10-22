@@ -45,6 +45,7 @@ import type { CameraMove } from '../../shared/states.js';
 import { publicAssetUrl } from '../gateways/public-asset-url.js';
 import {
   SceneConflictError,
+  SceneBlockedError,
   SceneNotFoundError,
   type ReplaceImageInput,
   type SceneGateway,
@@ -289,6 +290,30 @@ export function createPostgresSceneGateway(pool: Pool): SceneGateway {
 
         if (row.storyboard_revision !== input.revision) {
           throw new SceneConflictError(row.storyboard_revision);
+        }
+
+        const prerequisites = await client.query<{ stage: string; state: string }>(
+          `SELECT stage, state FROM video_stage
+            WHERE project_id = $1 AND stage IN ('T', 'RS', 'SC', 'SB') FOR UPDATE`,
+          [videoId],
+        );
+        const sbState = prerequisites.rows.find((stage) => stage.stage === 'SB')?.state;
+        if (
+          (sbState !== 'awaiting_approval' && sbState !== 'done') ||
+          prerequisites.rows.some(
+            (stage) => stage.stage !== 'SB' && stage.state !== 'done' && stage.state !== 'not_run',
+          )
+        ) {
+          throw new SceneBlockedError(
+            'Storyboard approval is blocked by an unfinished or stale stage.',
+          );
+        }
+        const sceneRows = await client.query<{ id: string }>(
+          'SELECT id FROM scene WHERE project_id = $1',
+          [videoId],
+        );
+        if (sceneRows.rows.length === 0) {
+          throw new SceneBlockedError('Storyboard approval is blocked: no scenes exist.');
         }
 
         await recordReviewDecision(client, {

@@ -5,7 +5,7 @@
  * from the manifest the render wrote — so the *wiring* is real even though the
  * binary is not. render.integration.test.ts proves the binary.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Pool } from 'pg';
 
@@ -39,6 +39,26 @@ interface ManifestRow {
 describe.skipIf(!hasDatabase)('QC stage', () => {
   let db: TestDatabase;
   let blobs: InMemoryContentAddressedStore;
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('with automatic approval ON records FA only after a real QC pass and queues EX', async () => {
+    vi.stubEnv('AUTO_APPROVE_ALL', 'true');
+    const { fixture, manifest } = await rendered();
+    const result = await runQcStage(
+      { pool: db.pool, blobs, runner: fakeForManifest(manifest) },
+      { jobId: fixture.qcJobId, projectId: fixture.projectId },
+    );
+    expect(result.status, result.error ?? '').toBe('pass');
+    const decisions = await db.pool.query(
+      "SELECT decision, reason, revision_at_decision FROM review_decision WHERE project_id = $1 AND stage = 'FA'",
+      [fixture.projectId],
+    );
+    expect(decisions.rows).toEqual([
+      { decision: 'approve', reason: 'auto_approve_all', revision_at_decision: 1 },
+    ]);
+    expect((await readVideoStage(db.pool, fixture.projectId, 'FA'))?.state).toBe('done');
+    expect((await readProject(db.pool, fixture.projectId))?.current_stage).toBe('EX');
+  });
 
   beforeAll(async () => {
     db = await createTestDatabase();
@@ -117,6 +137,7 @@ describe.skipIf(!hasDatabase)('QC stage', () => {
   });
 
   it('fails QC on a blank frame, parks the project and does not open the gate', async () => {
+    vi.stubEnv('AUTO_APPROVE_ALL', 'true');
     const { fixture, manifest } = await rendered();
     const luminance = Array.from({ length: manifest.total_frames }, () => 120);
     luminance[12] = 5;
@@ -139,6 +160,11 @@ describe.skipIf(!hasDatabase)('QC stage', () => {
       fixture.qcJobId,
     ]);
     expect(job.rows[0]!.status).toBe('failed');
+    const decisions = await db.pool.query(
+      "SELECT id FROM review_decision WHERE project_id = $1 AND stage = 'FA'",
+      [fixture.projectId],
+    );
+    expect(decisions.rows).toEqual([]);
   });
 
   it('fails QC when caption ink leaves the safe area', async () => {
@@ -157,6 +183,7 @@ describe.skipIf(!hasDatabase)('QC stage', () => {
   });
 
   it('refuses to QC a render that has no ass-source sidecar', async () => {
+    vi.stubEnv('AUTO_APPROVE_ALL', 'true');
     const { fixture, manifest } = await rendered();
     await db.pool.query(
       `DELETE FROM asset WHERE id IN (SELECT asset_id FROM asset_ref

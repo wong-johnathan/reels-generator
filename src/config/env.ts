@@ -170,6 +170,15 @@ const SPECS = [
     expected: 'non-empty model id',
   },
   {
+    key: 'AUTO_APPROVE_ALL',
+    kind: 'enum',
+    roles: [],
+    default: 'false',
+    choices: ['true', 'false'],
+    expected:
+      'true or false: automatically confirm SB and FA only after validation passes; records auto_approve_all in the approval ledger. Default false',
+  },
+  {
     key: 'MIGRATE_ON_START',
     kind: 'enum',
     roles: [],

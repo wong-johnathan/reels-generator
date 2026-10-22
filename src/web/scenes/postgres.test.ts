@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { autoApproveStoryboard } from '../../worker/auto-approval.js';
 
 import { StoryboardViewSchema } from '../../../contract/api.js';
 import { runMigrations } from '../../db/runner.js';
@@ -31,6 +32,51 @@ const DB_TEST_TIMEOUT_MS = 120_000;
 
 describe.skipIf(!hasDatabase)('SceneGateway (postgres)', { timeout: DB_TEST_TIMEOUT_MS }, () => {
   let db: TestDatabase;
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('serializes concurrent automatic SB confirmations into one decision and one IM job', async () => {
+    vi.stubEnv('AUTO_APPROVE_ALL', 'true');
+    const { projectId } = await seedStoryboard();
+    await insertVideoStage(db.pool, projectId, 'SB', 'awaiting_approval');
+    await Promise.all([
+      autoApproveStoryboard(db.pool, projectId),
+      autoApproveStoryboard(db.pool, projectId),
+    ]);
+    const decisions = await db.pool.query(
+      "SELECT reason FROM review_decision WHERE project_id = $1 AND stage = 'SB'",
+      [projectId],
+    );
+    expect(decisions.rows).toEqual([{ reason: 'auto_approve_all' }]);
+    const jobs = await db.pool.query("SELECT id FROM job WHERE project_id = $1 AND stage = 'IM'", [
+      projectId,
+    ]);
+    expect(jobs.rows).toHaveLength(1);
+  });
+
+  it.each(['true', 'false'])(
+    'SB automatic confirmation flag=%s persists one decision and mints IM only when ON',
+    async (flag) => {
+      vi.stubEnv('AUTO_APPROVE_ALL', flag);
+      const { projectId } = await seedStoryboard();
+      await insertVideoStage(db.pool, projectId, 'SB', 'awaiting_approval');
+      expect(await autoApproveStoryboard(db.pool, projectId)).toBe(flag === 'true');
+      await autoApproveStoryboard(db.pool, projectId); // duplicate delivery
+      const decisions = await db.pool.query(
+        "SELECT decision, reason, revision_at_decision FROM review_decision WHERE project_id = $1 AND stage = 'SB'",
+        [projectId],
+      );
+      expect(decisions.rows).toEqual(
+        flag === 'true'
+          ? [{ decision: 'approve', reason: 'auto_approve_all', revision_at_decision: 1 }]
+          : [],
+      );
+      const jobs = await db.pool.query(
+        "SELECT stage FROM job WHERE project_id = $1 AND stage = 'IM'",
+        [projectId],
+      );
+      expect(jobs.rows).toHaveLength(flag === 'true' ? 1 : 0);
+    },
+  );
 
   beforeAll(async () => {
     db = await createTestDatabase();

@@ -12,13 +12,15 @@
  * lock, with the transition derived through `transitionStage` (the same guard
  * the workers use). The optimistic-lock `revision` is the number of renders —
  * one `asset_ref` row per render pass — so a re-render between page load and
- * approve is refused as stale. The operator `note` has no `review_decision`
- * column, so it is dropped rather than mis-stored.
+ * approve is refused as stale. The note is kept in review_decision.reason,
+ * including the auto_approve_all marker used by automatic confirmation.
  */
 import type { Pool } from 'pg';
 
 import { withTransaction, type Queryable } from '../../db/client.js';
 import { recordReviewDecision } from '../../db/repositories/review-decisions.js';
+import { insertQueuedJob } from '../../db/repositories/jobs.js';
+import { setProjectCurrentStage } from '../../db/repositories/stage-state.js';
 import { transitionStage } from '../../domain/state-machine.js';
 import type { StageState } from '../../shared/index.js';
 import { ASSET_VIEW_FIELDS, assetView, type AssetViewRow } from '../gateways/asset-view.js';
@@ -160,6 +162,8 @@ export function createPostgresRenderGateway(pool: Pool): RenderGateway {
 
     async approve(videoId: string, input): Promise<RenderView> {
       await withTransaction(pool, async (client) => {
+        // Match the editor's project lock before inspecting revisions/stages.
+        await client.query('SELECT id FROM project WHERE id = $1 FOR UPDATE', [videoId]);
         const fa = await client.query<{ id: string; state: string }>(
           `SELECT id, state
              FROM video_stage
@@ -201,6 +205,26 @@ export function createPostgresRenderGateway(pool: Pool): RenderGateway {
           );
         }
 
+        const prerequisites = await client.query<{ stage: string; state: string }>(
+          `SELECT stage, state FROM video_stage
+            WHERE project_id = $1 AND stage NOT IN ('FA', 'EX') FOR UPDATE`,
+          [videoId],
+        );
+        if (
+          prerequisites.rows.find((row) => row.stage === 'RE')?.state !== 'done' ||
+          prerequisites.rows.some((row) => row.state !== 'done' && row.state !== 'not_run')
+        ) {
+          throw new RenderRefusedError(
+            'Final approval is blocked by an unfinished or stale stage.',
+          );
+        }
+        // Validate deliverables BEFORE either the stage flip or the ledger write.
+        for (const role of ['video', 'srt', 'vtt']) {
+          if ((await latestAsset(client, videoId, role)) === null) {
+            throw new RenderRefusedError('Final approval is blocked: missing ' + role + ' asset.');
+          }
+        }
+
         const next = transitionStage(faRow.state as StageState, 'approve');
         await client.query(
           `UPDATE video_stage
@@ -212,8 +236,18 @@ export function createPostgresRenderGateway(pool: Pool): RenderGateway {
           projectId: videoId,
           stage: 'FA',
           decision: 'approve',
+          reason: input.note ?? null,
           revisionAtDecision: input.revision,
         });
+        const queued = await client.query<{ id: string }>(
+          `SELECT id FROM job WHERE project_id = $1 AND stage = 'EX'
+            AND status IN ('queued', 'running') LIMIT 1`,
+          [videoId],
+        );
+        if (queued.rows.length === 0) {
+          await insertQueuedJob(client, { projectId: videoId, stage: 'EX', priority: 2 });
+        }
+        await setProjectCurrentStage(client, videoId, 'EX');
       });
 
       const view = await loadView(pool, videoId);

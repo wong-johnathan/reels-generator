@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Pool } from 'pg';
+import { autoApproveFinal } from '../worker/auto-approval.js';
 
 import {
   assetKeyContextFor,
@@ -100,9 +101,14 @@ const ASSET_COLUMNS_A = ASSET_COLUMNS.split(',')
  * *this* project may use the asset, and its `created_at` is when this project
  * started using it, which is what "newest render" has to mean on a retry.
  */
-async function newestRenderVideo(pool: Pool, projectId: string): Promise<AssetRow> {
-  const result = await pool.query<AssetRow>(
-    `SELECT ${ASSET_COLUMNS_A} FROM asset a
+async function newestRenderVideo(
+  pool: Pool,
+  projectId: string,
+): Promise<AssetRow & { render_revision: number }> {
+  const result = await pool.query<AssetRow & { render_revision: number }>(
+    `SELECT ${ASSET_COLUMNS_A},
+       (SELECT count(*)::int FROM asset_ref WHERE project_id = $1 AND role = 'video') AS render_revision
+       FROM asset a
        JOIN asset_ref r ON r.asset_id = a.id
       WHERE r.project_id = $1 AND a.stage = 'RE' AND a.kind = 'video' AND r.role = 'video'
       ORDER BY r.created_at DESC, a.id DESC LIMIT 1`,
@@ -252,11 +258,14 @@ export async function runQcStage(deps: QcStageDeps, job: QcStageJob): Promise<Qc
 
     if (report.status === 'pass') {
       await applyStageEvent(deps.pool, job.projectId, 'QC', 'succeed');
-      // QC pass opens the FA gate: the operator's approval is still required,
-      // and is recorded as a review_decision, never by this worker.
+      // QC pass opens FA. Confirmation (manual or explicitly configured auto)
+      // always goes through the normal transactional review_decision writer.
       await applyStageEvent(deps.pool, job.projectId, 'FA', 'claim').catch(() => undefined);
       await applyStageEvent(deps.pool, job.projectId, 'FA', 'gate').catch(() => undefined);
       await setProjectCurrentStage(deps.pool, job.projectId, 'FA');
+      // Keep the revision from the same SQL snapshot as the video QC read.
+      // Re-reading "latest" here would approve a new render QC never inspected.
+      await autoApproveFinal(deps.pool, job.projectId, videoAsset.render_revision);
       await markJobStatus(deps.pool, job.jobId, 'succeeded');
       return {
         status: 'pass',
