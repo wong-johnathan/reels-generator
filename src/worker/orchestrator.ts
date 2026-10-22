@@ -21,6 +21,7 @@ import type { StageCode } from '../shared/stages.js';
 import { applyProjectStatusTransition } from '../db/repositories/video-stages.js';
 import { applyStageEvent, setProjectCurrentStage } from '../db/repositories/stage-state.js';
 import { insertQueuedJob } from '../db/repositories/jobs.js';
+import { finishJobAttempt, insertPendingAttempt } from '../db/repositories/job-attempts.js';
 import { settleAfterStage } from './settle.js';
 import { MAX_ATTEMPTS_PER_JOB } from '../workers/attempt.js';
 import type { ContentAddressedStore } from '../storage/object-store.js';
@@ -300,6 +301,37 @@ export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise
   }
   const workerId = deps.workerId ?? null;
 
+  try {
+    return await runStageBody(deps, job, attemptNo, workerId);
+  } catch (error) {
+    // A stage that throws before it opens its own attempt used to leave no trace:
+    // the job went `failed`, the operator saw a dead button, and the reason was
+    // nowhere. Record the attempt, then report the same failure.
+    const message = (error as Error).message;
+    try {
+      const attempt = await insertPendingAttempt(deps.pool, {
+        jobId: job.id,
+        attemptNo,
+        workerId,
+      });
+      await finishJobAttempt(deps.pool, attempt.id, {
+        status: 'failed',
+        errorClass: 'non_retryable',
+        errorMessage: message,
+      });
+    } catch {
+      // Recording failed; the failure is still reported below.
+    }
+    return { status: 'failed', message };
+  }
+}
+
+async function runStageBody(
+  deps: OrchestratorDeps,
+  job: ClaimedJob,
+  attemptNo: number,
+  workerId: string | null,
+): Promise<StageRunOutcome> {
   switch (job.stage) {
     case 'T':
     case 'SC':
@@ -488,6 +520,16 @@ export async function advanceAfterStage(pool: Pool, job: ClaimedJob): Promise<St
     return null;
   }
 
+  // A stage that was invalidated mid-attempt (the trim rewrites the script and marks
+  // TC stale) must not advance: its replacement work is already queued. Without
+  // this, a trimmed take minted RE while TC was stale — the render read a script
+  // that no longer matched the audio and died before writing an attempt row.
+  const own = await pool.query<{ state: string }>(
+    `SELECT state FROM video_stage WHERE project_id = $1 AND stage = $2`,
+    [job.projectId, job.stage],
+  );
+  if (own.rows[0]?.state === 'stale') return null;
+
   const next = NEXT_STAGE[job.stage];
   if (next === undefined) {
     // RE is the end of the rail for this milestone, so this is where a finished
@@ -497,14 +539,29 @@ export async function advanceAfterStage(pool: Pool, job: ClaimedJob): Promise<St
     return null;
   }
 
-  const existing = await pool.query<{ id: string }>(
-    `SELECT id FROM job
-      WHERE project_id = $1 AND stage = $2 AND status IN ('queued', 'running', 'succeeded')
-      LIMIT 1`,
+  // Mint work for the next stage unless it is already finished. A `succeeded` job
+  // does NOT mean the stage is finished: a trim rewrites the script, marks TC stale,
+  // and the old succeeded TC job is exactly the one that must be replaced.
+  const nextState = await pool.query<{ state: string }>(
+    `SELECT state FROM video_stage WHERE project_id = $1 AND stage = $2`,
     [job.projectId, next],
   );
-  if (existing.rows.length === 0) {
-    await insertQueuedJob(pool, { projectId: job.projectId, stage: next, priority: 2 });
+  const state = nextState.rows[0]?.state;
+  if (state !== 'done') {
+    const existing = await pool.query<{ id: string }>(
+      `SELECT id FROM job
+        WHERE project_id = $1 AND stage = $2 AND status IN ('queued', 'running')
+        LIMIT 1`,
+      [job.projectId, next],
+    );
+    if (existing.rows.length === 0) {
+      // A stale stage re-enters the rail through `regenerate`; without it the claim
+      // would be an illegal transition and the job would die on arrival.
+      if (state === 'stale') {
+        await applyStageEvent(pool, job.projectId, next, 'regenerate');
+      }
+      await insertQueuedJob(pool, { projectId: job.projectId, stage: next, priority: 2 });
+    }
   }
 
   // Keep project.current_stage in lockstep with the minted job. Idempotent: the

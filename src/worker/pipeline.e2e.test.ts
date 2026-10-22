@@ -27,6 +27,7 @@ import {
   type TestDatabase,
 } from '../../tests/helpers/pg.js';
 import { insertOrReuseAsset } from '../db/repositories/assets.js';
+import { applyStageEvent } from '../db/repositories/stage-state.js';
 import { runMigrations } from '../db/runner.js';
 import { createBatch } from '../domain/batch.js';
 import { FakeTextAdapter } from '../adapters/fake-text.js';
@@ -332,5 +333,46 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
     });
     expect(elsewhere.created).toBe(true);
     expect(elsewhere.asset.content_sha256).toBe('b'.repeat(64));
+  });
+
+  it('does not advance a stage that was invalidated mid-attempt', async () => {
+    // The live failure this pins: a trim rewrote the script and marked TC stale, and
+    // the finished attempt minted RE anyway. The render then read a script that no
+    // longer matched the audio and died without writing an attempt row.
+    const series = await db.pool.query<{ id: string }>(
+      `INSERT INTO series (name, slug, niche, mode, target_duration_s)
+       VALUES ('e2e stale', 'e2e-stale', '{}'::jsonb, 'creative', 75)
+       RETURNING id`,
+    );
+    await db.pool.query(
+      `INSERT INTO series_version (series_id, version, snapshot, mode, target_duration_s)
+       VALUES ($1, 1, $2::jsonb, 'creative', 75)`,
+      [series.rows[0]!.id, JSON.stringify({ target_duration_s: 75, videos_per_batch: 1 })],
+    );
+    const { projectIds } = await createBatch(db.pool, { seriesId: series.rows[0]!.id });
+    const projectId = projectIds[0]!;
+
+    const tcJob = await db.pool.query<{ id: string }>(
+      `INSERT INTO job (project_id, stage, status, priority) VALUES ($1, 'TC', 'succeeded', 2)
+       RETURNING id`,
+      [projectId],
+    );
+    await applyStageEvent(db.pool, projectId, 'TC', 'claim');
+    await applyStageEvent(db.pool, projectId, 'TC', 'invalidate');
+
+    const advanced = await advanceAfterStage(db.pool, {
+      id: tcJob.rows[0]!.id,
+      projectId,
+      stage: 'TC',
+      sceneId: null,
+      priority: 2,
+    });
+
+    expect(advanced).toBeNull();
+    const renderJobs = await db.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM job WHERE project_id = $1 AND stage = 'RE'`,
+      [projectId],
+    );
+    expect(renderJobs.rows[0]!.n).toBe(0);
   });
 });
