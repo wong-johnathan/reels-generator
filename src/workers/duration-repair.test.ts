@@ -123,20 +123,36 @@ describe('duration repair — rebuilding the plan', () => {
     ).toThrow(/scene/i);
   });
 
-  it('refuses a scene below the floor even when the total fits', () => {
+  it('balances the scenes by word count, so no shot is a fragment', () => {
+    // A sentence-boundary split gave S01 a one-word scene here; word-balanced cuts
+    // give two equal shots instead.
     const source = plan(2, 10);
     const carryovers = sceneCarryovers(source);
-    // Plenty of words overall, but the only sentence break is after "Yes." so the
-    // split hands S01 a one-word shot. A caption cannot live there: refuse it.
-    const lopsided = document({
-      hook: 'Yes.',
-      narration: 'composure is a long run of words that never ends with punctuation at all',
-      ending: 'and it keeps going to the end of the take',
+    const doc = document({
+      hook: 'Composure is not silence and it never was.',
+      narration: 'It is the pause that makes a room lean in and hold.',
+      ending: 'That is the trick of it.',
     });
 
-    expect(() =>
-      rebuildPlan({ plan: source, carryovers, document: lopsided, targetDurationS: 75 }),
-    ).toThrow(/minimum 6/);
+    const rebuilt = rebuildPlan({
+      plan: source,
+      carryovers,
+      document: doc,
+      targetDurationS: 75,
+    });
+    const scenes = rebuilt.document.scenes as {
+      word_count: number;
+      start_word: number;
+      end_word: number;
+    }[];
+    expect(scenes).toHaveLength(2);
+    for (const scene of scenes) {
+      expect(scene.word_count).toBeGreaterThanOrEqual(MIN_SCENE_WORDS);
+    }
+    // Contiguous from zero: TC compares these ranges against the spoken words.
+    expect(scenes[0]!.start_word).toBe(0);
+    expect(scenes[0]!.end_word).toBe(scenes[1]!.start_word);
+    expect(scenes[1]!.end_word).toBe(rebuilt.word_count);
   });
 });
 
@@ -159,21 +175,27 @@ describe('duration repair — the hard backstop', () => {
     expect(countWords('')).toBe(0);
   });
 
-  it('drops the longest sentences until the spoken text fits', () => {
+  it('shortens the longest sentences until the spoken text fits', () => {
     const doc = document({
       hook: 'Composure is not silence.',
       narration:
         'It is the pause that makes a room lean in. A much longer sentence that keeps going and going and going well past any useful length for a reel. It works because nobody fills it.',
       ending: 'That is the trick.',
     });
-    const fitted = trimSentencesToFit(doc, 16);
+    // The floor is MIN_SCENE_WORDS per sentence, so ~26 is the tightest this
+    // document can become: 4 (hook) + 6 + 6 + 6 + 4 (ending). Ask for 30.
+    const fitted = trimSentencesToFit(doc, 30);
     expect(
       countWords([fitted.hook, fitted.narration, fitted.ending].join(' ')),
-    ).toBeLessThanOrEqual(16);
+    ).toBeLessThanOrEqual(30);
     // The hook and the ending are the video's opening and its turn: never cut.
     expect(fitted.hook).toBe(doc.hook);
     expect(fitted.ending).toBe(doc.ending);
     expect(fitted.narration).not.toContain('keeps going and going');
+    // No sentence below the floor: that is what produced a one-word scene.
+    for (const sentence of fitted.narration.match(/[^.!?]+[.!?]+/g) ?? []) {
+      expect(countWords(sentence)).toBeGreaterThanOrEqual(6);
+    }
   });
 
   it('leaves a document that already fits untouched', () => {

@@ -33,7 +33,8 @@ import { insertAsset, linkAssetToProject } from '../db/repositories/assets.js';
 import { withTransaction } from '../db/client.js';
 import { openRunInAttempt } from '../domain/generation-run.js';
 import { sha256Hex, type AssetBlobStore } from '../workers/asset-store.js';
-import { splitNarration, spokenNarration, type ScriptDocument } from '../domain/authoring.js';
+import { spokenNarration, type ScriptDocument } from '../domain/authoring.js';
+import { NARRATION_WORDS_PER_SECOND } from '../shared/calibration.js';
 
 /** How far the trimmed script may sit from the derived count. */
 export const TRIM_TOLERANCE_RATIO = 0.05;
@@ -52,42 +53,56 @@ export function countWords(text: string): number {
 }
 
 /**
- * Hard backstop: drop whole sentences from the narration, longest first, until the
- * spoken text fits. The hook and the ending are never touched — they are the
- * video's opening and its turn — and sentences go rather than words, so what
- * survives still reads as prose.
+ * Hard backstop: shorten the narration until the spoken text fits, without leaving
+ * any scene too thin to caption.
+ *
+ * Dropping whole sentences looked simpler and produced a one-word scene: with
+ * seventeen scenes, the splitter lands cuts between sentences and hands one scene
+ * a fragment. So the cut works *inside* sentences — trailing clauses first, then
+ * trailing words — and every sentence keeps at least MIN_SCENE_WORDS, the floor a
+ * scene needs. The hook and the ending are never touched: they are the video's
+ * opening and its turn.
  */
 export function trimSentencesToFit(document: ScriptDocument, maxWords: number): ScriptDocument {
-  const sentences = document.narration.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [];
-  const kept = sentences
-    .map((text) => ({ text, words: countWords(text) }))
-    .filter((sentence) => sentence.text.trim().length > 0);
-  while (
-    kept.length > 1 &&
-    countWords(
-      [
-        document.hook,
-        kept
-          .map((s) => s.text)
-          .join(' ')
-          .trim(),
-        document.ending,
-      ].join(' '),
-    ) > maxWords
-  ) {
+  const sentences = (document.narration.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [])
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0);
+  const spoken = (parts: readonly string[]): number =>
+    countWords([document.hook, parts.join(' ').trim(), document.ending].join(' '));
+
+  const current = [...sentences];
+  for (let guard = 0; guard < 500 && current.length > 0 && spoken(current) > maxWords; guard += 1) {
     let longest = 0;
-    for (let index = 1; index < kept.length; index += 1) {
-      if (kept[index]!.words > kept[longest]!.words) longest = index;
+    for (let index = 1; index < current.length; index += 1) {
+      if (countWords(current[index]!) > countWords(current[longest]!)) longest = index;
     }
-    kept.splice(longest, 1);
+    const sentence = current[longest]!;
+    const words = sentence.split(/\s+/).filter((word) => word.length > 0);
+    if (words.length <= MIN_SCENE_WORDS) break;
+    const clauses = sentence.split(/(?<=,)\s+|\s+—\s+/).filter((clause) => clause.length > 0);
+    if (clauses.length > 1) {
+      const withoutLast = clauses.slice(0, -1).join(' ').trim();
+      if (countWords(withoutLast) >= MIN_SCENE_WORDS) {
+        current[longest] = withoutLast;
+        continue;
+      }
+    }
+    current[longest] = words.slice(0, Math.max(MIN_SCENE_WORDS, words.length - 1)).join(' ');
   }
-  return {
-    ...document,
-    narration: kept
-      .map((sentence) => sentence.text)
-      .join(' ')
-      .trim(),
-  };
+
+  // A stub sentence ("Yes.") becomes a one-word *scene* once the splitter lands a
+  // cut beside it. Merge those into a neighbour: same words, one fewer place for a
+  // scene to collapse into.
+  for (let index = 0; index < current.length; index += 1) {
+    if (current.length === 1) break;
+    if (countWords(current[index]!) >= MIN_SCENE_WORDS) continue;
+    const into = index > 0 ? index - 1 : 1;
+    current[into] = `${current[into]!} ${current[index]!}`.trim();
+    current.splice(index, 1);
+    index -= 1;
+  }
+
+  return { ...document, narration: current.join(' ').trim() };
 }
 
 export interface RepairScene {
@@ -243,29 +258,32 @@ export function rebuildPlan(input: {
   readonly document: ScriptDocument;
   readonly targetDurationS: number;
 }): RebuiltPlan {
-  const spoken = spokenNarration(input.document);
-  const splits = splitNarration(spoken, { scene_count: input.carryovers.length });
-  if (splits.length !== input.carryovers.length) {
+  // Balanced by words, not by sentence ends. A sentence-boundary split needs at
+  // least as many sentences as scenes and hands a fragment to whichever scene sits
+  // beside a short one — the one-word scene that blocked the first live repair.
+  // Reels cut captions mid-sentence all the time; equal shots are the better fit.
+  const words = spokenNarration(input.document)
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  const count = input.carryovers.length;
+  if (words.length < count * MIN_SCENE_WORDS) {
     throw new Error(
-      `trim produced ${splits.length} scene(s), expected ${input.carryovers.length}: the images would no longer match`,
+      `a ${words.length}-word narration cannot fill ${count} scenes of at least ${MIN_SCENE_WORDS} words`,
     );
   }
-  const short = splits.find((split) => split.word_count < MIN_SCENE_WORDS);
-  if (short !== undefined) {
-    throw new Error(
-      `trim left scene ${short.scene_no} with ${short.word_count} word(s) (minimum ${MIN_SCENE_WORDS})`,
-    );
-  }
-  const scenes = splits.map((split, index) => {
-    const carry = input.carryovers[index]!;
+  const scenes = input.carryovers.map((carry, index) => {
+    const start = Math.round((index * words.length) / count);
+    const end = Math.round(((index + 1) * words.length) / count);
+    const narration = words.slice(start, end).join(' ');
     return {
       scene_no: carry.scene_no,
       position: carry.position,
-      narration: split.narration,
-      word_count: split.word_count,
-      start_word: split.start_word,
-      end_word: split.end_word,
-      estimated_duration_s: split.estimated_duration_s,
+      narration,
+      word_count: end - start,
+      start_word: start,
+      end_word: end,
+      estimated_duration_s: Number(((end - start) / NARRATION_WORDS_PER_SECOND).toFixed(3)),
       image_prompt: carry.image_prompt,
       camera_move: carry.camera_move,
       caption_emphasis: carry.caption_emphasis,
