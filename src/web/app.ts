@@ -89,6 +89,7 @@ import { ACCEPT_UNWIRED_REASON, type NarrationView } from './narration/model.js'
 import { NARRATION_SCRIPTS, renderNarrationPanel } from './render/narration.js';
 import { audioNotice } from './narration/notice.js';
 import { RenderRefusedError, type RenderGateway } from './quality/gateway.js';
+import { redactText } from '../security/redact.js';
 import type { RenderView } from './quality/model.js';
 import { qualityNotice, type QualityNotice } from './quality/notice.js';
 import { renderQualityPanel } from './render/quality.js';
@@ -1778,9 +1779,16 @@ export function createWebApp(
           if (error instanceof SeriesArchivedError || error instanceof SeriesNotFoundError) {
             return renderEditPage(gateway, batchSeriesId, { session, status: 409 });
           }
+          // A swallowed failure reads as 'the button does nothing'. Log the cause
+          // and name it on the operator's own page: this is a private console, and
+          // the alternative is guessing at a banner.
+          const detail = redactText(error instanceof Error ? error.message : String(error), {
+            env: process.env,
+          });
+          console.error(`web: POST /series/${batchSeriesId}/batches failed — ${detail}`);
           return renderEditPage(gateway, batchSeriesId, {
             session,
-            saveError: BATCH_FAILED_MESSAGE,
+            saveError: `${BATCH_FAILED_MESSAGE} (${detail})`,
             status: 503,
           });
         }
