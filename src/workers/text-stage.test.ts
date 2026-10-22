@@ -4,6 +4,7 @@ import { TEXT_SCHEMAS } from '../adapters/text-schemas.js';
 import {
   normalizeDocument,
   sceneRowPosition,
+  scriptTextOf,
   systemPrompt,
   unwrapTextDocument,
   withRepairFeedback,
@@ -24,7 +25,7 @@ describe('unwrapTextDocument', () => {
         provider_request_id: 'x',
         model: 'm',
         http_status: 200,
-        usage: {},
+        usage: { prompt_tokens: 0, completion_tokens: 0 },
       }),
     ).toBe(document);
   });
@@ -39,6 +40,33 @@ describe('unwrapTextDocument', () => {
   });
 });
 
+describe('scriptTextOf', () => {
+  it('reads the single script field used by script.v2', () => {
+    expect(
+      scriptTextOf({
+        content: { script: 'A short draft.', title: 't', description: 'd', hashtags: [] },
+        raw: {},
+        provider_request_id: 'x',
+        model: 'm',
+        http_status: 200,
+        usage: { prompt_tokens: 0, completion_tokens: 0 },
+      }),
+    ).toBe('A short draft.');
+  });
+
+  it('does not fall back to the removed narration field', () => {
+    expect(
+      scriptTextOf({
+        content: { narration: 'old shape' },
+        raw: {},
+        provider_request_id: 'x',
+        model: 'm',
+        http_status: 200,
+        usage: { prompt_tokens: 0, completion_tokens: 0 },
+      }),
+    ).toBeNull();
+  });
+});
 describe('sceneRowPosition', () => {
   it("maps the planner's 0-based position onto the 1-based row", () => {
     // scene_position_check requires >= 1, and the checkpoint filter reads 1..3.

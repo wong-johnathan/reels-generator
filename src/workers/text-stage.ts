@@ -222,7 +222,10 @@ async function buildScriptRequest(
   );
   const row = topic.rows[0];
   return requestFor('SC', TEXT_SCHEMAS.script, {
-    instruction: 'Draft a hook, narration, ending, title, description and hashtags for this topic.',
+    instruction:
+      `Write one continuous spoken script of about ${Math.round(context.targetDurationS * 3.035)} words for this topic. ` +
+      'It must have a strong opening hook, a clear development, and a memorable ending, all inside the single `script` field. ' +
+      'Return the complete JSON object; do not split the spoken text into hook, narration, or ending fields.',
     topic: row ?? { title: null, description: null },
     niche: context.niche,
   });
@@ -513,24 +516,23 @@ function expandInstruction(check: ReturnType<typeof checkWordBudget>): ChatMessa
   const budget = check.budget;
   const short = check.word_count < budget.min_words;
   const direction = short
-    ? `Expand it to ${budget.target_words} words by developing the concrete detail already implied — ` +
-      'specific images, the moment itself, the sensory beat.'
-    : `Cut it to ${budget.target_words} words without losing the argument.`;
+    ? `Expand the script to ${budget.target_words} words by developing the concrete detail already implied — ` +
+      'specific images, the moment itself, and the sensory beat.'
+    : `Cut the script to ${budget.target_words} words without losing the argument.`;
   return {
     role: 'user',
     content:
-      `The spoken script is now ${check.word_count} words across hook, narration and ending together ` +
-      `(~${check.estimated_runtime_s.toFixed(1)} s); the target needs ${budget.min_words}–${budget.max_words} ` +
-      `for all three fields (R-009-1).\n\n` +
-      `${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
-      'and return the full JSON.',
+      `The single spoken script is now ${check.word_count} words (~${check.estimated_runtime_s.toFixed(1)} s); ` +
+      `the target needs ${budget.min_words}–${budget.max_words} words (R-009-1).\n\n` +
+      `${direction} Do not add new claims, do not change the voice, and return the complete JSON with the ` +
+      '`script` field containing the full spoken text.',
   };
 }
 
-function scriptNarrationOf(result: TextResult<unknown>): string | null {
+export function scriptTextOf(result: TextResult<unknown>): string | null {
   try {
-    const document = normalizeDocument(unwrapTextDocument(result)) as { narration?: unknown };
-    return typeof document.narration === 'string' ? document.narration : null;
+    const document = normalizeDocument(unwrapTextDocument(result)) as { script?: unknown };
+    return typeof document.script === 'string' ? document.script : null;
   } catch {
     return null;
   }
@@ -552,9 +554,9 @@ function scriptExpansionAdapter(input: {
     async execute(run) {
       let result = await first.execute(run);
       for (let query = 2; query <= MAX_SCRIPT_QUERIES; query += 1) {
-        const narration = scriptNarrationOf(result);
-        if (narration === null) return result;
-        const check = checkWordBudget(narration, context.targetDurationS);
+        const script = scriptTextOf(result);
+        if (script === null) return result;
+        const check = checkWordBudget(script, context.targetDurationS);
         if (check.within_band) return result;
 
         const repairMessages = [...messages, expandInstruction(check)];
@@ -629,18 +631,17 @@ export async function runTextStage(
           : deps.text.forRequest(attemptRequest),
       onResult: async (result, ref) => {
         // runProviderAttempt hands back the adapter's envelope (TextResult), not
-        // the document. Casting the envelope to ScriptDocument left `hook`,
-        // `narration` and `ending` undefined: SC then threw on `undefined.trim()`,
-        // and T wrote an empty title because normalisedText tolerates undefined.
+        // the document. Casting the envelope to ScriptDocument left the script body
+        // undefined in the pre-script.v2 implementation: SC then threw on
+        // `undefined.trim()` and T wrote an empty title instead of failing.
         const document = normalizeDocument(unwrapTextDocument(result));
 
         if (stage === 'T') {
           await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));
         } else if (stage === 'SC') {
-          // The hook is spoken first; a narration that repeats it says the opening
-          // line twice. Removed here, before the budget counts it twice.
+          // The whole spoken body is one field. Its opening sentence is the hook and
+          // its final sentence is the landing; neither can be duplicated separately.
           const script = stripDashes(TEXT_SCHEMAS.script.schema.parse(document));
-          // The word budget is a hard rule (R-009-1/R-009-3) and the prompt only
           // offers it as guidance: a 136-word script for a 75 s target reached NA,
           // produced 62 s of speech, and was rejected by TC as duration_out_of_band
           // — three stages and a TTS bill later. Refuse it here, where the repair
@@ -661,9 +662,9 @@ export async function runTextStage(
             const budget = budgetCheck.budget;
             const short = budgetCheck.word_count < budget.min_words;
             const direction = short
-              ? `Expand it to ${budget.target_words} words by developing the concrete detail already implied — ` +
-                'specific images, the moment itself, the sensory beat.'
-              : `Cut it to ${budget.target_words} words without losing the argument.`;
+              ? `Expand the script to ${budget.target_words} words by developing the concrete detail already implied — ` +
+                'specific images, the moment itself, and the sensory beat.'
+              : `Cut the script to ${budget.target_words} words without losing the argument.`;
             // One field means one count and one instruction: cut from the script.
             const excess = budgetCheck.word_count - budget.max_words;
             const advice =
