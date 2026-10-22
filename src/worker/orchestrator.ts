@@ -418,11 +418,33 @@ export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise
 }
 
 /**
+ * Whether this video must wait for a human before images. A video whose storyboard
+ * is already approved (SB `done`) is past the gate, so a retry of an earlier stage
+ * does not re-park it.
+ */
+export async function storyboardGateApplies(pool: Pool, projectId: string): Promise<boolean> {
+  const result = await pool.query<{ state: string }>(
+    'SELECT state FROM video_stage WHERE project_id = $1 AND stage = $2',
+    [projectId, 'SB'],
+  );
+  return result.rows[0]?.state === 'running';
+}
+
+/**
  * Mint the next job after a stage succeeds. Idempotent: a duplicate advance
  * (crash between the stage completing and the mint) is refused because a
  * non-failed job for that (project, stage) already exists.
  */
 export async function advanceAfterStage(pool: Pool, job: ClaimedJob): Promise<StageCode | null> {
+  // The operator's gate: every word is written and readable before a single image
+  // or second of voice is paid for. SB parks in `awaiting_approval` and nothing is
+  // minted; `POST /videos/:id/generate` approves the storyboard and mints IM.
+  if (job.stage === 'SB' && (await storyboardGateApplies(pool, job.projectId))) {
+    await applyStageEvent(pool, job.projectId, 'SB', 'gate');
+    await setProjectCurrentStage(pool, job.projectId, 'SB');
+    return null;
+  }
+
   const next = NEXT_STAGE[job.stage];
   if (next === undefined) {
     // RE is the end of the rail for this milestone, so this is where a finished

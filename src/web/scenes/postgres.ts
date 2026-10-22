@@ -32,6 +32,7 @@ import { withTransaction, type Queryable } from '../../db/client.js';
 import { latestCheckpointSceneAssetAt } from '../../db/repositories/assets.js';
 import { insertQueuedJob } from '../../db/repositories/jobs.js';
 import { latestApproval, recordReviewDecision } from '../../db/repositories/review-decisions.js';
+import { setProjectCurrentStage } from '../../db/repositories/stage-state.js';
 import {
   lockSceneForReplace,
   SceneNotFoundInProjectError,
@@ -302,6 +303,7 @@ export function createPostgresSceneGateway(pool: Pool): SceneGateway {
           [videoId, 'SB'],
         );
         const sbRow = stage.rows[0];
+        let released = false;
         if (sbRow !== undefined) {
           try {
             const next = transitionStage(sbRow.state as StageState, 'approve');
@@ -309,9 +311,26 @@ export function createPostgresSceneGateway(pool: Pool): SceneGateway {
               "UPDATE video_stage SET state = $2, last_event = 'approve', last_event_at = now(), updated_at = now() WHERE id = $1",
               [sbRow.id, next],
             );
+            released = true;
           } catch (error) {
             if (!(error instanceof IllegalTransitionError)) throw error;
           }
+        }
+
+        // Approval is what mints image generation. The orchestrator parks SB in
+        // `awaiting_approval` and mints nothing, so without this the video waited
+        // forever for a job that only this decision could create.
+        if (released) {
+          const hasIm = await client.query<{ id: string }>(
+            `SELECT id FROM job
+              WHERE project_id = $1 AND stage = 'IM' AND status IN ('queued', 'running', 'succeeded')
+              LIMIT 1`,
+            [videoId],
+          );
+          if (hasIm.rows.length === 0) {
+            await insertQueuedJob(client, { projectId: videoId, stage: 'IM', priority: 2 });
+          }
+          await setProjectCurrentStage(client, videoId, 'IM');
         }
 
         await client.query(
