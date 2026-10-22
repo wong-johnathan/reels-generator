@@ -35,6 +35,7 @@ import { runImageStage } from '../workers/image-stage.js';
 import { runNarrationStage, type NarrationVoiceConfig } from '../workers/narration-stage.js';
 import { runTimingStage, type TimingSceneInput } from '../workers/timing-stage.js';
 import { runRenderStage } from '../render/stage.js';
+import { repairOvershoot } from '../workers/duration-repair.js';
 import { resolveVoiceId } from './providers.js';
 
 /** Stages the content worker claims. */
@@ -395,9 +396,39 @@ export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise
           targetDurationS: target.effectiveTargetS,
           scenes,
           seriesVersionId: null,
+          // The take ran long: trim the words to fit rather than throw away
+          // seventeen paid-for images and a different script (R-009-4).
+          repair: async (info) => {
+            const attempt = await deps.pool.query<{ id: string }>(
+              'SELECT id FROM job_attempt WHERE job_id = $1 ORDER BY attempt_no DESC LIMIT 1',
+              [job.id],
+            );
+            const attemptId = attempt.rows[0]?.id;
+            if (attemptId === undefined) {
+              return { applied: false, detail: 'no attempt row to record the trim against' };
+            }
+            const outcome = await repairOvershoot(
+              { pool: deps.pool, blobs: deps.contentBlobs, text: deps.text },
+              {
+                projectId: job.projectId,
+                jobAttemptId: attemptId,
+                measuredAudioS: info.measured_audio_s,
+                targetAudioS: info.target_audio_s,
+                targetDurationS: target.effectiveTargetS,
+                wordCount: info.word_count,
+              },
+            );
+            return outcome.applied
+              ? { applied: true, detail: outcome.detail }
+              : { applied: false, detail: outcome.reason };
+          },
         },
       );
       if (result.status === 'timed') return { status: 'succeeded' };
+      // The take was too long and the script was trimmed to fit. NA is already
+      // queued by the stage; this attempt is spent, so report it as done-with-work
+      // rather than as a review gate the operator must clear.
+      if (result.status === 'repaired') return { status: 'succeeded' };
       return gated(
         `timing stage returned to review: ${result.review.reason} (${result.review.failures.join('; ')})`,
       );

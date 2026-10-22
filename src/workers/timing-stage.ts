@@ -36,7 +36,7 @@ import {
   findAssetById,
   insertAsset,
 } from '../db/repositories/assets.js';
-import { markJobStatus } from '../db/repositories/jobs.js';
+import { insertQueuedJob, markJobStatus } from '../db/repositories/jobs.js';
 import { listSceneSpans, writeSceneNarrationSpans } from '../db/repositories/scene-spans.js';
 import {
   applyStageEvent,
@@ -175,6 +175,16 @@ export interface TimingStageInput {
   readonly narrationAssetId: string;
   /** The `NA` alignment sidecar for the same take. */
   readonly alignmentAssetId: string;
+  /**
+   * Called when the take runs longer than the band allows, before it is sent back
+   * to review. This stage measures; it does not know how to trim a script, so the
+   * orchestrator injects the repair.
+   */
+  readonly repair?: (info: {
+    readonly measured_audio_s: number;
+    readonly target_audio_s: number;
+    readonly word_count: number;
+  }) => Promise<{ readonly applied: boolean; readonly detail: string }>;
   /** Per-series default with the per-video override already applied (R-009-1). */
   readonly targetDurationS: number;
   /** The storyboard plan's word ranges (US-018 → US-022). */
@@ -227,7 +237,9 @@ export interface TimingReview {
 
 export type TimingStageResult =
   | { readonly status: 'timed'; readonly plan: TimingPlan; readonly timing_asset_id: string }
-  | { readonly status: 'review_required'; readonly review: TimingReview };
+  | { readonly status: 'review_required'; readonly review: TimingReview }
+  /** Too long for the runtime, and the script was trimmed to fit: voice re-runs. */
+  | { readonly status: 'repaired'; readonly detail: string };
 
 export interface TimingDocument {
   readonly schema_version: typeof TIMING_DOCUMENT_SCHEMA_VERSION;
@@ -449,6 +461,45 @@ export async function runTimingStage(
   }
 
   if (!band.within_band) {
+    // Too long is a fixable problem: the words are the variable, not the speed
+    // (R-009-4 forbids time-stretching). Trimming keeps the images alive, because
+    // every scene prompt survives the trim in place. Too *short* has no cheap
+    // repair — padding narration is writing, not timing — so it still goes back.
+    if (finalAudioDurationS > band.max_s && input.repair !== undefined) {
+      const attempt = await input.repair({
+        measured_audio_s: narrationDurationS,
+        target_audio_s: input.targetDurationS - leadS - trailS,
+        word_count: timings.words.length,
+      });
+      if (attempt.applied) {
+        // TC measured the take and applied a fix; the stage is stale because it
+        // must measure the next take, and NA is stale because the words changed.
+        await applyStageEvent(deps.pool, input.projectId, 'TC', 'succeed');
+        await applyStageEvent(deps.pool, input.projectId, 'TC', 'invalidate');
+        await applyStageEvent(deps.pool, input.projectId, 'NA', 'invalidate');
+        await setProjectCurrentStage(deps.pool, input.projectId, 'NA');
+        await insertQueuedJob(deps.pool, { projectId: input.projectId, stage: 'NA', priority: 2 });
+        // This TC job ends here: its attempt is spent, and a *failed* row is what
+        // lets NA's success mint a fresh TC job for the trimmed script.
+        await markJobStatus(deps.pool, input.jobId, 'failed');
+        await recordStageFailure(deps.pool, input.jobId, attempt.detail);
+        return { status: 'repaired', detail: attempt.detail };
+      }
+      // The repair declined (no plan, or a trim that failed its own checks): fall
+      // through to review *with* the reason it declined, so the operator is not
+      // looking at a bare band violation.
+      if (attempt.detail !== '') {
+        return returnToReview(
+          deps,
+          input,
+          'duration_out_of_band',
+          ['SC', 'NA'],
+          [attempt.detail],
+          finalAudioDurationS,
+          band,
+        );
+      }
+    }
     const percent = ((finalAudioDurationS - input.targetDurationS) / input.targetDurationS) * 100;
     return returnToReview(
       deps,
