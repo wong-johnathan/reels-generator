@@ -75,7 +75,12 @@ type BatchTransitionTable = Readonly<
 export const STAGE_TRANSITIONS: StageTransitionTable = {
   not_run: { claim: 'running', block: 'blocked', cancel: 'cancelled' },
   running: { succeed: 'done', fail: 'failed', gate: 'awaiting_approval', cancel: 'cancelled' },
-  done: { invalidate: 'stale', cancel: 'cancelled' },
+  // `gate` from done: a stage that has finished can still be *held* for approval
+  // before the pipeline spends on the next one. The storyboard completes its work
+  // and then parks; without this edge the only place the gate could fire was while
+  // the stage was still `running`, which had already passed by the time the
+  // orchestrator decided whether to advance.
+  done: { invalidate: 'stale', gate: 'awaiting_approval', cancel: 'cancelled' },
   awaiting_approval: {
     approve: 'done',
     reject_no_edit: 'awaiting_approval',

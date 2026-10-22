@@ -459,11 +459,18 @@ export async function storyboardGateApplies(pool: Pool, projectId: string): Prom
   // too, so the two are indistinguishable by state alone. Image generation only
   // ever exists because an operator released the gate (or a legacy batch predates
   // it), which makes the IM job's absence the one honest signal.
-  const result = await pool.query<{ n: string }>(
+  const state = await pool.query<{ state: string }>(
+    `SELECT state FROM video_stage WHERE project_id = $1 AND stage = 'SB'`,
+    [projectId],
+  );
+  // Only a *finished* stage can be held; one already waiting is left alone so a
+  // duplicate advance cannot re-gate it.
+  if (state.rows[0]?.state !== 'done') return false;
+  const images = await pool.query<{ n: string }>(
     `SELECT count(*)::text AS n FROM job WHERE project_id = $1 AND stage = 'IM'`,
     [projectId],
   );
-  return result.rows[0]?.n === '0';
+  return images.rows[0]?.n === '0';
 }
 
 /**

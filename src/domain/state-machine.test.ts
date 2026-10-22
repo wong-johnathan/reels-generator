@@ -41,6 +41,9 @@ const LEGAL_STAGE_TRANSITIONS: ReadonlyArray<readonly [StageState, StageEvent, S
   ['running', 'gate', 'awaiting_approval'],
   ['running', 'cancel', 'cancelled'],
   ['done', 'invalidate', 'stale'],
+  // D-J: a finished stage can be *held* for approval. The storyboard completes
+  // its work, then parks so no image is paid for before the operator reads it.
+  ['done', 'gate', 'awaiting_approval'],
   ['done', 'cancel', 'cancelled'],
   ['awaiting_approval', 'approve', 'done'],
   ['awaiting_approval', 'reject_no_edit', 'awaiting_approval'],
@@ -77,7 +80,7 @@ const LEGAL_BATCH_TRANSITIONS: ReadonlyArray<readonly [BatchState, BatchEvent, B
 ];
 
 describe('stage state machine (§4.2)', () => {
-  it('encodes exactly the 20 legal transitions from TECH_DESIGN §4.2', () => {
+  it('encodes the TECH_DESIGN §4.2 transitions plus the approval hold (D-J)', () => {
     const fromTable = Object.entries(STAGE_TRANSITIONS).flatMap(([from, byEvent]) =>
       Object.entries(byEvent).map(([event, to]) => [from, event, to] as const),
     );

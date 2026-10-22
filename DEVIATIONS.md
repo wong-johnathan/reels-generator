@@ -106,3 +106,22 @@ deleted.
 
 **Reversal:** re-add the CHECK and the hash index, switch keys back to
 `objectKeyFor(contentSha256)` in the storage port, and delete `batch.ordinal`.
+
+## D-J — A finished stage may be held for approval (`done --gate--> awaiting_approval`) (2026-10-22)
+
+TECH_DESIGN §4.2 lists `gate` only from `running`. The storyboard gate needs it
+from `done`, because the orchestrator decides whether to advance _after_ the stage
+has marked itself complete: by the time `advanceAfterStage` ran, SB was `done`, so
+`done --gate-->` raised `IllegalTransitionError`. The error was swallowed by the
+loop, which is why batch-0016 went straight into image generation and why the
+first e2e run reported SB as `done` while the code looked correct.
+
+The alternative — having the SB stage park itself instead of succeeding — would
+mean stages knowing about approval, which is the orchestrator's job. One extra
+edge is the smaller change.
+
+`storyboardGateApplies()` also requires `state = 'done'`, so a duplicate advance
+cannot re-gate a stage that is already waiting.
+
+**Reversal:** drop the `gate` entry from `done` in `STAGE_TRANSITIONS`, and gate
+from inside the SB stage before it succeeds.
