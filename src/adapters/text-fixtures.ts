@@ -15,7 +15,6 @@ import type { z } from 'zod';
 import type {
   ScriptDocumentSchema,
   StoryboardDocumentSchema,
-  TextSchemaName,
   TopicDocumentSchema,
 } from './text-schemas.js';
 
@@ -40,6 +39,30 @@ const SCRIPT: ScriptDocument = {
   description:
     'A short piece on cognitive load, reversible choices, and why speed is only useful once you know what it multiplies.',
   hashtags: ['#founders', '#psychology', '#decisionmaking', '#focus', '#creativeops'],
+};
+
+const FRAME_HOOK = 'Every founder has heard the same advice.';
+const FRAME_ENDING = 'The answer tells you which gear to use.';
+
+/** The frozen frame the deterministic fake serves: hook, ending and metadata. */
+const FRAME = {
+  hook: FRAME_HOOK,
+  ending: FRAME_ENDING,
+  title: SCRIPT.title,
+  description: SCRIPT.description,
+  hashtags: SCRIPT.hashtags,
+};
+
+/**
+ * The middle narration. Derived from SCRIPT.script between the hook and the
+ * ending, so `hook + ' ' + narration + ' ' + ending` reconstructs the canonical
+ * script byte-for-byte (and therefore stays inside the measured word band).
+ */
+const NARRATION = {
+  narration: SCRIPT.script.slice(
+    FRAME_HOOK.length + 1,
+    SCRIPT.script.length - FRAME_ENDING.length - 1,
+  ),
 };
 
 const STORYBOARD: StoryboardDocument = {
@@ -211,9 +234,12 @@ export const QUIET_MACHINES_FIXTURES = {
   topic: TOPIC,
   script: SCRIPT,
   storyboard: STORYBOARD,
+  frame: FRAME,
+  narration: NARRATION,
 } as const;
 
-/** The fixture for a stage, cloned so a caller cannot mutate the canonical copy. */
-export function fixtureFor(name: TextSchemaName): unknown {
-  return structuredClone(QUIET_MACHINES_FIXTURES[name]);
+/** The fixture for a schema name, cloned so a caller cannot mutate the canonical copy. */
+export function fixtureFor(name: string): unknown {
+  const fixtures = QUIET_MACHINES_FIXTURES as unknown as Record<string, unknown>;
+  return structuredClone(fixtures[name]);
 }

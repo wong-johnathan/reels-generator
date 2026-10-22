@@ -31,6 +31,23 @@ import {
   type ScriptDocument,
   type StoryboardDocument,
 } from '../domain/authoring.js';
+import {
+  assembleScript,
+  freezeFrame,
+  narrationRepairDelta,
+  narrationRestatesHook,
+  narrationWordTarget,
+  scriptFrameSchema,
+  scriptNarrationSchema,
+  SCRIPT_FRAME_PART,
+  SCRIPT_NARRATION_PART,
+  SC_FRAME_MAX_TOKENS,
+  SC_NARRATION_MAX_TOKENS,
+  SC_REPAIR_MAX_TOKENS,
+  type FrozenFrame,
+  type ScriptFrame,
+  type ScriptNarration,
+} from '../domain/script-generation.js';
 import { TEXT_SCHEMAS, type TextSchema, type TextStageCode } from '../adapters/text-schemas.js';
 import type { ChatMessage, TextAdapter, TextRequest, TextResult } from '../adapters/text.js';
 import { withTransaction } from '../db/client.js';
@@ -190,6 +207,7 @@ function requestFor<Out>(
   stage: TextStageCode,
   schema: TextSchema<Out>,
   user: unknown,
+  maxTokens?: number,
 ): TextRequest<unknown> {
   return {
     stage,
@@ -198,6 +216,7 @@ function requestFor<Out>(
       { role: 'system' as const, content: systemPrompt(schema as unknown as TextSchema<unknown>) },
       { role: 'user' as const, content: JSON.stringify(user) },
     ],
+    ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
   };
 }
 
@@ -210,8 +229,8 @@ function buildTopicRequest(context: SeriesContext): TextRequest<unknown> {
   });
 }
 
-/** The SC request: draft the script from the approved topic. */
-async function buildScriptRequest(
+/** The SC frame request: derive the opening hook and landing, then freeze them. */
+async function buildFrameRequest(
   pool: Pool,
   projectId: string,
   context: SeriesContext,
@@ -221,14 +240,54 @@ async function buildScriptRequest(
     [projectId],
   );
   const row = topic.rows[0];
-  return requestFor('SC', TEXT_SCHEMAS.script, {
-    instruction:
-      `Write one continuous spoken script of about ${Math.round(context.targetDurationS * 3.035)} words for this topic. ` +
-      'It must have a strong opening hook, a clear development, and a memorable ending, all inside the single `script` field. ' +
-      'Return the complete JSON object; do not split the spoken text into hook, narration, or ending fields.',
-    topic: row ?? { title: null, description: null },
-    niche: context.niche,
-  });
+  return requestFor(
+    'SC',
+    SCRIPT_FRAME_PART as unknown as TextSchema<unknown>,
+    {
+      instruction:
+        'Write the opening and landing of one short-form video for this topic. ' +
+        'The `hook` is one sentence that stops the scroll; the `ending` is one memorable closing sentence. ' +
+        'They must be distinct from each other and written as plain spoken prose with no em or en dashes. ' +
+        'Also give a short `title`, a one-paragraph `description`, and 1-30 `hashtags`. ' +
+        'Return the complete JSON object.',
+      topic: row ?? { title: null, description: null },
+      niche: context.niche,
+    },
+    SC_FRAME_MAX_TOKENS,
+  );
+}
+
+/** The SC narration request: the middle only, targeting the remaining word budget. */
+function buildNarrationRequest(
+  frame: FrozenFrame,
+  context: SeriesContext,
+  repair: { readonly current_words: number; readonly delta: number } | null,
+): TextRequest<unknown> {
+  const target = narrationWordTarget(frame, context.targetDurationS);
+  const repairInstruction =
+    repair === null
+      ? ''
+      : `Your previous middle narration put the assembled script at ${repair.current_words} words. ` +
+        (repair.delta >= 0
+          ? `Add about ${repair.delta} more words to the middle. `
+          : `Cut about ${-repair.delta} words from the middle. `) +
+        'Do not touch the hook or the ending. ';
+  return requestFor(
+    'SC',
+    SCRIPT_NARRATION_PART as unknown as TextSchema<unknown>,
+    {
+      instruction:
+        repairInstruction +
+        `Write ONLY the middle development of the spoken script, about ${target} words. ` +
+        'Do NOT restate or repeat the hook or the ending - they are already written. ' +
+        'Plain spoken prose, no em or en dashes, no headings or stage directions. ' +
+        'Return the complete JSON object with a single `narration` field.',
+      hook: frame.hook,
+      ending: frame.ending,
+      niche: context.niche,
+    },
+    repair === null ? SC_NARRATION_MAX_TOKENS : SC_REPAIR_MAX_TOKENS,
+  );
 }
 
 /** The SB request: split the approved narration into scenes. */
@@ -512,21 +571,14 @@ async function loadPreviousFailure(pool: Pool, jobId: string): Promise<string | 
  */
 export const MAX_SCRIPT_QUERIES = 5;
 
-function expandInstruction(check: ReturnType<typeof checkWordBudget>): ChatMessage {
-  const budget = check.budget;
-  const short = check.word_count < budget.min_words;
-  const direction = short
-    ? `Expand the script to ${budget.target_words} words by developing the concrete detail already implied — ` +
-      'specific images, the moment itself, and the sensory beat.'
-    : `Cut the script to ${budget.target_words} words without losing the argument.`;
-  return {
-    role: 'user',
-    content:
-      `The single spoken script is now ${check.word_count} words (~${check.estimated_runtime_s.toFixed(1)} s); ` +
-      `the target needs ${budget.min_words}–${budget.max_words} words (R-009-1).\n\n` +
-      `${direction} Do not add new claims, do not change the voice, and return the complete JSON with the ` +
-      '`script` field containing the full spoken text.',
-  };
+/** Parse a provider frame document, or fail loudly. */
+function frameOf(result: TextResult<unknown>): ScriptFrame {
+  return scriptFrameSchema.parse(normalizeDocument(unwrapTextDocument(result)));
+}
+
+/** Parse a provider narration document, or fail loudly. */
+function narrationOf(result: TextResult<unknown>): ScriptNarration {
+  return scriptNarrationSchema.parse(normalizeDocument(unwrapTextDocument(result)));
 }
 
 export function scriptTextOf(result: TextResult<unknown>): string | null {
@@ -538,41 +590,46 @@ export function scriptTextOf(result: TextResult<unknown>): string | null {
   }
 }
 
-function scriptExpansionAdapter(input: {
+/**
+ * Two-phase SC generation. The frame (hook + ending + metadata) is generated and
+ * frozen first; only the middle narration is (re)generated against the remaining
+ * word budget, so a repair can never alter the opening or landing.
+ */
+function scriptFrameAdapter(input: {
   readonly deps: TextStageDeps;
   readonly first: ProviderAdapter<TextResult<unknown>>;
-  readonly messages: readonly ChatMessage[];
-  readonly request: TextRequest<unknown>;
   readonly context: SeriesContext;
   readonly job: TextStageJob;
   readonly attemptNo: number;
 }): ProviderAdapter<TextResult<unknown>> {
-  const { deps, first, messages, request, context, job, attemptNo } = input;
+  const { deps, first, context, job, attemptNo } = input;
   return {
     provider: first.provider,
     stage: first.stage,
     async execute(run) {
-      let result = await first.execute(run);
-      for (let query = 2; query <= MAX_SCRIPT_QUERIES; query += 1) {
-        const script = scriptTextOf(result);
-        if (script === null) return result;
-        const check = checkWordBudget(script, context.targetDurationS);
-        if (check.within_band) return result;
+      // Phase A: one frame call, then freeze hook + ending.
+      const frameResult = await first.execute(run);
+      const frame = freezeFrame(frameOf(frameResult));
 
-        const repairMessages = [...messages, expandInstruction(check)];
-        const adapter = deps.text.forRequest({ ...request, messages: repairMessages });
+      // Phase B: middle narration, repaired in place until the band is met.
+      let lastCheck: ReturnType<typeof checkWordBudget> | null = null;
+      let repair: { readonly current_words: number; readonly delta: number } | null = null;
+      for (let query = 1; query <= MAX_SCRIPT_QUERIES; query += 1) {
+        const request = buildNarrationRequest(frame, context, repair);
+        const adapter = deps.text.forRequest(request);
         const extra = await openRunInAttempt(deps.pool, {
           jobAttemptId: run.jobAttemptId,
           projectId: job.projectId,
           stage: 'SC',
           provider: adapter.provider,
           model: deps.text.model,
-          promptHash: promptHash(repairMessages),
+          promptHash: promptHash(request.messages),
           seriesVersionId: context.seriesVersionId,
           attemptNo,
         });
+        let narrationResult: TextResult<unknown>;
         try {
-          result = await adapter.execute(extra);
+          narrationResult = await adapter.execute(extra);
         } catch (error) {
           await finishGenerationRun(deps.pool, extra.id, {
             status: 'failed',
@@ -584,8 +641,27 @@ function scriptExpansionAdapter(input: {
           status: 'succeeded',
           chargeStatus: 'billed',
         });
+
+        const narration = stripForbiddenDashes(narrationOf(narrationResult).narration).trim();
+        const assembled = assembleScript(frame, narration);
+        const check = checkWordBudget(assembled.script, context.targetDurationS);
+        if (check.within_band && !narrationRestatesHook(frame.hook, narration)) {
+          return { ...frameResult, content: assembled };
+        }
+        lastCheck = check;
+        repair = {
+          current_words: check.word_count,
+          delta: narrationRepairDelta(check.word_count, context.targetDurationS),
+        };
       }
-      return result;
+
+      const check =
+        lastCheck ?? checkWordBudget(assembleScript(frame, '').script, context.targetDurationS);
+      throw new Error(
+        `the assembled script is ${check.word_count} words (~${check.estimated_runtime_s.toFixed(1)} s) ` +
+          `after ${MAX_SCRIPT_QUERIES} narration queries; a ${context.targetDurationS} s target needs ` +
+          `${check.budget.min_words}-${check.budget.max_words} words (R-009-1). The hook and ending were preserved.`,
+      );
     },
   };
 }
@@ -600,7 +676,7 @@ export async function runTextStage(
     stage === 'T'
       ? buildTopicRequest(context)
       : stage === 'SC'
-        ? await buildScriptRequest(deps.pool, job.projectId, context)
+        ? await buildFrameRequest(deps.pool, job.projectId, context)
         : await buildStoryboardRequest(deps.pool, job.projectId, context);
   // Repair feedback is part of what we send, so it is part of the provenance hash.
   const repair = job.attemptNo > 1 ? await loadPreviousFailure(deps.pool, job.jobId) : null;
@@ -619,11 +695,9 @@ export async function runTextStage(
       pool: deps.pool,
       adapter:
         stage === 'SC'
-          ? scriptExpansionAdapter({
+          ? scriptFrameAdapter({
               deps,
               first: deps.text.forRequest(attemptRequest),
-              messages,
-              request,
               context,
               job,
               attemptNo: job.attemptNo,
@@ -639,44 +713,15 @@ export async function runTextStage(
         if (stage === 'T') {
           await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));
         } else if (stage === 'SC') {
-          // The whole spoken body is one field. Its opening sentence is the hook and
-          // its final sentence is the landing; neither can be duplicated separately.
+          // The adapter already assembled hook + narration + ending and rejected any
+          // out-of-band result. This is the authoritative re-check before persistence:
+          // nothing reaches SB/images/TTS unless the assembled script is in band.
           const script = stripDashes(TEXT_SCHEMAS.script.schema.parse(document));
-          // offers it as guidance: a 136-word script for a 75 s target reached NA,
-          // produced 62 s of speech, and was rejected by TC as duration_out_of_band
-          // — three stages and a TTS bill later. Refuse it here, where the repair
-          // retry can still fix it.
-          // No em dashes (operator rule). The prompt asks, but a prompt rule is a
-          // suggestion, so any that survive are rewritten here as the comma or stop
-          // a reader expects. Rejecting instead was wrong: it spent two of three
-          // attempts on punctuation and failed the job on the third for word count,
-          // and a typographic preference must never cost a video.
           const budgetCheck = checkWordBudget(spokenNarration(script), context.targetDurationS);
           if (!budgetCheck.within_band) {
-            // Carry the draft itself into the rejection, framed as an expansion.
-            // Measured with this model at a 75 s target (217-239 words):
-            //   "add exactly N words"       171 -> 167 -> 177 (ignored; it re-generates)
-            //   rejected text inline        158 -> 173 -> 197 (still short)
-            //   "expand this draft to N"    189->208->225, 197->215->229, 202->228 (3/3)
-            // The model cannot count, but it can develop a draft it can see.
-            const budget = budgetCheck.budget;
-            const short = budgetCheck.word_count < budget.min_words;
-            const direction = short
-              ? `Expand the script to ${budget.target_words} words by developing the concrete detail already implied — ` +
-                'specific images, the moment itself, and the sensory beat.'
-              : `Cut the script to ${budget.target_words} words without losing the argument.`;
-            // One field means one count and one instruction: cut from the script.
-            const excess = budgetCheck.word_count - budget.max_words;
-            const advice =
-              excess > 0
-                ? `Cut about ${excess} words. Keep the opening line and the landing line; tighten the middle.`
-                : `Add about ${budget.min_words - budgetCheck.word_count} words without padding: another beat, a concrete example, a sharper turn.`;
             throw new Error(
               `the script is ${budgetCheck.word_count} words (~${budgetCheck.estimated_runtime_s.toFixed(1)} s); ` +
-                `a ${context.targetDurationS} s target needs ${budget.min_words}–${budget.max_words} words (R-009-1). ` +
-                `What you wrote was:\n\n${script.script}\n\n` +
-                `${advice} ${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
-                'and return the full JSON.',
+                `a ${context.targetDurationS} s target needs ${budgetCheck.budget.min_words}-${budgetCheck.budget.max_words} words (R-009-1).`,
             );
           }
           await persistScript(deps, job, context, script, ref);
