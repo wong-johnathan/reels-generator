@@ -532,11 +532,20 @@ export async function runTextStage(
           // retry can still fix it.
           const budget = checkWordBudget(spokenNarration(script), context.targetDurationS);
           if (!budget.within_band) {
+            // Ask for the *difference*, not the target. Measured on this model: a
+            // "rewrite to 217-239 words" repair moved 199->204 and 210->214 and
+            // stalled just outside the band, while "add exactly 17 words" landed
+            // inside it. Small additions are what the model can actually do.
+            const delta = budget.budget.target_words - budget.word_count;
+            const sentences = Math.max(1, Math.round(Math.abs(delta) / 13));
+            const direction = delta > 0 ? 'add' : 'cut';
             throw new Error(
-              `narration is ${budget.word_count} words (~${budget.estimated_runtime_s.toFixed(1)} s) ` +
-                `but a ${context.targetDurationS} s target needs ${budget.budget.min_words}–` +
+              `narration is ${budget.word_count} words (~${budget.estimated_runtime_s.toFixed(1)} s); ` +
+                `a ${context.targetDurationS} s target needs ${budget.budget.min_words}–` +
                 `${budget.budget.max_words} words, ideally ${budget.budget.target_words} (R-009-1). ` +
-                'Rewrite the narration to that length; keep the hook, the scenes and the ending.',
+                `Keep everything else identical and ${direction} exactly ${Math.abs(delta)} words — ` +
+                `about ${sentences} ${direction === 'add' ? 'more' : 'fewer'} sentences of concrete detail. ` +
+                'Return the full corrected JSON.',
             );
           }
           await persistScript(deps, job, context, script, ref);

@@ -124,6 +124,12 @@ describe('US-017 R-003-3 — the provider request carries only the style summary
     expect(prompt.schema_version).toBe(TEXT_SCHEMAS.script.version);
     expect(prompt.word_budget.target_words).toBe(228);
     expect(prompt.word_budget.max_words).toBe(239);
+    // A countable instruction, not just a number: 'target 228 words' alone was
+    // ignored and produced 136.
+    const userMessage = prompt.messages.map((m) => m.content).join('\n');
+    expect(userMessage).toContain('COUNT the words');
+    expect(userMessage).toContain('about 17 scenes');
+    expect(userMessage).toContain('217–239');
     expect(promptText(prompt)).toContain('script.v1');
     expect(promptText(prompt)).toContain('228');
   });
