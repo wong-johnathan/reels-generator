@@ -68,6 +68,15 @@ describe('batch detail page', () => {
     expect(html).toContain('#psychology');
   });
 
+  it('links an SB video to the storyboard approval control', () => {
+    const html = renderBatchDetail({
+      now: NOW,
+      batch: batch([video({ currentStage: 'SB', status: 'RUNNING' })]),
+    });
+
+    expect(html).toContain('Review storyboard');
+    expect(html).toContain('href="/videos/p1/storyboard"');
+  });
   it('names the failed stage, its attempt and the provider error', () => {
     const html = renderBatchDetail({
       now: NOW,

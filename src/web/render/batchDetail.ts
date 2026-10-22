@@ -93,6 +93,10 @@ function videoCard(video: BatchVideoDetail): string {
     video.videoAssetId === null
       ? '<span class="muted">no file yet</span>'
       : `<a class="btn btn-small" href="/videos/${escapeAttr(video.projectId)}/download">Download MP4</a>`;
+  const review =
+    video.currentStage === 'SB'
+      ? `<a class="btn btn-small" href="/videos/${escapeAttr(video.projectId)}/storyboard">Review storyboard</a>`
+      : `<a class="btn btn-small" href="/videos/${escapeAttr(video.projectId)}/storyboard">Open workspace</a>`;
   const stage = video.currentStage === null ? '—' : escapeHtml(video.currentStage);
 
   return (
@@ -101,6 +105,7 @@ function videoCard(video: BatchVideoDetail): string {
     `<h3>Video ${video.position}</h3>` +
     `<span class="chip is-muted">${escapeHtml(video.status.toLowerCase())}</span>` +
     `<span class="batch-video-stage">stage <strong>${stage}</strong></span>` +
+    review +
     download +
     '</header>' +
     failureBlock(video) +
