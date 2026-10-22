@@ -33,7 +33,12 @@ import { insertAsset, linkAssetToProject } from '../db/repositories/assets.js';
 import { withTransaction } from '../db/client.js';
 import { openRunInAttempt } from '../domain/generation-run.js';
 import { sha256Hex, type AssetBlobStore } from '../workers/asset-store.js';
-import { spokenNarration, stripForbiddenDashes, type ScriptDocument } from '../domain/authoring.js';
+import {
+  dedupeHook,
+  spokenNarration,
+  stripForbiddenDashes,
+  type ScriptDocument,
+} from '../domain/authoring.js';
 import { NARRATION_WORDS_PER_SECOND } from '../shared/calibration.js';
 
 /** How far the trimmed script may sit from the derived count. */
@@ -410,12 +415,12 @@ export async function repairOvershoot(
 
   // The same no-dash rule the SC stage enforces. A repair is not a fresh
   // generation, so it is normalised rather than rejected: the take needs to move.
-  trimmed = {
+  trimmed = dedupeHook({
     ...trimmed,
     hook: stripForbiddenDashes(trimmed.hook),
     narration: stripForbiddenDashes(trimmed.narration),
     ending: stripForbiddenDashes(trimmed.ending),
-  };
+  });
 
   let rebuilt: RebuiltPlan;
   try {

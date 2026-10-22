@@ -24,6 +24,7 @@ import type { Pool } from 'pg';
 import {
   checkWordBudget,
   dashOffender,
+  dedupeHook,
   planStoryboard,
   sceneCountBand,
   spokenNarration,
@@ -631,7 +632,9 @@ export async function runTextStage(
         if (stage === 'T') {
           await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));
         } else if (stage === 'SC') {
-          const script = TEXT_SCHEMAS.script.schema.parse(document);
+          // The hook is spoken first; a narration that repeats it says the opening
+          // line twice. Removed here, before the budget counts it twice.
+          const script = dedupeHook(TEXT_SCHEMAS.script.schema.parse(document));
           // The word budget is a hard rule (R-009-1/R-009-3) and the prompt only
           // offers it as guidance: a 136-word script for a 75 s target reached NA,
           // produced 62 s of speech, and was rejected by TC as duration_out_of_band

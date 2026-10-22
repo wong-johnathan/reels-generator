@@ -51,9 +51,22 @@ export const TopicDocumentSchema = z.object({
 });
 
 export const ScriptDocumentSchema = z.object({
-  hook: z.string().min(1),
-  narration: z.string().min(1),
-  ending: z.string().min(1),
+  hook: z
+    .string()
+    .min(1)
+    .describe(
+      'The first line spoken, one sentence, the line that stops the scroll. It is spoken once, at the very start.',
+    ),
+  narration: z
+    .string()
+    .min(1)
+    .describe(
+      'The body of the video, spoken immediately after the hook. Continue from the hook: never repeat it, and never restate it in different words.',
+    ),
+  ending: z
+    .string()
+    .min(1)
+    .describe('The closing line, spoken last. It must not repeat the hook either.'),
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
   hashtags: z

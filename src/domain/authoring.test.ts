@@ -18,6 +18,7 @@ import {
   buildScriptPrompt,
   checkWordBudget,
   dashOffender,
+  dedupeHook,
   draftScript,
   mapClaimsToSources,
   planStoryboard,
@@ -567,5 +568,48 @@ describe('punctuation rule: no em dashes', () => {
       target_duration_s: 75,
     });
     expect(promptText(prompt)).toContain('Never use an em dash');
+  });
+});
+
+describe('the hook is spoken once', () => {
+  const hook = 'The more she knows about you, the less she wonders.';
+
+  it('drops a hook the narration restated word for word', () => {
+    const script = dedupeHook({
+      hook,
+      narration:
+        'The more she knows about you, the less she wonders. Psychology calls it the mystery gap, and attraction lives in the not knowing what comes next.',
+      ending: 'Stay a little unknown.',
+    });
+    expect(script.narration.startsWith('Psychology calls it')).toBe(true);
+  });
+
+  it('matches regardless of case and punctuation', () => {
+    const script = dedupeHook({
+      hook,
+      narration:
+        'THE MORE SHE KNOWS ABOUT YOU THE LESS SHE WONDERS — psychology calls it the mystery gap, and attraction lives in not knowing what comes next.',
+      ending: 'Stay a little unknown.',
+    });
+    // The sentence that remains is re-capitalised: it is now the start of the body.
+    expect(script.narration).toBe(
+      'Psychology calls it the mystery gap, and attraction lives in not knowing what comes next.',
+    );
+  });
+
+  it('leaves a narration that merely starts with the same subject alone', () => {
+    const narration =
+      'The more she knows about you, the sooner the room goes quiet and the conversation turns into an interview you cannot leave.';
+    expect(dedupeHook({ hook, narration, ending: 'x' }).narration).toBe(narration);
+  });
+
+  it('does not empty a short narration to satisfy the rule', () => {
+    const narration = `${hook} Too short.`;
+    expect(dedupeHook({ hook, narration, ending: 'x' }).narration).toBe(narration);
+  });
+
+  it('ignores a hook too short to be a repetition', () => {
+    const narration = 'Breathe. Then say the thing you have been avoiding for a week.';
+    expect(dedupeHook({ hook: 'Breathe.', narration, ending: 'x' }).narration).toBe(narration);
   });
 });

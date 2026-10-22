@@ -655,6 +655,57 @@ export function spokenNarration(script: {
     .join(' ');
 }
 
+/**
+ * Remove a hook the model restated at the top of the narration.
+ *
+ * The spoken text is hook + narration + ending, so a narration that opens by
+ * repeating the hook says the opening line twice — heard as a stutter, and counted
+ * twice against the word budget. Prompts have not prevented it, so the duplicate is
+ * removed structurally: when the narration's first words match the hook's, those
+ * words are dropped from the narration and it is re-capitalised.
+ *
+ * Deliberately conservative: only an exact word-for-word prefix counts (case and
+ * punctuation ignored), the hook must be at least three words, and the narration
+ * must still have at least eight words left — a trim that empties the body would
+ * trade a repetition for a hole.
+ */
+export function dedupeHook<T extends { readonly hook: string; readonly narration: string }>(
+  script: T,
+): T {
+  const hookWords = wordsOf(script.hook);
+  if (hookWords.length < 3) return script;
+  const narrationWords = wordsOf(script.narration);
+  if (narrationWords.length <= hookWords.length + 8) return script;
+  const prefixMatches = hookWords.every((word, index) => narrationWords[index] === word);
+  if (!prefixMatches) return script;
+
+  const rest = cutWords(script.narration, hookWords.length)
+    .replace(/^[\s,;:.!?\u2014\u2013-]+/u, '')
+    .trim();
+  if (rest === '') return script;
+  return { ...script, narration: rest.charAt(0).toUpperCase() + rest.slice(1) };
+}
+
+/** Lower-cased, punctuation-free words — the form two texts are compared in. */
+function wordsOf(text: string): string[] {
+  return Array.from(text.toLowerCase().matchAll(/[\p{L}\p{N}']+/gu), (match) =>
+    match[0].replace(/'/g, ''),
+  );
+}
+
+/** Everything after the first `count` words of `text`, punctuation intact. */
+function cutWords(text: string, count: number): string {
+  const pattern = /[\p{L}\p{N}']+/gu;
+  let seen = 0;
+  let match: RegExpExecArray | null = pattern.exec(text);
+  while (match !== null) {
+    seen += 1;
+    if (seen === count) return text.slice(match.index + match[0].length);
+    match = pattern.exec(text);
+  }
+  return '';
+}
+
 export interface StoryboardSceneInput {
   readonly scene_no: string;
   readonly narration: string;
