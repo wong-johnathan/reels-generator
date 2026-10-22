@@ -60,6 +60,7 @@ const MIGRATION_IDS = [
   'M-007',
   'M-008',
   'M-009',
+  'M-010',
 ] as const;
 
 const hasDatabase = testDatabaseUrl() !== null;

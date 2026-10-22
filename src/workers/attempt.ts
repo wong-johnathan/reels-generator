@@ -54,8 +54,17 @@ import {
   type ProviderStageCode,
 } from '../domain/generation-run.js';
 
-/** R-011-2: at most three attempts per job. */
+/** R-011-2: at most three *automatic* attempts per job. */
 export const MAX_ATTEMPTS_PER_JOB = 3;
+
+/**
+ * The ledger's hard ceiling, not the retry policy. An operator pressing Regenerate
+ * is a deliberate decision and is allowed past R-011-2's ladder (D-H, M-009); the
+ * database permits any `attempt_no >= 1` since M-008. Capping the ledger at three
+ * meant an operator retry threw `RangeError` before a single row was written — the
+ * job died in two seconds with nothing to show why.
+ */
+export const MAX_LEDGER_ATTEMPT_NO = 999;
 
 /**
  * R-011-2's ladder: 1 s, 4 s, 16 s. Indexed by `attemptNo - 1`, so an attempt
@@ -66,21 +75,23 @@ export const BACKOFF_SECONDS = [1, 4, 16] as const;
 export const BACKOFF_MS = [1_000, 4_000, 16_000] as const;
 
 function assertAttemptNo(attemptNo: number): void {
-  if (!Number.isInteger(attemptNo) || attemptNo < 1 || attemptNo > MAX_ATTEMPTS_PER_JOB) {
+  if (!Number.isInteger(attemptNo) || attemptNo < 1 || attemptNo > MAX_LEDGER_ATTEMPT_NO) {
     throw new RangeError(
-      `attempt number must be an integer 1..${MAX_ATTEMPTS_PER_JOB} (R-011-2), got ${String(attemptNo)}`,
+      `attempt number must be a positive integer (leaving room for operator retries), got ${String(attemptNo)}`,
     );
   }
 }
 
 export function backoffSecondsForAttempt(attemptNo: number): number {
   assertAttemptNo(attemptNo);
-  return BACKOFF_SECONDS[attemptNo - 1]!;
+  // Operator retries run past the ladder: they reuse its last rung rather than
+  // reading past the end of the array and scheduling a NaN delay.
+  return BACKOFF_SECONDS[Math.min(attemptNo, BACKOFF_SECONDS.length) - 1]!;
 }
 
 export function backoffMsForAttempt(attemptNo: number): number {
   assertAttemptNo(attemptNo);
-  return BACKOFF_MS[attemptNo - 1]!;
+  return BACKOFF_MS[Math.min(attemptNo, BACKOFF_MS.length) - 1]!;
 }
 
 /** The two classes `job_attempt.error_class` / `generation_run.error_class` admit. */

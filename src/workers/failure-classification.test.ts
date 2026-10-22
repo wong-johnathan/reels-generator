@@ -93,10 +93,17 @@ describe('R-011-2 backoff ladder', () => {
     expect(backoffMsForAttempt(2)).toBe(4_000);
   });
 
-  it('refuses an attempt number outside 1..3', () => {
+  it('refuses a non-positive or fractional attempt number', () => {
     expect(() => backoffSecondsForAttempt(0)).toThrow(RangeError);
-    expect(() => backoffSecondsForAttempt(4)).toThrow(RangeError);
     expect(() => backoffSecondsForAttempt(1.5)).toThrow(RangeError);
+  });
+
+  it('reuses the last rung for an operator retry past the ladder', () => {
+    // R-011-2 caps *automatic* attempts at three. An operator's Regenerate is a
+    // deliberate decision and may open attempt 4 (D-H/M-009); reading one past the
+    // array gave NaN, and refusing outright killed the job before it wrote a row.
+    expect(backoffSecondsForAttempt(4)).toBe(16);
+    expect(backoffMsForAttempt(5)).toBe(16_000);
   });
 
   it('retries transient failures with the matching delay, stopping after three', () => {

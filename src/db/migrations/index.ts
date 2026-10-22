@@ -19,6 +19,7 @@ import { M005_STATE_GATES_SEED_SQL } from './m005-state-gates-seed.js';
 import { M007_OBJECT_LAYOUT_SQL } from './m007-object-layout.js';
 import { M008_OPERATOR_RETRY_SQL } from './m008-operator-retry.js';
 import { M009_OPERATOR_RETRY_FLAG_SQL } from './m009-operator-retry-flag.js';
+import { M010_GENERATION_RUN_ATTEMPT_SQL } from './m010-generation-run-attempt.js';
 
 export interface Migration {
   /** Stable, sortable id recorded in `schema_migration` (e.g. `M-001`). */
@@ -78,5 +79,11 @@ export const MIGRATIONS: readonly Migration[] = [
     id: 'M-009',
     description: 'operator retry intent lives on the job, consumed when the attempt opens (D-H)',
     sql: M009_OPERATOR_RETRY_FLAG_SQL,
+  },
+  {
+    id: 'M-010',
+    description:
+      'generation_run accepts operator attempts past the ladder, matching job_attempt (D-I)',
+    sql: M010_GENERATION_RUN_ATTEMPT_SQL,
   },
 ];
