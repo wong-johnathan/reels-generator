@@ -99,7 +99,7 @@ describe.skipIf(!hasDatabase)('Postgres OpsGateway', { timeout: DB_TEST_TIMEOUT_
     expect(report.service).toBe('web');
     expect(report.checked_at).toBe('2026-10-20T09:41:12.000Z');
     expect(report.migration.status).toBe('up_to_date');
-    expect(report.migration.version).toBe('M-008');
+    expect(report.migration.version).toBe('M-009');
     expect(report.components.find((component) => component.name === 'postgres')?.status).toBe('ok');
     expect(report.providers).toHaveLength(3);
     for (const provider of report.providers) {

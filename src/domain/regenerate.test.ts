@@ -77,7 +77,7 @@ describe.skipIf(!hasDatabase)('regenerateBatch (D-H)', { timeout: 120_000 }, () 
     );
   }
 
-  it('requeues a failed job and records the attempt as operator-triggered', async () => {
+  it('queues the job and records the operator intent, without pre-writing an attempt', async () => {
     const { batchId, projectId, jobId } = await seedBatch();
     await failFirstJob(jobId);
 
@@ -94,17 +94,20 @@ describe.skipIf(!hasDatabase)('regenerateBatch (D-H)', { timeout: 120_000 }, () 
     ]);
     expect(job.rows[0]!.status).toBe('queued');
 
-    const attempts = await db.pool.query<{
-      attempt_no: number;
-      status: string;
-      triggered_kind: string;
-    }>(
-      'SELECT attempt_no, status, triggered_kind FROM job_attempt WHERE job_id = $1 ORDER BY attempt_no',
+    // The intent lives on the job (M-009). Pre-writing the attempt row here made the
+    // orchestrator allocate one past it and refuse the dispatch as budget-exhausted.
+    const marked = await db.pool.query<{ retry: boolean }>(
+      'SELECT operator_retry_at IS NOT NULL AS retry FROM job WHERE id = $1',
       [jobId],
     );
-    // Attempt 2 exists at all only because M-008 lifted the 1..3 cap for operators.
-    expect(attempts.rows.map((row) => row.attempt_no)).toEqual([1, 2]);
-    expect(attempts.rows[1]).toMatchObject({ status: 'pending', triggered_kind: 'operator' });
+    expect(marked.rows[0]!.retry).toBe(true);
+
+    const attempts = await db.pool.query<{ attempt_no: number; status: string }>(
+      'SELECT attempt_no, status FROM job_attempt WHERE job_id = $1 ORDER BY attempt_no',
+      [jobId],
+    );
+    // Still just the one failed attempt: the worker writes the next one when it opens.
+    expect(attempts.rows.map((row) => row.attempt_no)).toEqual([1]);
 
     const project = await db.pool.query<{ status: string }>(
       'SELECT status FROM project WHERE id = $1',

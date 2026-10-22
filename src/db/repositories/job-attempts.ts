@@ -26,8 +26,18 @@ export async function insertPendingAttempt(
   input: NewJobAttempt,
 ): Promise<JobAttemptRow> {
   const result = await db.query<JobAttemptRow>(
-    `INSERT INTO job_attempt (job_id, attempt_no, status, worker_id)
-     VALUES ($1, $2, 'pending', $3)
+    // The trigger is read from, and cleared on, the job in the same statement:
+    // a pre-inserted attempt row used to inflate the attempt number and leave a
+    // `pending` row with no run attached (D-H, M-009).
+    `WITH consumed AS (
+       UPDATE job SET operator_retry_at = NULL, operator_retry_by = NULL
+        WHERE id = $1 AND operator_retry_at IS NOT NULL
+        RETURNING operator_retry_by AS by_id
+     )
+     INSERT INTO job_attempt (job_id, attempt_no, status, worker_id, triggered_kind, triggered_by)
+     SELECT $1, $2, 'pending', $3,
+            CASE WHEN EXISTS (SELECT 1 FROM consumed) THEN 'operator' ELSE 'automatic' END,
+            (SELECT by_id FROM consumed)
      RETURNING ${COLUMNS}`,
     [input.jobId, input.attemptNo, input.workerId ?? null],
   );

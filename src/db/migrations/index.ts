@@ -18,6 +18,7 @@ import { M004_ASSETS_SQL } from './m004-assets.js';
 import { M005_STATE_GATES_SEED_SQL } from './m005-state-gates-seed.js';
 import { M007_OBJECT_LAYOUT_SQL } from './m007-object-layout.js';
 import { M008_OPERATOR_RETRY_SQL } from './m008-operator-retry.js';
+import { M009_OPERATOR_RETRY_FLAG_SQL } from './m009-operator-retry-flag.js';
 
 export interface Migration {
   /** Stable, sortable id recorded in `schema_migration` (e.g. `M-001`). */
@@ -72,5 +73,10 @@ export const MIGRATIONS: readonly Migration[] = [
     description:
       'operator retries: lift the 3-attempt cap to the worker policy and record who triggered an attempt (D-H)',
     sql: M008_OPERATOR_RETRY_SQL,
+  },
+  {
+    id: 'M-009',
+    description: 'operator retry intent lives on the job, consumed when the attempt opens (D-H)',
+    sql: M009_OPERATOR_RETRY_FLAG_SQL,
   },
 ];

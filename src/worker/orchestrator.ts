@@ -271,12 +271,30 @@ async function nextAttemptNo(pool: Pool, jobId: string): Promise<number> {
 export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise<StageRunOutcome> {
   await ensureProjectRunning(deps.pool, job.projectId);
   const attemptNo = await nextAttemptNo(deps.pool, job.id);
-  if (attemptNo > MAX_ATTEMPTS_PER_JOB) {
-    // R-011-2: the ladder is three attempts. A fourth dispatch is a bug upstream,
-    // not a provider problem, and must not silently record an out-of-range attempt.
+  // R-011-2's ladder caps *automatic* attempts. An operator pressing Regenerate is a
+  // deliberate human decision, so it may go past three — the flag is set by
+  // regenerate and consumed when the attempt opens (D-H, M-009).
+  const retry = await deps.pool.query<{ operator_retry_at: Date | null }>(
+    'SELECT operator_retry_at FROM job WHERE id = $1',
+    [job.id],
+  );
+  const operatorInitiated = retry.rows[0]?.operator_retry_at != null;
+  if (!operatorInitiated && attemptNo > MAX_ATTEMPTS_PER_JOB) {
+    // A fourth automatic dispatch is a bug upstream, not a provider problem.
+    // Say *why* the earlier attempts failed: "budget exhausted" alone sent the
+    // operator looking for a provider fault that was already recorded.
+    const last = await deps.pool.query<{ error_message: string | null }>(
+      `SELECT error_message FROM job_attempt
+        WHERE job_id = $1 AND status = 'failed'
+        ORDER BY attempt_no DESC LIMIT 1`,
+      [job.id],
+    );
+    const cause = last.rows[0]?.error_message?.trim();
     return {
       status: 'failed',
-      message: `attempt budget exhausted for job ${job.id} (${MAX_ATTEMPTS_PER_JOB} attempts)`,
+      message:
+        `attempt budget exhausted for job ${job.id} (${MAX_ATTEMPTS_PER_JOB} automatic attempts)` +
+        (cause === undefined || cause === '' ? '' : `; last failure: ${cause}`),
     };
   }
   const workerId = deps.workerId ?? null;

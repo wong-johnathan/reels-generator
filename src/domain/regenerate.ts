@@ -83,15 +83,18 @@ export async function regenerateBatch(
     }
 
     for (const job of failed.rows) {
-      await client.query("UPDATE job SET status = 'queued', updated_at = now() WHERE id = $1", [
-        job.id,
-      ]);
+      // Only the intent is recorded. The attempt row is written by the worker when
+      // it actually opens the run: writing it here made the orchestrator read
+      // max(attempt_no) + 1 one past it and refuse the dispatch, and left a
+      // `pending` row that looks like an in-flight bill (M-009).
       await client.query(
         /* sql */ `
-        INSERT INTO job_attempt (job_id, attempt_no, status, triggered_kind, triggered_by)
-        VALUES ($1, $2, 'pending', 'operator',
-                (SELECT id FROM operator WHERE username = $3))`,
-        [job.id, job.last_attempt + 1, input.operatorUsername ?? null],
+        UPDATE job SET status = 'queued',
+                       operator_retry_at = now(),
+                       operator_retry_by = (SELECT id FROM operator WHERE username = $2),
+                       updated_at = now()
+         WHERE id = $1`,
+        [job.id, input.operatorUsername ?? null],
       );
     }
 
