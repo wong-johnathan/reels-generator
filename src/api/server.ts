@@ -52,7 +52,9 @@ import {
 } from '../web/middleware/auth.js';
 import { createWebApp, type WebAppDependencies } from '../web/app.js';
 import { createDbSessionStore } from '../web/auth/dbSession.js';
-import { loadBatches, type BatchSummary } from '../web/batches/postgres.js';
+import { regenerateBatch } from '../domain/regenerate.js';
+import { loadBatchDetail, loadBatches } from '../web/batches/postgres.js';
+import type { BatchesGateway } from '../web/app.js';
 import { EMPTY_OVERVIEW, loadOverview, type Overview } from '../web/overview/postgres.js';
 import { handleSeriesRequest } from './series-routes.js';
 import { createPostgresOpsGateway } from '../web/health/postgres.js';
@@ -98,8 +100,8 @@ export interface ContentRuntime {
   readonly overview?: Overview;
   /** Re-reads the overview per request, so the dashboard is not a boot snapshot. */
   readonly reloadOverview?: () => Promise<Overview>;
-  /** S-05 Batches page read model. */
-  readonly batches?: { list(): Promise<readonly BatchSummary[]> };
+  /** S-05/S-06 batches: list, one batch, and the operator's Regenerate request. */
+  readonly batches?: BatchesGateway;
   /**
    * The final-video download seam. Bound only when an object store is available;
    * a handler built without it answers 503 on /videos/:id/download rather than
@@ -706,7 +708,12 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
         pool,
         overview,
         reloadOverview: () => loadOverview(pool),
-        batches: { list: () => loadBatches(pool) },
+        batches: {
+          list: () => loadBatches(pool),
+          detail: (batchId: string) => loadBatchDetail(pool, batchId),
+          regenerate: (batchId: string, operatorUsername: string | null) =>
+            regenerateBatch(pool, { batchId, operatorUsername }),
+        },
         download: createPostgresDownloadGateway(pool, stores.content),
       },
     });

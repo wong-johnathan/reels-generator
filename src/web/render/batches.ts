@@ -65,7 +65,8 @@ function batchCard(batch: BatchSummary, now: Date): string {
     escapeAttr(batch.id) +
     '">' +
     '<header class="batch-card-head">' +
-    `<h2 id="batch-${escapeAttr(batch.id)}">${batchLabel(batch.ordinal)}</h2>` +
+    `<h2 id="batch-${escapeAttr(batch.id)}">` +
+    `<a href="/batches/${escapeAttr(batch.id)}">${batchLabel(batch.ordinal)}</a></h2>` +
     statusCell(batch) +
     `<p class="batch-subject">${heading}</p>` +
     `<p class="batch-meta">${ready} of ${batch.videos.length} ` +

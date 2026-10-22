@@ -17,6 +17,7 @@ import { M003_EXECUTION_SQL } from './m003-execution.js';
 import { M004_ASSETS_SQL } from './m004-assets.js';
 import { M005_STATE_GATES_SEED_SQL } from './m005-state-gates-seed.js';
 import { M007_OBJECT_LAYOUT_SQL } from './m007-object-layout.js';
+import { M008_OPERATOR_RETRY_SQL } from './m008-operator-retry.js';
 
 export interface Migration {
   /** Stable, sortable id recorded in `schema_migration` (e.g. `M-001`). */
@@ -65,5 +66,11 @@ export const MIGRATIONS: readonly Migration[] = [
     description:
       'object layout: drop the content-addressed key CHECK and hash uniqueness, unique object_key (D-F)',
     sql: M007_OBJECT_LAYOUT_SQL,
+  },
+  {
+    id: 'M-008',
+    description:
+      'operator retries: lift the 3-attempt cap to the worker policy and record who triggered an attempt (D-H)',
+    sql: M008_OPERATOR_RETRY_SQL,
   },
 ];

@@ -92,14 +92,26 @@ import { RenderRefusedError, type RenderGateway } from './quality/gateway.js';
 import { redactText } from '../security/redact.js';
 import type { RenderView } from './quality/model.js';
 import { qualityNotice, type QualityNotice } from './quality/notice.js';
-import type { BatchSummary } from './batches/postgres.js';
+import type { BatchDetail, BatchSummary } from './batches/postgres.js';
 import { renderBatches } from './render/batches.js';
+import { renderBatchDetail } from './render/batchDetail.js';
+import { BatchCancelledError, BatchNotFoundError } from '../domain/regenerate.js';
 import { renderQualityPanel } from './render/quality.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
 type HealthReport = z.infer<typeof HealthReportSchema>;
 type SessionInfo = z.infer<typeof SessionInfoSchema>;
 type SeriesDetail = z.infer<typeof SeriesDetailSchema>;
+
+/** S-05/S-06 storage. `regenerate` requeues failed jobs in place (D-H). */
+export interface BatchesGateway {
+  list(): Promise<readonly BatchSummary[]>;
+  detail(batchId: string): Promise<BatchDetail | null>;
+  regenerate(
+    batchId: string,
+    operatorUsername: string | null,
+  ): Promise<{ readonly requeued: number }>;
+}
 
 export interface WebAppDependencies {
   readonly sessions: SessionStore;
@@ -110,8 +122,8 @@ export interface WebAppDependencies {
    * batch created after start-up never changes the numbers on the page.
    */
   readonly reloadOverview?: () => Promise<Overview>;
-  /** S-05 the Batches page. Absent builds answer 503 rather than inventing rows. */
-  readonly batches?: { list(): Promise<readonly BatchSummary[]> };
+  /** S-05/S-06 batches. Absent builds answer 503 rather than inventing rows. */
+  readonly batches?: BatchesGateway;
   readonly health?: HealthReport;
   readonly now?: () => number;
   /** B-13's synchroniser token (contract `SessionInfo.csrf_token`). */
@@ -434,9 +446,13 @@ export function createWebApp(
       });
     }
 
-    if (pathname === '/batches') {
-      if (effective !== 'GET' && effective !== 'HEAD') return methodNotAllowed('GET, HEAD');
-      return batchesPage(sessionInfo(record));
+    if (pathname === '/batches' || pathname.startsWith('/batches/')) {
+      return batchRoutes({
+        method: effective,
+        pathname,
+        search: target.searchParams,
+        session: sessionInfo(record),
+      });
     }
 
     if (pathname === '/health') {
@@ -463,18 +479,88 @@ export function createWebApp(
 
   // ── S-02 Overview (W-01, IP-05) ──────────────────────────────────────────
 
-  async function batchesPage(session: SessionInfo): Promise<WebResponse> {
+  /**
+   * S-05 the list, S-06 one batch, and the operator's Regenerate request.
+   *
+   * Regenerate is a POST that requeues only the failed jobs in this batch and then
+   * redirects back here, so a refresh cannot fire it twice (D-H).
+   */
+  async function batchRoutes(input: {
+    readonly method: string;
+    readonly pathname: string;
+    readonly search: URLSearchParams;
+    readonly session: SessionInfo;
+  }): Promise<WebResponse> {
     if (deps.batches === undefined) {
       return html(renderNotFoundPage({ variant: 'not_found' }), 503);
     }
-    const batches = await deps.batches.list();
+
+    if (input.pathname === '/batches') {
+      if (input.method !== 'GET' && input.method !== 'HEAD') {
+        return methodNotAllowed('GET, HEAD');
+      }
+      const batches = await deps.batches.list();
+      return html(
+        page({
+          title: 'Batches',
+          nav: 'batches',
+          breadcrumbs: [{ label: 'Batches' }],
+          content: renderBatches({ batches, now: new Date(now()) }),
+          session: input.session,
+        }),
+      );
+    }
+
+    const match = /^\/batches\/([^/]+)(\/regenerate)?$/.exec(input.pathname);
+    if (match === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+    const batchId = decodeURIComponent(match[1] ?? '');
+
+    if (match[2] === '/regenerate') {
+      if (input.method !== 'POST') return methodNotAllowed('POST');
+      try {
+        const result = await deps.batches.regenerate(batchId, input.session.username);
+        return redirect(
+          '/batches/' + encodeURIComponent(batchId) + '?regenerated=' + result.requeued,
+        );
+      } catch (error) {
+        if (error instanceof BatchNotFoundError) {
+          return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+        }
+        if (error instanceof BatchCancelledError) {
+          return html(renderNotFoundPage({ variant: 'not_found' }), 409);
+        }
+        const detail = redactText(error instanceof Error ? error.message : String(error), {
+          env: process.env,
+        });
+        console.error(`web: POST /batches/${batchId}/regenerate failed — ${detail}`);
+        return html(renderNotFoundPage({ variant: 'not_found' }), 503);
+      }
+    }
+
+    if (input.method !== 'GET' && input.method !== 'HEAD') {
+      return methodNotAllowed('GET, HEAD');
+    }
+
+    const batch = await deps.batches.detail(batchId);
+    if (batch === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+
+    const regeneratedRaw = input.search.get('regenerated');
+    const regenerated = regeneratedRaw === null ? Number.NaN : Number(regeneratedRaw);
+
     return html(
       page({
-        title: 'Batches',
+        title: 'batch-' + String(batch.ordinal).padStart(4, '0'),
         nav: 'batches',
-        breadcrumbs: [{ label: 'Batches' }],
-        content: renderBatches({ batches, now: new Date(now()) }),
-        session,
+        breadcrumbs: [
+          { label: 'Batches', href: '/batches' },
+          { label: 'batch-' + String(batch.ordinal).padStart(4, '0') },
+        ],
+        content: renderBatchDetail({
+          batch,
+          now: new Date(now()),
+          ...(Number.isFinite(regenerated) ? { regenerated } : {}),
+        }),
+        session: input.session,
       }),
     );
   }
