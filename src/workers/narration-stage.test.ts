@@ -5,6 +5,7 @@
  * These tests assert it against real PostgreSQL and B-07's deterministic
  * `FakeTtsAdapter`: no network, no paid call, no clock dependence.
  */
+import { sniffAudioMime } from './narration-stage.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -314,5 +315,20 @@ describe.skipIf(!hasDatabase)('narration stage (US-021)', () => {
       [seeded.projectId],
     );
     expect(run.rows[0]).toEqual({ n: 0 });
+  });
+});
+
+describe('sniffAudioMime', () => {
+  it('labels ElevenLabs MP3 bytes as audio/mpeg', () => {
+    // The take that reached TC was stored audio/wav while its header said ID3.
+    expect(sniffAudioMime(Buffer.from('ID3\x04\x00\x00', 'latin1'))).toBe('audio/mpeg');
+  });
+
+  it('labels a real WAV container as audio/wav', () => {
+    expect(sniffAudioMime(Buffer.from('RIFF....WAVE', 'latin1'))).toBe('audio/wav');
+  });
+
+  it('recognises a bare MPEG frame sync', () => {
+    expect(sniffAudioMime(Uint8Array.from([0xff, 0xfb, 0x90, 0x00]))).toBe('audio/mpeg');
   });
 });

@@ -226,6 +226,16 @@ function rightsMetadata(voice: NarrationVoiceConfig, stage: string): Record<stri
   };
 }
 
+/** `ID3`/frame-sync means MPEG audio; `RIFF` means a real WAV container. */
+export function sniffAudioMime(bytes: Uint8Array): 'audio/mpeg' | 'audio/wav' {
+  const head = Buffer.from(bytes.subarray(0, 4)).toString('latin1');
+  if (head.startsWith('ID3')) return 'audio/mpeg';
+  if (head === 'RIFF') return 'audio/wav';
+  // MPEG frame sync: 11 set bits.
+  if (bytes.length > 1 && bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0) return 'audio/mpeg';
+  return 'audio/wav';
+}
+
 async function persistTake(
   deps: NarrationStageDeps,
   input: NarrationStageInput,
@@ -259,7 +269,11 @@ async function persistTake(
   // Object first, row second: a crash between them leaves an unreferenced
   // object (the §3.4 reconciliation reports it), never a row whose bytes are
   // missing.
-  await deps.blobs.put(audioKey, converted.audio, 'audio/wav');
+  // Label the bytes that actually came back. ElevenLabs answers with MP3 even for
+  // the WAV-looking path, and a wrong mime on a real object is the kind of drift
+  // that makes a later demux fail for no visible reason.
+  const audioMime = sniffAudioMime(converted.audio);
+  await deps.blobs.put(audioKey, converted.audio, audioMime);
   await deps.blobs.put(alignmentKey, jsonBytes(document), 'application/json');
 
   return withTransaction(deps.pool, async (client) => {
@@ -272,7 +286,7 @@ async function persistTake(
         contentSha256: audioSha,
         objectKey: audioKey,
         objectSizeBytes: converted.audio.byteLength,
-        mimeType: 'audio/wav',
+        mimeType: audioMime,
         seriesVersionId: input.seriesVersionId ?? null,
         provider: deps.tts.provider,
         model: deps.tts.modelId,

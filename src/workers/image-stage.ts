@@ -30,6 +30,7 @@ import {
   type ImageQualificationStore,
 } from '../adapters/image-qualification.js';
 import {
+  CHARACTER_LOCK_INSTRUCTION,
   MAX_REFERENCE_IMAGES,
   referenceSetDigest,
   type ImageAdapter,
@@ -375,6 +376,39 @@ export async function loadReferenceSet(
   return { images, rights, digest: referenceSetDigest(images) };
 }
 
+/**
+ * The character lock, seeded.
+ *
+ * With no operator-uploaded reference set every scene is generated from text alone,
+ * so the model invents a new person per scene — measured, not theorised: the three
+ * qualification fixtures came back as three different characters. The first scene
+ * image is therefore reused as the reference for the rest, which is what keeps a
+ * face stable across a video. A stored scene 1 seed makes the lock survive a rerun
+ * that regenerates only the later scenes.
+ */
+async function loadCharacterAnchor(
+  deps: ImageStageDeps,
+  projectId: string,
+): Promise<InlineImageData | null> {
+  const result = await deps.pool.query<{ object_key: string; mime_type: string; asset_id: string }>(
+    `SELECT a.object_key, a.mime_type, a.id AS asset_id
+       FROM asset a
+       JOIN scene s ON s.image_asset_id = a.id
+      WHERE s.project_id = $1 AND a.kind = 'image'
+      ORDER BY s.position ASC
+      LIMIT 1`,
+    [projectId],
+  );
+  const row = result.rows[0];
+  if (row === undefined) return null;
+  const stored = await deps.blobs.get(row.object_key);
+  if (stored === null) return null;
+  return {
+    mime_type: imageMimeOrThrow(row.mime_type, row.asset_id),
+    data: Buffer.from(stored.bytes).toString('base64'),
+  };
+}
+
 /** X-8/OQ-6: the pin a stage starts with is the newest series version. */
 export async function currentSeriesVersionId(pool: Pool, seriesId: string): Promise<string | null> {
   const result = await pool.query<{ current_version_id: string | null }>(
@@ -438,9 +472,11 @@ export function buildImageRequest(
   scene: PlannerScene,
   references: LoadedReferenceSet,
   imageSize: ImageSize,
+  characterLocked = false,
 ): ImageGenerateRequest {
+  const prompt = (scene.image_prompt ?? '').trim();
   return {
-    prompt: (scene.image_prompt ?? '').trim(),
+    prompt: characterLocked ? CHARACTER_LOCK_INSTRUCTION + prompt : prompt,
     reference_images: references.images,
     image_size: imageSize,
     aspect_ratio: IMAGE_ASPECT_RATIO,
@@ -629,8 +665,26 @@ async function runGenerationPass(
   let charge: 'billed' | 'unbilled' | 'unknown' | null = null;
   let fatal: unknown = null;
 
+  // Seeded from an existing scene 1 image; extended in-loop by the first scene
+  // generated here. Only when the operator supplied no references of their own.
+  let characterAnchor: InlineImageData | null =
+    context.references.images.length === 0 ? await loadCharacterAnchor(deps, job.projectId) : null;
+
   for (const [index, scene] of plan.to_generate.entries()) {
-    const request = buildImageRequest(scene, context.references, deps.adapter.imageSize);
+    const anchored: LoadedReferenceSet =
+      characterAnchor === null
+        ? context.references
+        : {
+            ...context.references,
+            images: [...context.references.images, characterAnchor],
+            digest: referenceSetDigest([...context.references.images, characterAnchor]),
+          };
+    const request = buildImageRequest(
+      scene,
+      anchored,
+      deps.adapter.imageSize,
+      characterAnchor !== null,
+    );
     const promptHash = promptHashFor(request);
     const runInput = {
       projectId: job.projectId,
@@ -735,6 +789,12 @@ async function runGenerationPass(
         chargeStatus: 'billed',
         providerRequestId: result.provider_request_id,
       });
+      if (characterAnchor === null && context.references.images.length === 0) {
+        characterAnchor = {
+          mime_type: result.mime_type,
+          data: Buffer.from(result.image_bytes).toString('base64'),
+        };
+      }
       generatedSceneIds.push(scene.id);
       assetIds.push(persisted.asset.id);
       calls += 1;

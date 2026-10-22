@@ -64,6 +64,17 @@ export interface InlineImageData {
   readonly data: string;
 }
 
+/**
+ * What the model needs to hear when a scene is conditioned on the established
+ * protagonist. Measured: the same reference image with no words about identity still
+ * produced a different person (a hooded man where the first scene had a woman),
+ * while the reference plus this instruction held face, hair, glasses and jacket.
+ */
+export const CHARACTER_LOCK_INSTRUCTION =
+  'The attached image is the established protagonist. Reproduce the SAME character ' +
+  'exactly — same face, same hair, same glasses, same clothing — changing only pose, ' +
+  'camera and lighting. ';
+
 export interface ImageGenerateRequest {
   readonly prompt: string;
   /** 0..14 images; order is preserved (a character sheet can precede a style plate). */

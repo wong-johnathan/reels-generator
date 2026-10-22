@@ -335,6 +335,19 @@ function assertTargetDuration(targetDurationS: number): void {
   }
 }
 
+/** Record a failure the stage decided on, so it is visible outside the logs. */
+async function recordStageFailure(pool: Pool, jobId: string, message: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO job_attempt (job_id, attempt_no, status, error_class, error_message, finished_at)
+     VALUES ($1,
+             (SELECT coalesce(max(attempt_no), 0) + 1 FROM job_attempt WHERE job_id = $1),
+             'failed', 'non_retryable', $2, now())
+     ON CONFLICT (job_id, attempt_no) DO UPDATE
+       SET status = 'failed', error_class = 'non_retryable', error_message = $2, finished_at = now()`,
+    [jobId, message.slice(0, 2000)],
+  );
+}
+
 /** Send the video back to script/voice review and stop (R-009-4). */
 async function returnToReview(
   deps: TimingStageDeps,
@@ -348,6 +361,10 @@ async function returnToReview(
   await applyStageEvent(deps.pool, input.projectId, 'TC', 'fail');
   await applyVideoEvent(deps.pool, input.projectId, 'needs_attention');
   await markJobStatus(deps.pool, input.jobId, 'failed');
+  // Say *why* on the record. Returning to review used to write nothing, so the
+  // batch page showed a failed stage with no reason and the operator had to read
+  // container logs to learn that the narration was simply too short.
+  await recordStageFailure(deps.pool, input.jobId, failures.join(' '));
   return {
     status: 'review_required',
     review: {

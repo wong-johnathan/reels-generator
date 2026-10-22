@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 
 import {
+  checkWordBudget,
   planStoryboard,
   sceneCountBand,
   spokenNarration,
@@ -235,7 +236,10 @@ async function buildStoryboardRequest(
       `Split the approved narration into exactly ${target} sequential scenes (S01…), ` +
       `and never fewer than ${band.min} or more than ${band.max}. Each scene reconstructs ` +
       'its part of the narration verbatim, with an image prompt, camera move, caption ' +
-      'emphasis and fallback text.',
+      'emphasis and fallback text. If a character appears, write ONE canonical ' +
+      'description of them (age, hair, face, glasses, clothing) and begin every image ' +
+      'prompt that features them with that description word for word — image prompts ' +
+      'are generated independently, so an unstated character becomes a new person.',
     narration: spokenNarration(script),
     target_duration_s: context.targetDurationS,
     scene_count: { target, min: band.min, max: band.max },
@@ -520,7 +524,22 @@ export async function runTextStage(
         if (stage === 'T') {
           await persistTopic(deps.pool, job.projectId, TEXT_SCHEMAS.topic.schema.parse(document));
         } else if (stage === 'SC') {
-          await persistScript(deps, job, context, TEXT_SCHEMAS.script.schema.parse(document), ref);
+          const script = TEXT_SCHEMAS.script.schema.parse(document);
+          // The word budget is a hard rule (R-009-1/R-009-3) and the prompt only
+          // offers it as guidance: a 136-word script for a 75 s target reached NA,
+          // produced 62 s of speech, and was rejected by TC as duration_out_of_band
+          // — three stages and a TTS bill later. Refuse it here, where the repair
+          // retry can still fix it.
+          const budget = checkWordBudget(spokenNarration(script), context.targetDurationS);
+          if (!budget.within_band) {
+            throw new Error(
+              `narration is ${budget.word_count} words (~${budget.estimated_runtime_s.toFixed(1)} s) ` +
+                `but a ${context.targetDurationS} s target needs ${budget.budget.min_words}–` +
+                `${budget.budget.max_words} words, ideally ${budget.budget.target_words} (R-009-1). ` +
+                'Rewrite the narration to that length; keep the hook, the scenes and the ending.',
+            );
+          }
+          await persistScript(deps, job, context, script, ref);
         } else {
           await persistStoryboard(
             deps,

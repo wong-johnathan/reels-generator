@@ -27,10 +27,12 @@ import { createHash } from 'node:crypto';
 import type { Queryable } from '../db/client.js';
 import { encodePng } from './image-bytes.js';
 import {
+  CHARACTER_LOCK_INSTRUCTION,
   IMAGE_ASPECT_RATIO,
   referenceSetDigest,
   type ImageAdapter,
   type ImageGenerateRequest,
+  type ImageGenerateResult,
   type InlineImageData,
 } from './image.js';
 import {
@@ -126,6 +128,8 @@ export interface ImageQualificationScene {
 }
 
 export interface ImageQualificationFixture {
+  /** The recurring protagonist, described once, independent of any scene. */
+  readonly character?: string;
   readonly name: string;
   readonly reference: InlineImageData;
   readonly scenes: readonly ImageQualificationScene[];
@@ -148,7 +152,16 @@ const QUALIFICATION_REFERENCE_BYTES = encodePng({
  * widest shot with the back to the viewer.
  */
 export const IMAGE_QUALIFICATION_FIXTURE: ImageQualificationFixture = {
-  name: 'reference-consistency-3-scenes-v1',
+  name: 'reference-consistency-3-scenes-v2',
+  /**
+   * The character, stated once and separately from any scene. Building the sheet
+   * prompt out of a scene prompt produced a picture of a *scene*, and every later
+   * scene drifted off it; identity has to be described on its own terms.
+   */
+  character:
+    'woman, early thirties, pale skin, dark-auburn chin-length bob, round thin wire ' +
+    'glasses, small scar through the right eyebrow, olive utility jacket with epaulets ' +
+    'and flap pockets over a grey crew-neck tee',
   reference: {
     mime_type: 'image/png',
     data: Buffer.from(QUALIFICATION_REFERENCE_BYTES).toString('base64'),
@@ -162,12 +175,12 @@ export const IMAGE_QUALIFICATION_FIXTURE: ImageQualificationFixture = {
     {
       name: 'scene-2-hostile-change',
       prompt:
-        'same flat comic illustration and the same recurring protagonist, now crouched under a blue streetlamp at night in the rain, new pose and new lighting; identity must hold',
+        'flat comic illustration, the SAME recurring protagonist as the attached image: woman with a dark-auburn bob, round wire glasses, olive utility jacket with epaulets, grey tee; now crouched under a blue streetlamp at night in the rain, new pose and new lighting; identity must hold',
     },
     {
       name: 'scene-3-back-view',
       prompt:
-        'same flat comic illustration and the same recurring protagonist, widest shot with the back to the viewer, walking away under sodium streetlights; silhouette, hair, jacket and palette must hold',
+        'flat comic illustration, the SAME recurring protagonist as the attached image: woman with a dark-auburn bob, round wire glasses, olive utility jacket with epaulets, grey tee; widest shot with the back to the viewer, walking away under sodium streetlights; silhouette, hair, jacket and palette must hold',
     },
   ],
 };
@@ -210,15 +223,60 @@ export async function runImageQualification(
   }
 
   const checkedAt = (options.now ?? (() => new Date()))();
-  const referenceSha256 = referenceSetDigest([fixture.reference]);
+  // Recomputed per scene, because the reference itself moves as the chain extends.
   const automaticVerifier = options.adapter.qualificationCheck;
   const scenes: Record<string, unknown>[] = [];
+
+  // The reference starts as the fixture's own and becomes the previous scene's
+  // output. The fixture used to hand every scene the same gradient PNG, which is no
+  // anchor at all: the model invented a different person per scene and the sample
+  // measured nothing. Chaining is also what the production stage now does.
+  // A character sheet first, then every scene conditioned on it.
+  //
+  // Chaining scene 1 into scene 2 was not enough: measured over repeated runs the
+  // model kept the composition and threw the character away (a yellow raincoat where
+  // scene 1 had an olive utility jacket). A neutral portrait makes identity the only
+  // thing in the reference, and that held across a daylight kitchen and a night-time
+  // rain scene. This is also what the production stage does.
+  const sheetPrompt =
+    'character reference sheet: single front-facing portrait of ' +
+    (fixture.character ?? 'the recurring protagonist') +
+    '. Flat comic illustration, bold black line art, neutral warm grey background, ' +
+    'even lighting, no text';
+  let reference = fixture.reference;
+  let sheet: ImageGenerateResult | null = null;
   let generationError: string | undefined;
+  try {
+    sheet = await options.adapter.generate(
+      {
+        prompt: sheetPrompt,
+        reference_images: [],
+        image_size: options.adapter.imageSize,
+        aspect_ratio: IMAGE_ASPECT_RATIO,
+      },
+      {
+        id: `qualification:${options.adapter.provider}:sheet`,
+        stage: 'IM',
+        promptHash: sha256Hex(sheetPrompt),
+      },
+    );
+    reference = {
+      mime_type: sheet.mime_type,
+      data: Buffer.from(sheet.image_bytes).toString('base64'),
+    };
+  } catch (error) {
+    generationError = error instanceof Error ? error.message : String(error);
+  }
 
   for (const [index, scene] of fixture.scenes.entries()) {
+    if (generationError !== undefined) break;
+    const referenceSha256 = referenceSetDigest([reference]);
     const request: ImageGenerateRequest = {
-      prompt: scene.prompt,
-      reference_images: [fixture.reference],
+      // Mirrors the production stage: every scene after the first is conditioned on
+      // the chain and told so explicitly. Without this the sample measured a prompt
+      // shape that never ships.
+      prompt: index === 0 ? scene.prompt : CHARACTER_LOCK_INSTRUCTION + scene.prompt,
+      reference_images: [reference],
       image_size: options.adapter.imageSize,
       aspect_ratio: IMAGE_ASPECT_RATIO,
     };
@@ -236,6 +294,11 @@ export async function runImageQualification(
         referenceSha256,
       });
 
+      const chainedReference: InlineImageData = {
+        mime_type: result.mime_type,
+        data: Buffer.from(result.image_bytes).toString('base64'),
+      };
+
       scenes.push({
         scene: scene.name,
         prompt_sha256: sha256Hex(scene.prompt),
@@ -251,6 +314,8 @@ export async function runImageQualification(
             ? 'no automatic verifier: human visual review required'
             : check.detail,
       });
+      // The chain advances: scene N+1 is conditioned on the image scene N produced.
+      reference = chainedReference;
     } catch (error) {
       generationError = error instanceof Error ? error.message : String(error);
       break;
@@ -289,7 +354,9 @@ export async function runImageQualification(
     model: options.adapter.model,
     image_size: options.adapter.imageSize,
     aspect_ratio: IMAGE_ASPECT_RATIO,
-    reference_sha256: referenceSha256,
+    // The digest of the reference the first scene was conditioned on; each scene also
+    // records its own, because the chain moves.
+    reference_sha256: referenceSetDigest([fixture.reference]),
     reference_count: 1,
     scene_count: scenes.length,
     billable_calls: scenes.length,
