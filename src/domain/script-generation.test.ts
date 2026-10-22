@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { QUIET_MACHINES_FIXTURES } from '../adapters/text-fixtures.js';
+import { fixtureFor, QUIET_MACHINES_FIXTURES } from '../adapters/text-fixtures.js';
 import { wordBudget } from '../shared/calibration.js';
 import { checkWordBudget, countWords } from './authoring.js';
 import {
@@ -15,6 +15,8 @@ import {
   SC_FRAME_MAX_TOKENS,
   SC_NARRATION_MAX_TOKENS,
   SC_REPAIR_MAX_TOKENS,
+  SCRIPT_FRAME_PART,
+  SCRIPT_NARRATION_PART,
 } from './script-generation.js';
 
 const frame = () =>
@@ -232,6 +234,15 @@ describe('explicit max_tokens', () => {
 });
 
 describe('fixture round-trip (frame + narration reconstructs script.v2)', () => {
+  it.each([SCRIPT_FRAME_PART, SCRIPT_NARRATION_PART])(
+    'registers a conformant fixture under the actual schema name $name',
+    (schema) => {
+      const fixture = fixtureFor(schema.name);
+      expect(fixture).toBeDefined();
+      expect(() => schema.parse(fixture)).not.toThrow();
+    },
+  );
+
   it('reconstructs the canonical script byte-for-byte', () => {
     const frame = freezeFrame(
       QUIET_MACHINES_FIXTURES.frame as unknown as Parameters<typeof freezeFrame>[0],
