@@ -115,13 +115,13 @@ export function freezeFrame(frame: ScriptFrame): FrozenFrame {
   const ending = stripForbiddenDashes(frame.ending).trim();
   if (hook === '') throw new Error('frame hook is empty after cleaning');
   if (ending === '') throw new Error('frame ending is empty after cleaning');
-  return {
+  return Object.freeze({
     hook,
     ending,
     title: frame.title.trim(),
     description: frame.description.trim(),
-    hashtags: frame.hashtags,
-  };
+    hashtags: Object.freeze([...frame.hashtags]),
+  });
 }
 
 /** Words already committed to the frozen frame (hook + ending). */
