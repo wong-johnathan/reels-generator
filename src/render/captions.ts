@@ -394,7 +394,7 @@ export function buildAssDocument(
     const text = cue.lines.map((line) => sanitizeCaptionText(line)).join('\\N');
     return (
       `Dialogue: 0,${assTimestamp(cue.start_ms)},${assTimestamp(cue.end_ms)},${CAPTION_STYLE},,` +
-      `0,0,0,,{\\fad(120,120)}${text}`
+      `0,0,0,,${text}`
     );
   });
   return `${header.join('\n')}\n${events.join('\n')}\n`;
