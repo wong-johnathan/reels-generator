@@ -23,7 +23,7 @@ import type { Pool } from 'pg';
 
 import {
   checkWordBudget,
-  dashOffender,
+  stripForbiddenDashes,
   dedupeHook,
   planStoryboard,
   sceneCountBand,
@@ -180,6 +180,16 @@ export function normalizeDocument(value: unknown): unknown {
     }
   }
   return value;
+}
+
+/** The operator rule, applied to every spoken field of a script. */
+function stripDashes<T extends { hook: string; narration: string; ending: string }>(script: T): T {
+  return {
+    ...script,
+    hook: stripForbiddenDashes(script.hook),
+    narration: stripForbiddenDashes(script.narration),
+    ending: stripForbiddenDashes(script.ending),
+  };
 }
 
 function requestFor<Out>(
@@ -634,22 +644,17 @@ export async function runTextStage(
         } else if (stage === 'SC') {
           // The hook is spoken first; a narration that repeats it says the opening
           // line twice. Removed here, before the budget counts it twice.
-          const script = dedupeHook(TEXT_SCHEMAS.script.schema.parse(document));
+          const script = dedupeHook(stripDashes(TEXT_SCHEMAS.script.schema.parse(document)));
           // The word budget is a hard rule (R-009-1/R-009-3) and the prompt only
           // offers it as guidance: a 136-word script for a 75 s target reached NA,
           // produced 62 s of speech, and was rejected by TC as duration_out_of_band
           // — three stages and a TTS bill later. Refuse it here, where the repair
           // retry can still fix it.
-          // No em dashes (operator rule). The prompt says so, and the prompt alone
-          // has never been enough: reject here so the repair loop can rewrite it.
-          const offender = dashOffender(script);
-          if (offender !== null) {
-            throw new Error(
-              `the ${offender} contains an em dash or an en dash, which this series does not allow. ` +
-                'Rewrite it using a comma, a colon or a full stop instead, keep the meaning and the ' +
-                'word count identical, and return the full JSON.',
-            );
-          }
+          // No em dashes (operator rule). The prompt asks, but a prompt rule is a
+          // suggestion, so any that survive are rewritten here as the comma or stop
+          // a reader expects. Rejecting instead was wrong: it spent two of three
+          // attempts on punctuation and failed the job on the third for word count,
+          // and a typographic preference must never cost a video.
           const budgetCheck = checkWordBudget(spokenNarration(script), context.targetDurationS);
           if (!budgetCheck.within_band) {
             // Carry the draft itself into the rejection, framed as an expansion.
