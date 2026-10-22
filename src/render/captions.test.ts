@@ -138,9 +138,24 @@ describe('documents', () => {
     expect(ass).toContain('Style: ReelsCaption,DejaVu Sans,68');
     // BorderStyle 1 (outline + shadow), Outline 3, Shadow 3, Alignment 2, margins.
     expect(ass).toContain('1,3,3,2,60,60,486,1');
-    expect(ass).toContain('{\\fad(120,120)}');
+    expect(ass).not.toMatch(/\\(?:fad|fade)\s*\(/);
     const dialogues = ass.split('\n').filter((line) => line.startsWith('Dialogue:'));
     expect(dialogues).toHaveLength(cues.length);
+    expect(dialogues[0]).toContain(',,the');
+  });
+
+  it('emits adjacent word cues as immediate full-opacity replacements', () => {
+    const wordCues = groupCaptionCuesByWord([
+      { word: 'he', start_ms: 0, end_ms: 420 },
+      { word: 'said', start_ms: 420, end_ms: 540 },
+    ]);
+    expect(wordCues[0]!.end_ms).toBe(wordCues[1]!.start_ms);
+
+    const ass = buildAssDocument(wordCues);
+    expect(ass).not.toMatch(/\\(?:fad|fade)\s*\(/);
+    const dialogues = ass.split('\n').filter((line) => line.startsWith('Dialogue:'));
+    expect(dialogues[0]).toContain('0:00:00.00,0:00:00.42');
+    expect(dialogues[1]).toContain('0:00:00.42,0:00:00.54');
   });
 
   it('uses \\\\N for the second line of a two-line cue', () => {

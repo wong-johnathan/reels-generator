@@ -236,6 +236,8 @@ export const QUIET_MACHINES_FIXTURES = {
   storyboard: STORYBOARD,
   frame: FRAME,
   narration: NARRATION,
+  'script-frame': FRAME,
+  'script-narration': NARRATION,
 } as const;
 
 /** The fixture for a schema name, cloned so a caller cannot mutate the canonical copy. */
