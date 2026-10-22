@@ -21,7 +21,11 @@ import type { StageCode } from '../shared/stages.js';
 import { applyProjectStatusTransition } from '../db/repositories/video-stages.js';
 import { applyStageEvent, setProjectCurrentStage } from '../db/repositories/stage-state.js';
 import { insertQueuedJob } from '../db/repositories/jobs.js';
-import { finishJobAttempt, insertPendingAttempt } from '../db/repositories/job-attempts.js';
+import {
+  finishJobAttempt,
+  insertPendingAttempt,
+  markAttemptRunning,
+} from '../db/repositories/job-attempts.js';
 import { settleAfterStage } from './settle.js';
 import { MAX_ATTEMPTS_PER_JOB } from '../workers/attempt.js';
 import type { ContentAddressedStore } from '../storage/object-store.js';
@@ -34,7 +38,11 @@ import type { FfmpegRunner } from '../render/ffmpeg.js';
 import { runTextStage, type TextStageDeps, type TextStageJob } from '../workers/text-stage.js';
 import { runImageStage } from '../workers/image-stage.js';
 import { runNarrationStage, type NarrationVoiceConfig } from '../workers/narration-stage.js';
-import { runTimingStage, type TimingSceneInput } from '../workers/timing-stage.js';
+import {
+  runTimingStage,
+  type TimingSceneInput,
+  type TimingStageResult,
+} from '../workers/timing-stage.js';
 import { runRenderStage } from '../render/stage.js';
 import { repairOvershoot } from '../workers/duration-repair.js';
 import { resolveVoiceId } from './providers.js';
@@ -412,55 +420,86 @@ async function runStageBody(
     }
 
     case 'TC': {
-      const { narrationAssetId, alignmentAssetId } = await loadNarrationAssets(
-        deps.pool,
-        job.projectId,
-      );
-      const scenes = await loadStoryboardPlanScenes(deps.pool, deps.contentBlobs, job.projectId);
-      const target = await resolveProjectTargetDuration(deps.pool, job.projectId);
-      const result = await runTimingStage(
-        { pool: deps.pool, blobs: deps.contentBlobs },
-        {
-          jobId: job.id,
-          projectId: job.projectId,
-          narrationAssetId,
-          alignmentAssetId,
-          targetDurationS: target.effectiveTargetS,
-          scenes,
-          seriesVersionId: null,
-          // The take ran long: trim the words to fit rather than throw away
-          // seventeen paid-for images and a different script (R-009-4).
-          repair: async (info) => {
-            const attempt = await deps.pool.query<{ id: string }>(
-              'SELECT id FROM job_attempt WHERE job_id = $1 ORDER BY attempt_no DESC LIMIT 1',
-              [job.id],
-            );
-            const attemptId = attempt.rows[0]?.id;
-            if (attemptId === undefined) {
-              return { applied: false, detail: 'no attempt row to record the trim against' };
-            }
-            const outcome = await repairOvershoot(
-              { pool: deps.pool, blobs: deps.contentBlobs, text: deps.text },
-              {
-                projectId: job.projectId,
-                jobAttemptId: attemptId,
-                measuredAudioS: info.measured_audio_s,
-                targetAudioS: info.target_audio_s,
-                targetDurationS: target.effectiveTargetS,
-                wordCount: info.word_count,
-              },
-            );
-            return outcome.applied
-              ? { applied: true, detail: outcome.detail }
-              : { applied: false, detail: outcome.reason };
+      // TC has no provider run, but it must still open its own attempt row before
+      // the stage runs: the overshoot repair writes its trim under a generation_run
+      // keyed to that attempt id, and a repair that fired before any attempt row
+      // existed failed the take with "no attempt row to record the trim against".
+      // Open it up front and finish it on every path below.
+      const attempt = await insertPendingAttempt(deps.pool, {
+        jobId: job.id,
+        attemptNo,
+        workerId,
+      });
+      await markAttemptRunning(deps.pool, attempt.id, workerId);
+
+      let result: TimingStageResult;
+      try {
+        const { narrationAssetId, alignmentAssetId } = await loadNarrationAssets(
+          deps.pool,
+          job.projectId,
+        );
+        const scenes = await loadStoryboardPlanScenes(deps.pool, deps.contentBlobs, job.projectId);
+        const target = await resolveProjectTargetDuration(deps.pool, job.projectId);
+        result = await runTimingStage(
+          { pool: deps.pool, blobs: deps.contentBlobs },
+          {
+            jobId: job.id,
+            projectId: job.projectId,
+            narrationAssetId,
+            alignmentAssetId,
+            targetDurationS: target.effectiveTargetS,
+            scenes,
+            seriesVersionId: null,
+            // The take ran long: trim the words to fit rather than throw away
+            // seventeen paid-for images and a different script (R-009-4).
+            repair: async (info) => {
+              const outcome = await repairOvershoot(
+                { pool: deps.pool, blobs: deps.contentBlobs, text: deps.text },
+                {
+                  projectId: job.projectId,
+                  jobAttemptId: attempt.id,
+                  measuredAudioS: info.measured_audio_s,
+                  targetAudioS: info.target_audio_s,
+                  targetDurationS: target.effectiveTargetS,
+                  wordCount: info.word_count,
+                },
+              );
+              return outcome.applied
+                ? { applied: true, detail: outcome.detail }
+                : { applied: false, detail: outcome.reason };
+            },
           },
-        },
-      );
-      if (result.status === 'timed') return { status: 'succeeded' };
+        );
+      } catch (error) {
+        await finishJobAttempt(deps.pool, attempt.id, {
+          status: 'failed',
+          errorClass: 'non_retryable',
+          errorMessage: (error as Error).message,
+        });
+        return { status: 'failed', message: (error as Error).message };
+      }
+
+      if (result.status === 'timed') {
+        await finishJobAttempt(deps.pool, attempt.id, { status: 'succeeded' });
+        return { status: 'succeeded' };
+      }
       // The take was too long and the script was trimmed to fit. NA is already
-      // queued by the stage; this attempt is spent, so report it as done-with-work
+      // queued by the stage; the attempt is spent (the job row itself is marked
+      // failed so NA's success mints a fresh TC job), so report it as done-with-work
       // rather than as a review gate the operator must clear.
-      if (result.status === 'repaired') return { status: 'succeeded' };
+      if (result.status === 'repaired') {
+        await finishJobAttempt(deps.pool, attempt.id, {
+          status: 'failed',
+          errorClass: 'non_retryable',
+          errorMessage: result.detail,
+        });
+        return { status: 'succeeded' };
+      }
+      await finishJobAttempt(deps.pool, attempt.id, {
+        status: 'failed',
+        errorClass: 'non_retryable',
+        errorMessage: result.review.failures.join('; '),
+      });
       return gated(
         `timing stage returned to review: ${result.review.reason} (${result.review.failures.join('; ')})`,
       );
