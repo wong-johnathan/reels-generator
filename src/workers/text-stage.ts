@@ -530,22 +530,26 @@ export async function runTextStage(
           // produced 62 s of speech, and was rejected by TC as duration_out_of_band
           // — three stages and a TTS bill later. Refuse it here, where the repair
           // retry can still fix it.
-          const budget = checkWordBudget(spokenNarration(script), context.targetDurationS);
-          if (!budget.within_band) {
-            // Ask for the *difference*, not the target. Measured on this model: a
-            // "rewrite to 217-239 words" repair moved 199->204 and 210->214 and
-            // stalled just outside the band, while "add exactly 17 words" landed
-            // inside it. Small additions are what the model can actually do.
-            const delta = budget.budget.target_words - budget.word_count;
-            const sentences = Math.max(1, Math.round(Math.abs(delta) / 13));
-            const direction = delta > 0 ? 'add' : 'cut';
+          const budgetCheck = checkWordBudget(spokenNarration(script), context.targetDurationS);
+          if (!budgetCheck.within_band) {
+            // Carry the draft itself into the rejection, framed as an expansion.
+            // Measured with this model at a 75 s target (217-239 words):
+            //   "add exactly N words"       171 -> 167 -> 177 (ignored; it re-generates)
+            //   rejected text inline        158 -> 173 -> 197 (still short)
+            //   "expand this draft to N"    189->208->225, 197->215->229, 202->228 (3/3)
+            // The model cannot count, but it can develop a draft it can see.
+            const budget = budgetCheck.budget;
+            const short = budgetCheck.word_count < budget.min_words;
+            const direction = short
+              ? `Expand it to ${budget.target_words} words by developing the concrete detail already implied — ` +
+                'specific images, the moment itself, the sensory beat.'
+              : `Cut it to ${budget.target_words} words without losing the argument.`;
             throw new Error(
-              `narration is ${budget.word_count} words (~${budget.estimated_runtime_s.toFixed(1)} s); ` +
-                `a ${context.targetDurationS} s target needs ${budget.budget.min_words}–` +
-                `${budget.budget.max_words} words, ideally ${budget.budget.target_words} (R-009-1). ` +
-                `Keep everything else identical and ${direction} exactly ${Math.abs(delta)} words — ` +
-                `about ${sentences} ${direction === 'add' ? 'more' : 'fewer'} sentences of concrete detail. ` +
-                'Return the full corrected JSON.',
+              `narration is ${budgetCheck.word_count} words (~${budgetCheck.estimated_runtime_s.toFixed(1)} s); ` +
+                `a ${context.targetDurationS} s target needs ${budget.min_words}–${budget.max_words} words (R-009-1).\n` +
+                `The narration you wrote was:\n\n${script.narration}\n\n` +
+                `${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
+                'and return the full JSON.',
             );
           }
           await persistScript(deps, job, context, script, ref);
