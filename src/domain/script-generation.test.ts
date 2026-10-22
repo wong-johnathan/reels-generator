@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { QUIET_MACHINES_FIXTURES } from '../adapters/text-fixtures.js';
 import { wordBudget } from '../shared/calibration.js';
+import { checkWordBudget, countWords } from './authoring.js';
 import {
   assembleScript,
   frameWordCount,
@@ -26,6 +27,34 @@ const frame = () =>
   });
 
 describe('freezeFrame (frame validation)', () => {
+  it('freezes every frame field and the copied hashtags at runtime', () => {
+    const frozen = frame();
+    expect(Object.isFrozen(frozen)).toBe(true);
+    expect(Object.isFrozen(frozen.hashtags)).toBe(true);
+    for (const key of ['hook', 'ending', 'title', 'description', 'hashtags'] as const) {
+      const before = frozen[key];
+      expect(Reflect.set(frozen, key, key === 'hashtags' ? ['#changed'] : 'changed')).toBe(false);
+      expect(frozen[key]).toBe(before);
+    }
+    expect(Reflect.set(frozen.hashtags, '0', '#changed')).toBe(false);
+    expect(() => (frozen.hashtags as string[]).push('#changed')).toThrow(TypeError);
+    expect(frozen.hashtags).toEqual(['#habits', '#mindset']);
+  });
+
+  it('does not alias or freeze the caller-owned hashtags', () => {
+    const hashtags = ['#original'];
+    const frozen = freezeFrame({
+      hook: 'hook',
+      ending: 'ending',
+      title: 't',
+      description: 'd',
+      hashtags,
+    });
+    expect(frozen.hashtags).not.toBe(hashtags);
+    hashtags[0] = '#changed';
+    hashtags.push('#extra');
+    expect(frozen.hashtags).toEqual(['#original']);
+  });
   it('strips em/en dashes from the hook and ending', () => {
     const frozen = freezeFrame({
       hook: 'Stop scrolling\u2014this drains you.',
@@ -151,7 +180,7 @@ describe('middle-only repair', () => {
     const frozen = frame();
     const spent = frameWordCount(frozen);
     const narration = 'x';
-    const assembled = assembleScript(frozen, narration).script.split(/\s+/).length;
+    const assembled = countWords(assembleScript(frozen, narration).script);
     const delta = narrationRepairDelta(assembled, 75);
     // The delta is exactly target - (frame words + narration words).
     expect(delta).toBe(wordBudget(75).target_words - assembled);
@@ -171,15 +200,18 @@ describe('middle-only repair', () => {
 });
 
 describe('exact count semantics', () => {
-  it('217 and 239 are in band, 216 and 240 are out (R-009-1)', () => {
-    const budget = wordBudget(75);
-    expect(budget.min_words).toBe(217);
-    expect(budget.max_words).toBe(239);
-    expect(budget.target_words).toBe(228);
-    expect(217 >= budget.min_words && 217 <= budget.max_words).toBe(true);
-    expect(239 >= budget.min_words && 239 <= budget.max_words).toBe(true);
-    expect(216 >= budget.min_words).toBe(false);
-    expect(240 <= budget.max_words).toBe(false);
+  it.each([
+    [216, false],
+    [217, true],
+    [239, true],
+    [240, false],
+  ] as const)('validates a constructed %i-word script (R-009-1)', (words, withinBand) => {
+    const script = `  ${Array.from({ length: words }, (_, i) => `word${i}`).join(' \n\t ')}  `;
+    expect(countWords(script)).toBe(words);
+    const check = checkWordBudget(script, 75);
+    expect(check.word_count).toBe(countWords(script));
+    expect(check.within_band).toBe(withinBand);
+    expect(check.budget).toMatchObject({ min_words: 217, max_words: 239, target_words: 228 });
   });
 });
 
