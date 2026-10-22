@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { fakePersistedRun, FIXED_RUN_ID } from '../../tests/helpers/runs.js';
+import { SCRIPT_FRAME_PART, SCRIPT_NARRATION_PART } from '../domain/script-generation.js';
 import { ProviderHttpError, ProviderSchemaError, ProviderTimeoutError } from './errors.js';
 import { FakeTextAdapter } from './fake-text.js';
 import { QUIET_MACHINES_FIXTURES } from './text-fixtures.js';
-import { SCRIPT_FRAME_PART, SCRIPT_NARRATION_PART } from '../domain/script-generation.js';
 import { TEXT_SCHEMAS, type TextSchema } from './text-schemas.js';
 import type { ChatMessage } from './text.js';
 
@@ -72,6 +72,21 @@ describe('FakeTextAdapter (TECH_DESIGN §6: deterministic, in-memory)', () => {
       expect(() => part.schema.parse(result.content)).not.toThrow();
     }
   });
+  it.each([SCRIPT_FRAME_PART as TextSchema<unknown>, SCRIPT_NARRATION_PART as TextSchema<unknown>])(
+    'serves a conformant default fixture for $name with no scripted responses',
+    async (schema) => {
+      const fake = new FakeTextAdapter({ responses: [] });
+      const result = await fake.generate(
+        { stage: schema.stage, schema, messages: MESSAGES },
+        fakePersistedRun({ stage: schema.stage }),
+      );
+
+      expect(result.content).toBeDefined();
+      expect(() => schema.parse(result.content)).not.toThrow();
+      expect(result.http_status).toBe(200);
+      expect(result.model).toBe('fake-text');
+    },
+  );
 
   it('never calls fetch — a stubbed global fetch that throws is irrelevant', async () => {
     const fetchSpy = vi.fn(() => {
