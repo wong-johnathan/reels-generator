@@ -131,8 +131,9 @@ describe.skipIf(!hasDatabase)(
 
     it('orders the index case-insensitively and aggregates status and progress', async () => {
       const apple = await mkSeries('apple');
-      await mkSeries('banana');
-      await mkSeries('Cherry');
+      const banana = await mkSeries('banana');
+      const cherry = await mkSeries('Cherry');
+      const seriesIds = new Set([apple.id, banana.id, cherry.id]);
 
       const active = await createBatch(db.pool, { seriesId: apple.id });
       const complete = await createBatch(db.pool, { seriesId: apple.id });
@@ -147,7 +148,10 @@ describe.skipIf(!hasDatabase)(
         role: 'video',
       });
 
-      const index = await loadSeriesBatchIndex(db.pool);
+      // The suite shares a database; assert ordering and counts for this test's fixtures only.
+      const index = (await loadSeriesBatchIndex(db.pool)).filter((entry) =>
+        seriesIds.has(entry.seriesId),
+      );
       expect(index.map((entry) => entry.seriesName)).toEqual(['apple', 'banana', 'Cherry']);
 
       const appleEntry = index.find((entry) => entry.seriesName === 'apple');
