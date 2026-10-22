@@ -23,6 +23,8 @@ import type { Pool } from 'pg';
 
 import {
   checkWordBudget,
+  countWords,
+  scriptPartTargets,
   stripForbiddenDashes,
   dedupeHook,
   planStoryboard,
@@ -525,8 +527,9 @@ function expandInstruction(check: ReturnType<typeof checkWordBudget>): ChatMessa
   return {
     role: 'user',
     content:
-      `That narration is ${check.word_count} words (~${check.estimated_runtime_s.toFixed(1)} s); ` +
-      `the target needs ${budget.min_words}–${budget.max_words} words (R-009-1).\n\n` +
+      `The spoken script is now ${check.word_count} words across hook, narration and ending together ` +
+      `(~${check.estimated_runtime_s.toFixed(1)} s); the target needs ${budget.min_words}–${budget.max_words} ` +
+      `for all three fields (R-009-1).\n\n` +
       `${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
       'and return the full JSON.',
   };
@@ -669,11 +672,24 @@ export async function runTextStage(
               ? `Expand it to ${budget.target_words} words by developing the concrete detail already implied — ` +
                 'specific images, the moment itself, the sensory beat.'
               : `Cut it to ${budget.target_words} words without losing the argument.`;
+            // Name the parts. 'narration is 244 words' was wrong twice over: the count
+            // is of all three spoken fields, and telling the model its narration was
+            // the problem sent it cutting the body when the hook and ending were fine.
+            const parts = scriptPartTargets(budget.target_words);
+            const hookWords = countWords(script.hook);
+            const bodyWords = countWords(script.narration);
+            const endingWords = countWords(script.ending);
+            const excess = budgetCheck.word_count - budget.max_words;
+            const advice =
+              excess > 0
+                ? `Cut about ${Math.max(1, excess)} words from the body: the hook is ${hookWords} words (about ${parts.hook} wanted) and the ending is ${endingWords} (about ${parts.ending} wanted), so leave both roughly as they are.`
+                : `Add about ${Math.max(1, budget.min_words - budgetCheck.word_count)} words to the body.`;
             throw new Error(
-              `narration is ${budgetCheck.word_count} words (~${budgetCheck.estimated_runtime_s.toFixed(1)} s); ` +
-                `a ${context.targetDurationS} s target needs ${budget.min_words}–${budget.max_words} words (R-009-1).\n` +
-                `The narration you wrote was:\n\n${script.narration}\n\n` +
-                `${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
+              `the spoken script is ${budgetCheck.word_count} words (hook ${hookWords} + narration ${bodyWords} + ending ${endingWords}), ` +
+                `which is ~${budgetCheck.estimated_runtime_s.toFixed(1)} s; a ${context.targetDurationS} s target needs ` +
+                `${budget.min_words}–${budget.max_words} words for all three fields together (R-009-1). ` +
+                `The body you wrote was:\n\n${script.narration}\n\n` +
+                `${advice} ${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
                 'and return the full JSON.',
             );
           }

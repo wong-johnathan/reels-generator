@@ -222,6 +222,7 @@ export function buildScriptPrompt(input: ScriptPromptInput): ScriptPrompt {
       ? (input.claims ?? []).filter((claim) => claim.is_factual).map((claim) => `- ${claim.text}`)
       : [];
 
+  const partTargets = scriptPartTargets(budget.target_words);
   const sections = [
     'SERIES',
     seriesLines.join('\n'),
@@ -234,13 +235,21 @@ export function buildScriptPrompt(input: ScriptPromptInput): ScriptPrompt {
     ...(claimLines.length > 0 ? ['', 'FACTUAL CLAIMS TO COVER', claimLines.join('\n')] : []),
     '',
     'LENGTH',
+    // The budget is measured on hook + narration + ending, but the model was being
+    // told to count `narration` alone — so a perfectly-sized body still failed by the
+    // ~50 words the hook and ending add. The contract is now split three ways and
+    // stated as one total, which is the number that is actually checked.
     `- target ${budget.target_words} words for ${targetDuration} s at ${NARRATION_WORDS_PER_SECOND} words/s; acceptable ${budget.min_words}–${budget.max_words} words`,
+    `- that total is all three spoken fields together: hook plus narration plus ending. The hook and the ending are part of it, not extra.`,
+    `- hook: one sentence, about ${partTargets.hook} words`,
+    `- narration: the body, about ${partTargets.narration} words`,
+    `- ending: one or two sentences, about ${partTargets.ending} words`,
     // A bare number is not something a model can hit. Give it countable units and
     // require the check: the same request produced 136 words for a 228-word target
     // while 'target 228 words' sat in the prompt unread.
     `- that is about ${scriptSentences} spoken sentences of ${wordsPerSentence} words each`,
     `- the storyboard will split it into about ${targetScenes} scenes, so each scene carries roughly ${wordsPerScene} words of narration`,
-    `- COUNT the words in \`narration\` before you answer. If it is below ${budget.min_words} or above ${budget.max_words}, rewrite it before returning the JSON.`,
+    `- COUNT hook + narration + ending together before you answer. If that total is below ${budget.min_words} or above ${budget.max_words}, fix it before returning the JSON.`,
     '- being short is the failure mode here, not being long: a short script cannot fill the video and is rejected',
     '',
     'PUNCTUATION',
@@ -306,6 +315,26 @@ export function checkWordBudget(
     budget,
     within_band: wordCount >= budget.min_words && wordCount <= budget.max_words,
   };
+}
+
+/** A target this size, for a script whose parts are counted together. */
+export interface ScriptPartTargets {
+  readonly hook: number;
+  readonly narration: number;
+  readonly ending: number;
+}
+
+/**
+ * Split a spoken-word target across the three spoken fields.
+ *
+ * Roughly 7 % hook and 11 % ending — a one-sentence opener and a two-sentence close
+ * with the argument in the body. The split exists so the model is given numbers it can
+ * act on per field instead of one total it has to divide itself.
+ */
+export function scriptPartTargets(totalWords: number): ScriptPartTargets {
+  const hook = Math.max(10, Math.round(totalWords * 0.07));
+  const ending = Math.max(18, Math.round(totalWords * 0.11));
+  return { hook, narration: Math.max(20, totalWords - hook - ending), ending };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

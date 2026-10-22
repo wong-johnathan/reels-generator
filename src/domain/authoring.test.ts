@@ -22,6 +22,7 @@ import {
   draftScript,
   mapClaimsToSources,
   planStoryboard,
+  scriptPartTargets,
   stripForbiddenDashes,
   sceneCountBand,
   spokenNarration,
@@ -130,7 +131,7 @@ describe('US-017 R-003-3 — the provider request carries only the style summary
     // A countable instruction, not just a number: 'target 228 words' alone was
     // ignored and produced 136.
     const userMessage = prompt.messages.map((m) => m.content).join('\n');
-    expect(userMessage).toContain('COUNT the words');
+    expect(userMessage).toContain('COUNT hook + narration + ending together');
     expect(userMessage).toContain('about 17 scenes');
     expect(userMessage).toContain('217–239');
     expect(promptText(prompt)).toContain('script.v1');
@@ -611,5 +612,36 @@ describe('the hook is spoken once', () => {
   it('ignores a hook too short to be a repetition', () => {
     const narration = 'Breathe. Then say the thing you have been avoiding for a week.';
     expect(dedupeHook({ hook: 'Breathe.', narration, ending: 'x' }).narration).toBe(narration);
+  });
+});
+
+describe('the length contract is stated in the units it is checked in', () => {
+  it('splits the target across the three spoken fields without losing a word', () => {
+    const parts = scriptPartTargets(228);
+    expect(parts.hook + parts.narration + parts.ending).toBe(228);
+    expect(parts.hook).toBeGreaterThanOrEqual(10);
+    expect(parts.ending).toBeGreaterThanOrEqual(18);
+  });
+
+  it('tells the model the total is all three fields, and gives each one a number', () => {
+    const prompt = buildScriptPrompt({
+      series,
+      topic: {
+        title: 'Some decisions deserve the slow lane',
+        description: 'Why reversible choices are the cheap ones.',
+        rationale: 'Fits the series premise.',
+      },
+      references: [reference],
+      target_duration_s: 75,
+    });
+    const text = promptText(prompt);
+    const parts = scriptPartTargets(228);
+    expect(text).toContain('hook plus narration plus ending');
+    expect(text).toContain(`hook: one sentence, about ${parts.hook} words`);
+    expect(text).toContain(`narration: the body, about ${parts.narration} words`);
+    expect(text).toContain(`ending: one or two sentences, about ${parts.ending} words`);
+    // The count that is verified is the total, so the count asked for is the total.
+    expect(text).toContain('COUNT hook + narration + ending together');
+    expect(text).not.toContain('COUNT the words in `narration`');
   });
 });
