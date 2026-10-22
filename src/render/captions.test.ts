@@ -12,6 +12,7 @@ import {
   buildVttDocument,
   captionMaxCharsPerLine,
   captionSafeArea,
+  groupCaptionCuesByWord,
   captionTextWidthPx,
   estimateTextWidthPx,
   groupCaptionCues,
@@ -194,5 +195,51 @@ describe('buildCaptionDocuments', () => {
     const { cues, documents } = buildCaptionDocuments({ words: [], leadS: 0.5 });
     expect(cues).toHaveLength(0);
     expect(documents.srt).toBe('');
+  });
+});
+
+describe('one word per cue (operator style)', () => {
+  const words = [
+    { word: 'Composure', start_ms: 0, end_ms: 420 },
+    { word: 'is', start_ms: 420, end_ms: 540 },
+    { word: 'not', start_ms: 540, end_ms: 700 },
+    { word: 'silence.', start_ms: 700, end_ms: 1100 },
+  ];
+
+  it('gives every word its own cue', () => {
+    const cues = groupCaptionCuesByWord(words);
+    expect(cues).toHaveLength(4);
+    expect(cues.map((cue) => cue.lines)).toEqual([['Composure'], ['is'], ['not'], ['silence.']]);
+  });
+
+  it('holds each word until the next one starts, so the caption never blinks off', () => {
+    const cues = groupCaptionCuesByWord(words);
+    // 'is' ends at 540 in the alignment but stays up until 'not' begins.
+    expect(cues[1]!.start_ms).toBe(420);
+    expect(cues[1]!.end_ms).toBe(540);
+    expect(cues[3]!.start_ms).toBe(700);
+    expect(cues[3]!.end_ms).toBe(1100);
+  });
+
+  it('never lets one cue overlap the next', () => {
+    const overlapping = [
+      { word: 'a', start_ms: 0, end_ms: 900 },
+      { word: 'b', start_ms: 400, end_ms: 800 },
+    ];
+    const cues = groupCaptionCuesByWord(overlapping);
+    expect(cues[0]!.end_ms).toBeLessThanOrEqual(cues[1]!.start_ms);
+  });
+
+  it('is what buildCaptionDocuments emits by default, offset by the lead', () => {
+    const built = buildCaptionDocuments({ words, leadS: 0.5 });
+    expect(built.cues).toHaveLength(4);
+    expect(built.cues[0]!.start_ms).toBe(500);
+    expect(built.documents.ass).toContain('Composure');
+    expect(built.documents.srt).toContain('silence.');
+  });
+
+  it('still offers the grouped block when asked', () => {
+    const built = buildCaptionDocuments({ words, leadS: 0, mode: 'grouped' });
+    expect(built.cues.length).toBeLessThan(4);
   });
 });

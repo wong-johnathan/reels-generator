@@ -33,7 +33,7 @@ import { insertAsset, linkAssetToProject } from '../db/repositories/assets.js';
 import { withTransaction } from '../db/client.js';
 import { openRunInAttempt } from '../domain/generation-run.js';
 import { sha256Hex, type AssetBlobStore } from '../workers/asset-store.js';
-import { spokenNarration, type ScriptDocument } from '../domain/authoring.js';
+import { spokenNarration, stripForbiddenDashes, type ScriptDocument } from '../domain/authoring.js';
 import { NARRATION_WORDS_PER_SECOND } from '../shared/calibration.js';
 
 /** How far the trimmed script may sit from the derived count. */
@@ -191,7 +191,8 @@ export function buildTrimMessages(input: {
         `words — that is ${input.sceneCount} scenes of about ${perScene} words each, ` +
         'which is how you should check your work: count the words in every scene of ' +
         'your answer before returning it. Remove clauses, asides and repeated beats ' +
-        'rather than whole ideas. Keep the hook, the turn, and the ending intact.\n\n' +
+        'rather than whole ideas. Keep the hook, the turn, and the ending intact. ' +
+        'Use no em dashes or en dashes anywhere: replace them with a comma or a full stop.\n\n' +
         `The script as it stands:\n${JSON.stringify(input.document)}\n\n` +
         'Return the full JSON document, same fields, same title, same hashtags.',
     },
@@ -406,6 +407,15 @@ export async function repairOvershoot(
       };
     }
   }
+
+  // The same no-dash rule the SC stage enforces. A repair is not a fresh
+  // generation, so it is normalised rather than rejected: the take needs to move.
+  trimmed = {
+    ...trimmed,
+    hook: stripForbiddenDashes(trimmed.hook),
+    narration: stripForbiddenDashes(trimmed.narration),
+    ending: stripForbiddenDashes(trimmed.ending),
+  };
 
   let rebuilt: RebuiltPlan;
   try {

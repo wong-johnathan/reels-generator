@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SCALE_CROP_FILTER,
+  ZOOM_DOWNSCALE_FILTER,
   UNSHARP_FILTER,
   buildAudioGraph,
   buildCaptionScanArgs,
@@ -47,7 +48,11 @@ describe('scene filter (§6.1/§6.2)', () => {
     expect(filter).toContain(SCALE_CROP_FILTER);
     expect(SCALE_CROP_FILTER).toContain('force_original_aspect_ratio=increase');
     expect(SCALE_CROP_FILTER).toContain('flags=lanczos');
-    expect(SCALE_CROP_FILTER).toContain('crop=1080:1920:(iw-1080)/2:(ih-1920)/2');
+    // The Ken Burns runs on a 2x canvas: at 1080x1920 the crop offsets quantise to
+    // whole pixels and a slow pan visibly shivers. Measured on a 4 s clip, the
+    // frame-to-frame step's stdev fell from 0.376 to 0.042 at 2x.
+    expect(SCALE_CROP_FILTER).toContain('crop=2160:3840:(iw-2160)/2:(ih-3840)/2');
+    expect(filter).toContain(ZOOM_DOWNSCALE_FILTER);
     expect(filter).toContain(UNSHARP_FILTER);
     expect(filter.startsWith('[0:v]')).toBe(true);
     expect(filter.endsWith('[v0]')).toBe(true);
@@ -55,7 +60,7 @@ describe('scene filter (§6.1/§6.2)', () => {
 
   it('zoompans for exactly the scene frame count at the output geometry', () => {
     const filter = buildSceneFilter(plan.scenes[0]!, 0);
-    expect(filter).toContain(`:d=${plan.scenes[0]!.frameCount}:s=1080x1920:fps=30`);
+    expect(filter).toContain(`:d=${plan.scenes[0]!.frameCount}:s=2160x3840:fps=30`);
   });
 
   it('builds a motion expression per camera_move and caps amplitude at 1.2x', () => {

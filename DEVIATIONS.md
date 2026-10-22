@@ -125,3 +125,19 @@ cannot re-gate a stage that is already waiting.
 
 **Reversal:** drop the `gate` entry from `done` in `STAGE_TRANSITIONS`, and gate
 from inside the SB stage before it succeeds.
+
+## D-K — Captions are one word per cue, not a two-line block (2026-10-22)
+
+TECH_DESIGN §6.4 describes a caption block of up to `CAPTION_MAX_LINES` lines,
+grouped by width. The operator's read-along style is **one word at a time**: the
+word on screen is the word being spoken.
+
+`groupCaptionCuesByWord()` emits one cue per word, each held from its own start
+until the next word begins, clamped so it never overlaps the next cue, with a
+120 ms floor on the final word. `buildCaptionDocuments()` defaults to this; the
+grouped block remains available as `mode: 'grouped'` and is still covered by tests.
+
+The safe-area promise (R-010-6) is unchanged: a single word is narrower than the
+two-line block, and `buildAssDocument` still refuses a cue that overflows.
+
+**Reversal:** pass `mode: 'grouped'`, or change the default in `buildCaptionDocuments`.

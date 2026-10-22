@@ -17,9 +17,11 @@ import {
   assertReferenceSet,
   buildScriptPrompt,
   checkWordBudget,
+  dashOffender,
   draftScript,
   mapClaimsToSources,
   planStoryboard,
+  stripForbiddenDashes,
   sceneCountBand,
   spokenNarration,
   splitNarration,
@@ -532,5 +534,38 @@ describe('B-04 fixture integration — the canonical storyboard is a split of th
     expect(plan.scene_count).toBe(17);
     expect(plan.narration_word_count).toBe(231);
     expect(plan.band).toEqual({ min: 14, max: 20 });
+  });
+});
+
+describe('punctuation rule: no em dashes', () => {
+  it('finds an em dash or an en dash in any spoken field', () => {
+    expect(dashOffender({ hook: 'Silence — not speech', narration: 'x', ending: 'y' })).toBe(
+      'hook',
+    );
+    expect(dashOffender({ hook: 'a', narration: 'b – c', ending: 'd' })).toBe('narration');
+    expect(dashOffender({ hook: 'a', narration: 'b', ending: 'c — d' })).toBe('ending');
+    expect(dashOffender({ hook: 'a, b.', narration: 'c.', ending: 'd.' })).toBeNull();
+  });
+
+  it('rewrites a dash as the comma or stop a reader expects', () => {
+    expect(stripForbiddenDashes('composure — not volume — is quiet')).toBe(
+      'composure, not volume, is quiet',
+    );
+    expect(stripForbiddenDashes('he paused — then left.')).toBe('he paused, then left.');
+    expect(stripForbiddenDashes('no dashes here.')).toBe('no dashes here.');
+  });
+
+  it('says the rule in the script prompt as well', () => {
+    const prompt = buildScriptPrompt({
+      series,
+      topic: {
+        title: 'Some decisions deserve the slow lane',
+        description: 'Why reversible choices are the cheap ones.',
+        rationale: 'Fits the series premise.',
+      },
+      references: [reference],
+      target_duration_s: 75,
+    });
+    expect(promptText(prompt)).toContain('Never use an em dash');
   });
 });

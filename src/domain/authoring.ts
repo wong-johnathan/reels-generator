@@ -243,6 +243,11 @@ export function buildScriptPrompt(input: ScriptPromptInput): ScriptPrompt {
     `- COUNT the words in \`narration\` before you answer. If it is below ${budget.min_words} or above ${budget.max_words}, rewrite it before returning the JSON.`,
     '- being short is the failure mode here, not being long: a short script cannot fill the video and is rejected',
     '',
+    'PUNCTUATION',
+    '- Never use an em dash (—) or an en dash (–) anywhere in the script.',
+    '- They force the voice to pause mid-sentence, which stretches the runtime and reads as hesitation.',
+    '- Use a comma, a colon or a full stop instead.',
+    '',
     `JSON SCHEMA ${TEXT_SCHEMAS.script.version}`,
     JSON.stringify(TEXT_SCHEMAS.script.jsonSchema),
   ];
@@ -487,6 +492,29 @@ export function targetSceneCount(targetDurationS: number = SCENE_REFERENCE_DURAT
   assertDuration(targetDurationS);
   const secondsPerScene = SCENE_REFERENCE_DURATION_S / SCENE_REFERENCE_COUNT;
   return Math.min(MAX_SCENES, Math.max(1, Math.round(targetDurationS / secondsPerScene)));
+}
+
+/** Em dash and en dash. Banned in generated scripts — see `buildScriptPrompt`. */
+export const FORBIDDEN_DASH = /[\u2014\u2013]/;
+
+/** The first script field carrying an em or en dash, or null when the script is clean. */
+export function dashOffender(document: {
+  readonly hook: string;
+  readonly narration: string;
+  readonly ending: string;
+}): string | null {
+  if (FORBIDDEN_DASH.test(document.hook)) return 'hook';
+  if (FORBIDDEN_DASH.test(document.narration)) return 'narration';
+  if (FORBIDDEN_DASH.test(document.ending)) return 'ending';
+  return null;
+}
+
+/** Replace em/en dashes with the punctuation a reader would expect. */
+export function stripForbiddenDashes(text: string): string {
+  return text
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+    .replace(/,\s*,/g, ',')
+    .replace(/,([.!?])/g, '$1');
 }
 
 /**

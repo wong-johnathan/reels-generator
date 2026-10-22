@@ -33,10 +33,26 @@ import {
 import { seconds, type PlannedScene, type RenderPlan } from './plan.js';
 import type { CameraMove } from '../shared/states.js';
 
-/** Cover-scale, centre-crop 1.406x — §6.1. */
+/**
+ * The Ken Burns runs on a 2x canvas and is scaled back down afterwards.
+ *
+ * zoompan quantises its crop offsets to whole source pixels. At 1080x1920 a slow
+ * pan or a 1.2x zoom moves by well under a pixel per frame, so the offsets snap
+ * between neighbours and the still visibly shivers — the "shaky image" a viewer
+ * sees. On a 2160x3840 canvas each step is half an output pixel, which reads as
+ * smooth motion, and the lanczos downscale keeps the detail the upscale created.
+ */
+export const ZOOM_SOURCE_SCALE = 2;
+export const ZOOM_SOURCE_WIDTH = OUTPUT_WIDTH * ZOOM_SOURCE_SCALE;
+export const ZOOM_SOURCE_HEIGHT = OUTPUT_HEIGHT * ZOOM_SOURCE_SCALE;
+
+/** Cover-scale, centre-crop to the zoom canvas — §6.1. */
 export const SCALE_CROP_FILTER =
-  `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=increase:flags=lanczos,` +
-  `crop=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(iw-${OUTPUT_WIDTH})/2:(ih-${OUTPUT_HEIGHT})/2`;
+  `scale=${ZOOM_SOURCE_WIDTH}:${ZOOM_SOURCE_HEIGHT}:force_original_aspect_ratio=increase:flags=lanczos,` +
+  `crop=${ZOOM_SOURCE_WIDTH}:${ZOOM_SOURCE_HEIGHT}:(iw-${ZOOM_SOURCE_WIDTH})/2:(ih-${ZOOM_SOURCE_HEIGHT})/2`;
+
+/** Canvas → output. One resample, after the motion is already baked in. */
+export const ZOOM_DOWNSCALE_FILTER = `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:flags=lanczos`;
 
 /** Conservative sharpening after the upscale — §6.1. */
 export const UNSHARP_FILTER = 'unsharp=5:5:0.5:5:5:0.0';
@@ -75,9 +91,10 @@ export function buildSceneFilter(scene: PlannedScene, inputIndex: number): strin
     `zoompan=z='${escapeExpression(move.z)}'` +
     `:x='${escapeExpression(move.x)}'` +
     `:y='${escapeExpression(move.y)}'` +
-    `:d=${scene.frameCount}:s=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}:fps=${OUTPUT_FPS}`;
+    `:d=${scene.frameCount}:s=${ZOOM_SOURCE_WIDTH}x${ZOOM_SOURCE_HEIGHT}:fps=${OUTPUT_FPS}`;
   return (
     `[${inputIndex}:v]${SCALE_CROP_FILTER},${UNSHARP_FILTER},${zoompan},` +
+    `${ZOOM_DOWNSCALE_FILTER},` +
     `format=yuv420p,settb=AVTB,setpts=N/(${OUTPUT_FPS}*TB),fps=${OUTPUT_FPS}[v${inputIndex}]`
   );
 }

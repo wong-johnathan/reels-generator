@@ -23,6 +23,7 @@ import type { Pool } from 'pg';
 
 import {
   checkWordBudget,
+  dashOffender,
   planStoryboard,
   sceneCountBand,
   spokenNarration,
@@ -636,6 +637,16 @@ export async function runTextStage(
           // produced 62 s of speech, and was rejected by TC as duration_out_of_band
           // — three stages and a TTS bill later. Refuse it here, where the repair
           // retry can still fix it.
+          // No em dashes (operator rule). The prompt says so, and the prompt alone
+          // has never been enough: reject here so the repair loop can rewrite it.
+          const offender = dashOffender(script);
+          if (offender !== null) {
+            throw new Error(
+              `the ${offender} contains an em dash or an en dash, which this series does not allow. ` +
+                'Rewrite it using a comma, a colon or a full stop instead, keep the meaning and the ' +
+                'word count identical, and return the full JSON.',
+            );
+          }
           const budgetCheck = checkWordBudget(spokenNarration(script), context.targetDurationS);
           if (!budgetCheck.within_band) {
             // Carry the draft itself into the rejection, framed as an expansion.

@@ -251,6 +251,42 @@ export function groupCaptionCues(
   return cues;
 }
 
+/**
+ * One word per cue — the read-along style this app uses.
+ *
+ * Each cue runs from its word's start to the *next* word's start, not to its own
+ * end: that leaves no gap between cues, so the caption never blinks off between
+ * words. A word whose own end runs past the next start (common when the aligner
+ * overlaps) is clamped to the next start. The last word holds for its own
+ * duration, with a floor so it is legible rather than a single-frame flash.
+ *
+ * The trade-off is honest: a word is on screen for ~0.4 s, so the viewer reads it
+ * as it is spoken rather than ahead of the voice. That is the style asked for.
+ */
+export const MIN_WORD_CUE_MS = 120;
+
+export function groupCaptionCuesByWord(words: readonly CaptionWord[]): CaptionCue[] {
+  const cleaned = words
+    .map((word) => ({ ...word, word: sanitizeCaptionText(word.word) }))
+    .filter((word) => word.word !== '')
+    .sort((a, b) => a.start_ms - b.start_ms);
+
+  return cleaned.map((word, index) => {
+    const next = cleaned[index + 1];
+    const start = word.start_ms;
+    // Hold until the next word begins so the caption never blinks off between
+    // words; the word's own end is the floor, never past the next start.
+    const natural = next === undefined ? word.end_ms : Math.min(word.end_ms, next.start_ms);
+    const held = next === undefined ? Math.max(natural, start + MIN_WORD_CUE_MS) : natural;
+    return {
+      index: index + 1,
+      start_ms: start,
+      end_ms: Math.max(held, next === undefined ? start + MIN_WORD_CUE_MS : start),
+      lines: [word.word],
+    };
+  });
+}
+
 /** ASS/VTT text cannot contain ASS override syntax or line breaks. */
 export function sanitizeCaptionText(text: string): string {
   return text
@@ -401,6 +437,8 @@ export interface BuildCaptionInput {
   readonly leadS: number;
   readonly maxCharsPerLine?: number;
   readonly fontSize?: number;
+  /** Default `'word'`: one word per cue. `'grouped'` keeps the multi-word block. */
+  readonly mode?: 'word' | 'grouped';
 }
 
 /**
@@ -419,10 +457,12 @@ export function buildCaptionDocuments(input: BuildCaptionInput): {
   readonly documents: CaptionDocuments;
 } {
   const cues = offsetCues(
-    groupCaptionCues(input.words, {
-      maxCharsPerLine: input.maxCharsPerLine,
-      fontSize: input.fontSize,
-    }),
+    (input.mode ?? 'word') === 'word'
+      ? groupCaptionCuesByWord(input.words)
+      : groupCaptionCues(input.words, {
+          maxCharsPerLine: input.maxCharsPerLine,
+          fontSize: input.fontSize,
+        }),
     Math.round(input.leadS * 1000),
   );
   return {
