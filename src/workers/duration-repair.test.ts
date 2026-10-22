@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildTrimMessages,
+  countWords,
   deriveTargetWords,
+  trimSentencesToFit,
   rebuildPlan,
   sceneCarryovers,
   MIN_SCENE_WORDS,
@@ -69,9 +71,16 @@ describe('duration repair — deriving the target from the take', () => {
 describe('duration repair — the instruction', () => {
   it('names the shortfall and carries the script in front of the model', () => {
     const doc = document();
-    const messages = buildTrimMessages({ document: doc, currentWords: 232, targetWords: 181 });
+    const messages = buildTrimMessages({
+      document: doc,
+      currentWords: 232,
+      targetWords: 181,
+      sceneCount: 17,
+    });
     expect(messages).toHaveLength(2);
-    expect(messages[1]!.content).toContain('Cut roughly 51 words');
+    expect(messages[1]!.content).toContain('Cut 51 words');
+    // Countable, per scene: 181 ÷ 17 ≈ 11, which is what the model can check itself.
+    expect(messages[1]!.content).toContain('17 scenes of about 11 words each');
     expect(messages[1]!.content).toContain('181');
     // The whole document travels, not a description of it: a trim needs the words.
     expect(messages[1]!.content).toContain(JSON.stringify(doc));
@@ -141,5 +150,34 @@ describe('duration repair — scene carryovers', () => {
     });
     expect(carryovers[0]).toMatchObject({ image_prompt: 'a', camera_move: 'push' });
     expect(carryovers[1]).toMatchObject({ image_prompt: '', camera_move: '' });
+  });
+});
+
+describe('duration repair — the hard backstop', () => {
+  it('counts words the way the budget does', () => {
+    expect(countWords('  one two   three ')).toBe(3);
+    expect(countWords('')).toBe(0);
+  });
+
+  it('drops the longest sentences until the spoken text fits', () => {
+    const doc = document({
+      hook: 'Composure is not silence.',
+      narration:
+        'It is the pause that makes a room lean in. A much longer sentence that keeps going and going and going well past any useful length for a reel. It works because nobody fills it.',
+      ending: 'That is the trick.',
+    });
+    const fitted = trimSentencesToFit(doc, 16);
+    expect(
+      countWords([fitted.hook, fitted.narration, fitted.ending].join(' ')),
+    ).toBeLessThanOrEqual(16);
+    // The hook and the ending are the video's opening and its turn: never cut.
+    expect(fitted.hook).toBe(doc.hook);
+    expect(fitted.ending).toBe(doc.ending);
+    expect(fitted.narration).not.toContain('keeps going and going');
+  });
+
+  it('leaves a document that already fits untouched', () => {
+    const doc = document({ hook: 'One two.', narration: 'Three four.', ending: 'Five six.' });
+    expect(trimSentencesToFit(doc, 100)).toEqual(doc);
   });
 });

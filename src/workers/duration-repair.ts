@@ -41,6 +41,55 @@ export const TRIM_TOLERANCE_RATIO = 0.05;
 /** A scene needs enough words to be a shot; fewer than this and the trim failed. */
 export const MIN_SCENE_WORDS = 6;
 
+/** Trims to query inside one TC attempt before falling back to a hard cut. */
+export const MAX_TRIM_QUERIES = 4;
+
+export function countWords(text: string): number {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+}
+
+/**
+ * Hard backstop: drop whole sentences from the narration, longest first, until the
+ * spoken text fits. The hook and the ending are never touched — they are the
+ * video's opening and its turn — and sentences go rather than words, so what
+ * survives still reads as prose.
+ */
+export function trimSentencesToFit(document: ScriptDocument, maxWords: number): ScriptDocument {
+  const sentences = document.narration.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [];
+  const kept = sentences
+    .map((text) => ({ text, words: countWords(text) }))
+    .filter((sentence) => sentence.text.trim().length > 0);
+  while (
+    kept.length > 1 &&
+    countWords(
+      [
+        document.hook,
+        kept
+          .map((s) => s.text)
+          .join(' ')
+          .trim(),
+        document.ending,
+      ].join(' '),
+    ) > maxWords
+  ) {
+    let longest = 0;
+    for (let index = 1; index < kept.length; index += 1) {
+      if (kept[index]!.words > kept[longest]!.words) longest = index;
+    }
+    kept.splice(longest, 1);
+  }
+  return {
+    ...document,
+    narration: kept
+      .map((sentence) => sentence.text)
+      .join(' ')
+      .trim(),
+  };
+}
+
 export interface RepairScene {
   readonly scene_no: string;
   readonly position: number;
@@ -106,7 +155,10 @@ export function buildTrimMessages(input: {
   readonly document: ScriptDocument;
   readonly currentWords: number;
   readonly targetWords: number;
+  /** Scenes the trim must still fill; the per-scene count makes the target countable. */
+  readonly sceneCount: number;
 }): readonly ChatMessage[] {
+  const perScene = Math.max(1, Math.round(input.targetWords / Math.max(1, input.sceneCount)));
   const cut = Math.max(0, input.currentWords - input.targetWords);
   return [
     {
@@ -120,9 +172,11 @@ export function buildTrimMessages(input: {
       role: 'user',
       content:
         `This narration is ${input.currentWords} words and speaks for longer than the ` +
-        `runtime allows. Cut roughly ${cut} words so the spoken total is ${input.targetWords} ` +
-        'words, removing clauses, asides and repeated beats rather than whole ideas. ' +
-        'Keep the hook, the turn, and the ending intact.\n\n' +
+        `runtime allows. Cut ${cut} words so the spoken total is ${input.targetWords} ` +
+        `words — that is ${input.sceneCount} scenes of about ${perScene} words each, ` +
+        'which is how you should check your work: count the words in every scene of ' +
+        'your answer before returning it. Remove clauses, asides and repeated beats ' +
+        'rather than whole ideas. Keep the hook, the turn, and the ending intact.\n\n' +
         `The script as it stands:\n${JSON.stringify(input.document)}\n\n` +
         'Return the full JSON document, same fields, same title, same hashtags.',
     },
@@ -265,46 +319,74 @@ export async function repairOvershoot(
     };
   }
 
-  const messages = buildTrimMessages({
-    document: current.content,
-    currentWords: input.wordCount,
-    targetWords,
-  });
-  const adapter = deps.text.forRequest({
-    stage: 'SC',
-    schema: TEXT_SCHEMAS.script,
-    messages,
-    temperature: 0.2,
-  });
-  const run = await openRunInAttempt(deps.pool, {
-    jobAttemptId: input.jobAttemptId,
-    projectId: input.projectId,
-    stage: 'SC',
-    provider: adapter.provider,
-    model: deps.text.model,
-    promptHash: sha256Hex(new TextEncoder().encode(messages.map((m) => m.content).join('\n'))),
-    seriesVersionId: null,
-  });
+  const tolerance = Math.round(targetWords * TRIM_TOLERANCE_RATIO);
+  const maxWords = targetWords + tolerance;
+  const sceneCount = carryovers.length;
 
-  let trimmed: ScriptDocument;
-  try {
-    const result = await adapter.execute(run);
-    trimmed = result.content;
-  } catch (error) {
-    return { applied: false, reason: `the trim call failed: ${(error as Error).message}` };
+  // The model cannot count, so asking once is not enough — measured on this very
+  // take, "cut 51 words" produced 224 words: it cut eight. Query a few times and
+  // keep the shortest answer, exactly as SC does for the word band.
+  let draft: ScriptDocument | null = null;
+  let draftWords = Number.POSITIVE_INFINITY;
+  let lastReason = '';
+  /** The run the surviving draft came from: the plan asset points at it for provenance. */
+  let draftRunId: string | null = null;
+  for (let query = 1; query <= MAX_TRIM_QUERIES; query += 1) {
+    const messages = buildTrimMessages({
+      document: query === 1 ? current.content : (draft ?? current.content),
+      currentWords: query === 1 ? input.wordCount : draftWords,
+      targetWords,
+      sceneCount,
+    });
+    const adapter = deps.text.forRequest({
+      stage: 'SC',
+      schema: TEXT_SCHEMAS.script,
+      messages,
+      temperature: 0.2,
+    });
+    const run = await openRunInAttempt(deps.pool, {
+      jobAttemptId: input.jobAttemptId,
+      projectId: input.projectId,
+      stage: 'SC',
+      provider: adapter.provider,
+      model: deps.text.model,
+      promptHash: sha256Hex(new TextEncoder().encode(messages.map((m) => m.content).join('\n'))),
+      seriesVersionId: null,
+    });
+    try {
+      const result = await adapter.execute(run);
+      const words = countWords(spokenNarration(result.content));
+      if (words < draftWords) {
+        draft = result.content;
+        draftWords = words;
+        draftRunId = run.id;
+      }
+      if (Math.abs(words - targetWords) <= tolerance) break;
+      lastReason = `query ${query} returned ${words} words; ${targetWords} ±${tolerance} required`;
+    } catch (error) {
+      lastReason = `query ${query} failed: ${(error as Error).message}`;
+    }
   }
 
-  const trimmedWords = spokenNarration(trimmed)
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
-  const tolerance = Math.round(targetWords * TRIM_TOLERANCE_RATIO);
-  if (Math.abs(trimmedWords - targetWords) > tolerance) {
-    return {
-      applied: false,
-      reason:
-        `the trim returned ${trimmedWords} words; ${targetWords} ±${tolerance} was required, ` +
-        'so the take stays in review rather than becoming a different video',
-    };
+  if (draft === null) {
+    return { applied: false, reason: `the trim call failed: ${lastReason}` };
+  }
+
+  // Backstop: the best answer is still over. Cut whole sentences, longest first,
+  // keeping the hook and the ending. Deterministic, so the take always moves
+  // instead of bouncing between review and another rewrite that also overruns.
+  let trimmed = draft;
+  if (draftWords > maxWords) {
+    trimmed = trimSentencesToFit(draft, maxWords);
+    const fitted = countWords(spokenNarration(trimmed));
+    if (fitted > maxWords) {
+      return {
+        applied: false,
+        reason:
+          `the trim returned ${draftWords} words and even a sentence-level cut left ` +
+          `${fitted}; ${targetWords} ±${tolerance} was required`,
+      };
+    }
   }
 
   let rebuilt: RebuiltPlan;
@@ -351,7 +433,7 @@ export async function repairOvershoot(
       provider: deps.text.provider,
       model: deps.text.model,
       rightsMetadata: { stage: 'SB', role: 'storyboard-plan', repaired_for_duration: true },
-      generationRunId: run.id,
+      generationRunId: draftRunId,
     });
     await linkAssetToProject(client, {
       assetId: inserted.row.id,
