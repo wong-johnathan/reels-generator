@@ -357,7 +357,10 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
        RETURNING id`,
       [projectId],
     );
+    // Only a finished stage can be invalidated: the trim invalidates TC *after* the
+    // attempt recorded its measurement, which is exactly how the live run got here.
     await applyStageEvent(db.pool, projectId, 'TC', 'claim');
+    await applyStageEvent(db.pool, projectId, 'TC', 'succeed');
     await applyStageEvent(db.pool, projectId, 'TC', 'invalidate');
 
     const advanced = await advanceAfterStage(db.pool, {
