@@ -272,7 +272,10 @@ describe.skipIf(!hasDatabase)(
       await expect(
         openAttempt(db.pool, {
           jobId: seeded.jobId,
-          attemptNo: 4, // R-011-2: retries stop at 3
+          // 0 is illegal in both ledgers. Attempt 4 is *legal* since M-010: an
+          // operator retry may exceed R-011-2's automatic budget, so the old
+          // "4 is invalid" example stopped testing the rollback at all.
+          attemptNo: 0,
           projectId: seeded.projectId,
           stage: 'T',
           provider: 'fake-provider',
