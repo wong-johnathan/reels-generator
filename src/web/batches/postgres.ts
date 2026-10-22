@@ -107,10 +107,8 @@ export interface BatchScript {
   readonly wordCount: number | null;
   readonly estimatedRuntimeS: number | null;
   readonly title: string | null;
-  readonly hook: string | null;
+  readonly script: string | null;
   readonly description: string | null;
-  readonly narration: string | null;
-  readonly ending: string | null;
   readonly hashtags: readonly string[];
 }
 
@@ -296,10 +294,9 @@ export async function loadBatchDetail(db: Queryable, batchId: string): Promise<B
                 wordCount: script.word_count,
                 estimatedRuntimeS: script.estimated_runtime_s,
                 title: asString(content?.['title']),
-                hook: asString(content?.['hook']),
+                script: asString(content?.['script']),
                 description: asString(content?.['description']),
-                narration: asString(content?.['narration']),
-                ending: asString(content?.['ending']),
+
                 hashtags,
               },
         sceneCount: scenesBy.get(row.id) ?? 0,

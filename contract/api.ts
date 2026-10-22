@@ -375,9 +375,7 @@ export const ClaimViewSchema = z.object({
 });
 
 export const ScriptContentSchema = z.object({
-  hook: z.string(),
-  narration: z.string(),
-  ending: z.string(),
+  script: z.string(),
   title: z.string(),
   description: z.string(),
   hashtags: z.array(z.string()),

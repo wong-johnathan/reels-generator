@@ -18,11 +18,9 @@ import {
   buildScriptPrompt,
   checkWordBudget,
   dashOffender,
-  dedupeHook,
   draftScript,
   mapClaimsToSources,
   planStoryboard,
-  scriptPartTargets,
   stripForbiddenDashes,
   sceneCountBand,
   spokenNarration,
@@ -131,10 +129,10 @@ describe('US-017 R-003-3 — the provider request carries only the style summary
     // A countable instruction, not just a number: 'target 228 words' alone was
     // ignored and produced 136.
     const userMessage = prompt.messages.map((m) => m.content).join('\n');
-    expect(userMessage).toContain('COUNT hook + narration + ending together');
+    expect(userMessage).toContain('COUNT the words before you answer');
     expect(userMessage).toContain('about 17 scenes');
     expect(userMessage).toContain('217–239');
-    expect(promptText(prompt)).toContain('script.v1');
+    expect(promptText(prompt)).toContain('script.v2');
     expect(promptText(prompt)).toContain('228');
   });
 
@@ -422,7 +420,7 @@ describe('US-017 draftScript pipeline', () => {
       string,
       unknown
     >;
-    delete malformed.ending;
+    delete malformed.script;
     const generate = vi.fn(async () => structuredClone(malformed));
 
     const result = await draftScript(input, { generate });
@@ -430,8 +428,8 @@ describe('US-017 draftScript pipeline', () => {
     expect(generate).toHaveBeenCalledTimes(3);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected the draft to fail');
-    expect(result.failure.failing_field).toBe('ending');
-    expect(result.failure.schema_version).toBe('script.v1');
+    expect(result.failure.failing_field).toBe('script');
+    expect(result.failure.schema_version).toBe('script.v2');
     expect(result.failure.retry_count).toBe(3);
     expect(result.failure.blocked_stages).toContain('IM');
     expect(result.failure.blocked_stages).toContain('NA');
@@ -452,7 +450,7 @@ describe('US-017 draftScript pipeline', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected a draft');
     expect(result.draft.attempts).toBe(3);
-    expect(result.draft.schema_version).toBe('script.v1');
+    expect(result.draft.schema_version).toBe('script.v2');
     expect(result.draft.eight_gram.pass).toBe(true);
     expect(result.draft.word_budget.within_band).toBe(true);
     expect(result.draft.claims.mode).toBe('creative');
@@ -494,15 +492,8 @@ describe('US-017 draftScript pipeline', () => {
   });
 
   it('warns, but does not block, when the narration is outside the word band', async () => {
-    const script = structuredClone(QUIET_MACHINES_FIXTURES.script) as {
-      hook: string;
-      narration: string;
-      ending: string;
-      title: string;
-      description: string;
-      hashtags: string[];
-    };
-    script.narration = Array.from({ length: 80 }, (_, index) => `word${index}`).join(' ');
+    const script = structuredClone(QUIET_MACHINES_FIXTURES.script);
+    script.script = Array.from({ length: 80 }, (_, index) => `word${index}`).join(' ');
 
     const result = await draftScript(input, { generate: async () => structuredClone(script) });
 
@@ -540,13 +531,10 @@ describe('B-04 fixture integration — the canonical storyboard is a split of th
 });
 
 describe('punctuation rule: no em dashes', () => {
-  it('finds an em dash or an en dash in any spoken field', () => {
-    expect(dashOffender({ hook: 'Silence — not speech', narration: 'x', ending: 'y' })).toBe(
-      'hook',
-    );
-    expect(dashOffender({ hook: 'a', narration: 'b – c', ending: 'd' })).toBe('narration');
-    expect(dashOffender({ hook: 'a', narration: 'b', ending: 'c — d' })).toBe('ending');
-    expect(dashOffender({ hook: 'a, b.', narration: 'c.', ending: 'd.' })).toBeNull();
+  it('finds an em dash or an en dash in the script', () => {
+    expect(dashOffender({ script: 'Silence — not speech.' })).toBe('script');
+    expect(dashOffender({ script: 'a – b.' })).toBe('script');
+    expect(dashOffender({ script: 'a, b. c.' })).toBeNull();
   });
 
   it('rewrites a dash as the comma or stop a reader expects', () => {
@@ -572,58 +560,14 @@ describe('punctuation rule: no em dashes', () => {
   });
 });
 
-describe('the hook is spoken once', () => {
-  const hook = 'The more she knows about you, the less she wonders.';
-
-  it('drops a hook the narration restated word for word', () => {
-    const script = dedupeHook({
-      hook,
-      narration:
-        'The more she knows about you, the less she wonders. Psychology calls it the mystery gap, and attraction lives in the not knowing what comes next.',
-      ending: 'Stay a little unknown.',
-    });
-    expect(script.narration.startsWith('Psychology calls it')).toBe(true);
-  });
-
-  it('matches regardless of case and punctuation', () => {
-    const script = dedupeHook({
-      hook,
-      narration:
-        'THE MORE SHE KNOWS ABOUT YOU THE LESS SHE WONDERS — psychology calls it the mystery gap, and attraction lives in not knowing what comes next.',
-      ending: 'Stay a little unknown.',
-    });
-    // The sentence that remains is re-capitalised: it is now the start of the body.
-    expect(script.narration).toBe(
-      'Psychology calls it the mystery gap, and attraction lives in not knowing what comes next.',
+describe('one script field', () => {
+  it('speaks the script and nothing else', () => {
+    expect(spokenNarration({ script: '  Open strong. Land clean.  ' })).toBe(
+      'Open strong. Land clean.',
     );
   });
 
-  it('leaves a narration that merely starts with the same subject alone', () => {
-    const narration =
-      'The more she knows about you, the sooner the room goes quiet and the conversation turns into an interview you cannot leave.';
-    expect(dedupeHook({ hook, narration, ending: 'x' }).narration).toBe(narration);
-  });
-
-  it('does not empty a short narration to satisfy the rule', () => {
-    const narration = `${hook} Too short.`;
-    expect(dedupeHook({ hook, narration, ending: 'x' }).narration).toBe(narration);
-  });
-
-  it('ignores a hook too short to be a repetition', () => {
-    const narration = 'Breathe. Then say the thing you have been avoiding for a week.';
-    expect(dedupeHook({ hook: 'Breathe.', narration, ending: 'x' }).narration).toBe(narration);
-  });
-});
-
-describe('the length contract is stated in the units it is checked in', () => {
-  it('splits the target across the three spoken fields without losing a word', () => {
-    const parts = scriptPartTargets(228);
-    expect(parts.hook + parts.narration + parts.ending).toBe(228);
-    expect(parts.hook).toBeGreaterThanOrEqual(10);
-    expect(parts.ending).toBeGreaterThanOrEqual(18);
-  });
-
-  it('tells the model the total is all three fields, and gives each one a number', () => {
+  it('asks for one number, in the one field that is counted', () => {
     const prompt = buildScriptPrompt({
       series,
       topic: {
@@ -635,13 +579,29 @@ describe('the length contract is stated in the units it is checked in', () => {
       target_duration_s: 75,
     });
     const text = promptText(prompt);
-    const parts = scriptPartTargets(228);
-    expect(text).toContain('hook plus narration plus ending');
-    expect(text).toContain(`hook: one sentence, about ${parts.hook} words`);
-    expect(text).toContain(`narration: the body, about ${parts.narration} words`);
-    expect(text).toContain(`ending: one or two sentences, about ${parts.ending} words`);
-    // The count that is verified is the total, so the count asked for is the total.
-    expect(text).toContain('COUNT hook + narration + ending together');
-    expect(text).not.toContain('COUNT the words in `narration`');
+    // One target, stated once, against the field that exists.
+    expect(text).toContain('write one continuous script of 228 words');
+    expect(text).toContain('COUNT the words before you answer');
+    // The three-field contract is gone: no per-part targets, no field names to divide.
+    expect(text).not.toContain('hook: one sentence, about');
+    expect(text).not.toContain('COUNT hook + narration + ending together');
+    expect(prompt.schema_version).toBe('script.v2');
+  });
+
+  it('names the one field in the schema it sends', () => {
+    const prompt = buildScriptPrompt({
+      series,
+      topic: {
+        title: 'Some decisions deserve the slow lane',
+        description: 'Why reversible choices are the cheap ones.',
+        rationale: 'Fits the series premise.',
+      },
+      references: [reference],
+      target_duration_s: 75,
+    });
+    const text = promptText(prompt);
+    expect(text).toContain('"script"');
+    expect(text).not.toContain('"hook"');
+    expect(text).not.toContain('"narration"');
   });
 });

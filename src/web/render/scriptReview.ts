@@ -358,15 +358,15 @@ export function renderScriptReview(input: ScriptReviewInput): string {
     '<input type="hidden" name="revision" value="' +
     script.revision +
     '" data-revision-field>' +
-    field({ id: 'script-hook', name: 'hook', label: 'Hook', value: content.hook }) +
+    // One field, because the script is one thing: the opening line, the argument and
+    // the landing all live in the same piece of prose the voice will read.
     field({
-      id: 'script-narration',
-      name: 'narration',
-      label: 'Narration',
-      value: content.narration,
-      rows: 8,
+      id: 'script-body',
+      name: 'script',
+      label: 'Script',
+      value: content.script,
+      rows: 14,
     }) +
-    field({ id: 'script-ending', name: 'ending', label: 'Ending', value: content.ending }) +
     '<div class="script-meta-divider" aria-hidden="true"></div>' +
     textField({ id: 'script-title', name: 'title', label: 'Title', value: content.title }) +
     field({

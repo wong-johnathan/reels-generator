@@ -55,7 +55,7 @@ describe.skipIf(!hasDatabase)('ScriptGateway (postgres)', { timeout: DB_TEST_TIM
       `INSERT INTO script_revision
            (project_id, revision, content, schema_version, word_count, estimated_runtime_s,
             eight_gram_scan_pass, eight_gram_violations, status, approved_at)
-         VALUES ($1, 1, $2::jsonb, 'script.v1', 228, 75.1, true, '[]'::jsonb, 'approved', $3)
+         VALUES ($1, 1, $2::jsonb, 'script.v2', 228, 75.1, true, '[]'::jsonb, 'approved', $3)
          RETURNING id`,
       [seeded.projectId, JSON.stringify(content), new Date('2026-10-20T09:41:12.000Z')],
     );
@@ -101,11 +101,11 @@ describe.skipIf(!hasDatabase)('ScriptGateway (postgres)', { timeout: DB_TEST_TIM
 
     expect(script!.project_id).toBe(projectId);
     expect(script!.revision).toBe(1);
-    expect(script!.schema_version).toBe('script.v1');
+    expect(script!.schema_version).toBe('script.v2');
     expect(script!.status).toBe('approved');
     expect(script!.word_count).toBe(228);
     expect(script!.estimated_runtime_s).toBeCloseTo(75.1, 1);
-    expect(script!.content.hook).toBe('You are not stuck.');
+    expect(script!.content.script).toBe('You are not stuck.');
     expect(script!.content.hashtags).toEqual(['#psychology', '#founders']);
 
     // budget is re-derived from target_duration_s=75: round(75 * 3.035) = 228.

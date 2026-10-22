@@ -179,7 +179,8 @@ function setup(detail: VideoDetail = BLOCKED_GATE, script = DRAFT): Setup {
 }
 
 function type(doc: FakeDocument, field: string, value: string): void {
-  const element = doc.querySelector('#script-' + field);
+  // The editor is one field now: `script` maps to the body textarea.
+  const element = doc.querySelector(field === 'script' ? '#script-body' : '#script-' + field);
   if (element === null) throw new Error('no field ' + field);
   element.value = value;
 }
@@ -197,7 +198,7 @@ describe('IP-01 preview — the server computes, the panel states', () => {
     const { doc, enhancer, scheduled, api } = setup();
     expect(attr(doc, '[data-script-dirty]', 'hidden')).toBeDefined();
 
-    type(doc, 'narration', DRAFT.content.narration + ' One more sentence.');
+    type(doc, 'script', DRAFT.content.script + ' One more sentence.');
     enhancer.edit();
 
     expect(attr(doc, '[data-script-dirty]', 'hidden')).toBeUndefined();
@@ -211,7 +212,7 @@ describe('IP-01 preview — the server computes, the panel states', () => {
 
   it('sends the edited content and renders the invalidated stages and call counts', async () => {
     const { doc, enhancer, api } = setup();
-    type(doc, 'narration', DRAFT.content.narration + ' One more sentence.');
+    type(doc, 'script', DRAFT.content.script + ' One more sentence.');
     enhancer.edit();
     await enhancer.preview();
 
@@ -220,11 +221,11 @@ describe('IP-01 preview — the server computes, the panel states', () => {
     const body = call?.args[1] as {
       revision: number;
       edits: Array<{ edit_kind: string }>;
-      script_content: { narration: string; hashtags: string[] };
+      script_content: { script: string; hashtags: string[] };
     };
     expect(body.revision).toBe(5);
     expect(body.edits).toEqual([{ edit_kind: 'script_wording' }]);
-    expect(body.script_content.narration).toContain('One more sentence.');
+    expect(body.script_content.script).toContain('One more sentence.');
     expect(body.script_content.hashtags).toEqual(['#psychology', '#founders', '#focus']);
 
     expect(text(doc, '[data-impact-chip]')).toBe('4 stale');
@@ -246,10 +247,10 @@ describe('IP-01 preview — the server computes, the panel states', () => {
 
   it('collapses to the empty line again when the text returns to the saved revision', async () => {
     const { doc, enhancer } = setup();
-    type(doc, 'narration', DRAFT.content.narration + ' Extra.');
+    type(doc, 'script', DRAFT.content.script + ' Extra.');
     enhancer.edit();
     await enhancer.preview();
-    type(doc, 'narration', DRAFT.content.narration);
+    type(doc, 'script', DRAFT.content.script);
     enhancer.edit();
 
     expect(attr(doc, '[data-script-dirty]', 'hidden')).toBeDefined();
@@ -260,7 +261,7 @@ describe('IP-01 preview — the server computes, the panel states', () => {
   it('states a failed preview in C-07 words, blocks both commits and offers Retry', async () => {
     const { doc, enhancer, api } = setup();
     api.previewResults = [{ kind: 'failed' }];
-    type(doc, 'hook', 'A different hook.');
+    type(doc, 'script', 'A different opening line.');
     enhancer.edit();
     await enhancer.preview();
 
@@ -276,7 +277,7 @@ describe('IP-01 preview — the server computes, the panel states', () => {
 describe('the two commits (IP-01, AX-04)', () => {
   it('applies the edit without regeneration, then paints the stale rail and ribbon', async () => {
     const { doc, enhancer, api } = setup();
-    type(doc, 'narration', DRAFT.content.narration + ' Extra.');
+    type(doc, 'script', DRAFT.content.script + ' Extra.');
     enhancer.edit();
     await enhancer.preview();
     await enhancer.apply('edit');
@@ -298,7 +299,7 @@ describe('the two commits (IP-01, AX-04)', () => {
 
   it('applies and regenerates at the first invalidated stage only', async () => {
     const { doc, enhancer, api } = setup();
-    type(doc, 'narration', DRAFT.content.narration + ' Extra.');
+    type(doc, 'script', DRAFT.content.script + ' Extra.');
     enhancer.edit();
     await enhancer.preview();
     api.reloads = 0;
@@ -359,7 +360,7 @@ describe('409 conflict (IP-09)', () => {
   it('keeps the typed text and names both revisions', async () => {
     const { doc, enhancer, api } = setup();
     api.saveResults = [{ kind: 'conflict', conflict: { current_revision: 6, your_revision: 5 } }];
-    type(doc, 'hook', 'My unchanged hook.');
+    type(doc, 'script', 'My unchanged opening line.');
     enhancer.edit();
     await enhancer.preview();
     await enhancer.apply('edit');
@@ -368,7 +369,7 @@ describe('409 conflict (IP-09)', () => {
     expect(text(doc, '[data-conflict-text]')).toBe(
       'This script was saved by another tab (revision 6). Your revision 5 was not saved. Nothing was overwritten.',
     );
-    expect(doc.querySelector('#script-hook')?.value).toBe('My unchanged hook.');
+    expect(doc.querySelector('#script-body')?.value).toBe('My unchanged opening line.');
     expect(api.reloads).toBe(0);
   });
 });

@@ -2975,11 +2975,7 @@ paths:
                   content:
                     type: object
                     properties:
-                      hook:
-                        type: string
-                      narration:
-                        type: string
-                      ending:
+                      script:
                         type: string
                       title:
                         type: string
@@ -2990,9 +2986,7 @@ paths:
                         items:
                           type: string
                     required:
-                      - hook
-                      - narration
-                      - ending
+                      - script
                       - title
                       - description
                       - hashtags
@@ -3181,11 +3175,7 @@ paths:
                   content:
                     type: object
                     properties:
-                      hook:
-                        type: string
-                      narration:
-                        type: string
-                      ending:
+                      script:
                         type: string
                       title:
                         type: string
@@ -3196,9 +3186,7 @@ paths:
                         items:
                           type: string
                     required:
-                      - hook
-                      - narration
-                      - ending
+                      - script
                       - title
                       - description
                       - hashtags
@@ -3366,11 +3354,7 @@ paths:
                 content:
                   type: object
                   properties:
-                    hook:
-                      type: string
-                    narration:
-                      type: string
-                    ending:
+                    script:
                       type: string
                     title:
                       type: string
@@ -3381,9 +3365,7 @@ paths:
                       items:
                         type: string
                   required:
-                    - hook
-                    - narration
-                    - ending
+                    - script
                     - title
                     - description
                     - hashtags
@@ -3430,11 +3412,7 @@ paths:
                   content:
                     type: object
                     properties:
-                      hook:
-                        type: string
-                      narration:
-                        type: string
-                      ending:
+                      script:
                         type: string
                       title:
                         type: string
@@ -3445,9 +3423,7 @@ paths:
                         items:
                           type: string
                     required:
-                      - hook
-                      - narration
-                      - ending
+                      - script
                       - title
                       - description
                       - hashtags
@@ -3656,11 +3632,7 @@ paths:
                   content:
                     type: object
                     properties:
-                      hook:
-                        type: string
-                      narration:
-                        type: string
-                      ending:
+                      script:
                         type: string
                       title:
                         type: string
@@ -3671,9 +3643,7 @@ paths:
                         items:
                           type: string
                     required:
-                      - hook
-                      - narration
-                      - ending
+                      - script
                       - title
                       - description
                       - hashtags

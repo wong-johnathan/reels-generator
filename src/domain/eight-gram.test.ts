@@ -161,19 +161,15 @@ describe('scanForVerbatimRuns — R-003-2 signal', () => {
 });
 
 describe('scanScript — all final generated text', () => {
-  it('scans hook, narration, ending, title, description and hashtags', () => {
+  it('scans the script, title, description and hashtags', () => {
     const fields = scriptFields({
-      hook: 'An original hook.',
-      narration: 'Original narration words only.',
-      ending: 'An original ending.',
+      script: 'An original hook. Original narration words only. An original ending.',
       title: 'An original title',
       description: 'An original description with no borrowed run at all.',
       hashtags: ['#original', '#prose'],
     });
     expect(fields.map((field) => field.field)).toEqual([
-      'hook',
-      'narration',
-      'ending',
+      'script',
       'title',
       'description',
       'hashtags',

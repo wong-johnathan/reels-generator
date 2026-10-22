@@ -23,10 +23,7 @@ import type { Pool } from 'pg';
 
 import {
   checkWordBudget,
-  countWords,
-  scriptPartTargets,
   stripForbiddenDashes,
-  dedupeHook,
   planStoryboard,
   sceneCountBand,
   spokenNarration,
@@ -184,14 +181,9 @@ export function normalizeDocument(value: unknown): unknown {
   return value;
 }
 
-/** The operator rule, applied to every spoken field of a script. */
-function stripDashes<T extends { hook: string; narration: string; ending: string }>(script: T): T {
-  return {
-    ...script,
-    hook: stripForbiddenDashes(script.hook),
-    narration: stripForbiddenDashes(script.narration),
-    ending: stripForbiddenDashes(script.ending),
-  };
+/** The operator rule: no em or en dashes anywhere in the spoken script. */
+function stripDashes<T extends { script: string }>(script: T): T {
+  return { ...script, script: stripForbiddenDashes(script.script) };
 }
 
 function requestFor<Out>(
@@ -647,7 +639,7 @@ export async function runTextStage(
         } else if (stage === 'SC') {
           // The hook is spoken first; a narration that repeats it says the opening
           // line twice. Removed here, before the budget counts it twice.
-          const script = dedupeHook(stripDashes(TEXT_SCHEMAS.script.schema.parse(document)));
+          const script = stripDashes(TEXT_SCHEMAS.script.schema.parse(document));
           // The word budget is a hard rule (R-009-1/R-009-3) and the prompt only
           // offers it as guidance: a 136-word script for a 75 s target reached NA,
           // produced 62 s of speech, and was rejected by TC as duration_out_of_band
@@ -672,23 +664,16 @@ export async function runTextStage(
               ? `Expand it to ${budget.target_words} words by developing the concrete detail already implied — ` +
                 'specific images, the moment itself, the sensory beat.'
               : `Cut it to ${budget.target_words} words without losing the argument.`;
-            // Name the parts. 'narration is 244 words' was wrong twice over: the count
-            // is of all three spoken fields, and telling the model its narration was
-            // the problem sent it cutting the body when the hook and ending were fine.
-            const parts = scriptPartTargets(budget.target_words);
-            const hookWords = countWords(script.hook);
-            const bodyWords = countWords(script.narration);
-            const endingWords = countWords(script.ending);
+            // One field means one count and one instruction: cut from the script.
             const excess = budgetCheck.word_count - budget.max_words;
             const advice =
               excess > 0
-                ? `Cut about ${Math.max(1, excess)} words from the body: the hook is ${hookWords} words (about ${parts.hook} wanted) and the ending is ${endingWords} (about ${parts.ending} wanted), so leave both roughly as they are.`
-                : `Add about ${Math.max(1, budget.min_words - budgetCheck.word_count)} words to the body.`;
+                ? `Cut about ${excess} words. Keep the opening line and the landing line; tighten the middle.`
+                : `Add about ${budget.min_words - budgetCheck.word_count} words without padding: another beat, a concrete example, a sharper turn.`;
             throw new Error(
-              `the spoken script is ${budgetCheck.word_count} words (hook ${hookWords} + narration ${bodyWords} + ending ${endingWords}), ` +
-                `which is ~${budgetCheck.estimated_runtime_s.toFixed(1)} s; a ${context.targetDurationS} s target needs ` +
-                `${budget.min_words}–${budget.max_words} words for all three fields together (R-009-1). ` +
-                `The body you wrote was:\n\n${script.narration}\n\n` +
+              `the script is ${budgetCheck.word_count} words (~${budgetCheck.estimated_runtime_s.toFixed(1)} s); ` +
+                `a ${context.targetDurationS} s target needs ${budget.min_words}–${budget.max_words} words (R-009-1). ` +
+                `What you wrote was:\n\n${script.script}\n\n` +
                 `${advice} ${direction} Do not add new claims, do not change the voice, keep every other field identical, ` +
                 'and return the full JSON.',
             );

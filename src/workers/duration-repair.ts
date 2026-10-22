@@ -33,12 +33,7 @@ import { insertAsset, linkAssetToProject } from '../db/repositories/assets.js';
 import { withTransaction } from '../db/client.js';
 import { openRunInAttempt } from '../domain/generation-run.js';
 import { sha256Hex, type AssetBlobStore } from '../workers/asset-store.js';
-import {
-  dedupeHook,
-  spokenNarration,
-  stripForbiddenDashes,
-  type ScriptDocument,
-} from '../domain/authoring.js';
+import { spokenNarration, stripForbiddenDashes, type ScriptDocument } from '../domain/authoring.js';
 import { NARRATION_WORDS_PER_SECOND } from '../shared/calibration.js';
 
 /** How far the trimmed script may sit from the derived count. */
@@ -58,33 +53,49 @@ export function countWords(text: string): number {
 }
 
 /**
- * Hard backstop: shorten the narration until the spoken text fits, without leaving
- * any scene too thin to caption.
+ * Hard backstop: shorten the script until it fits, without leaving any scene too
+ * thin to caption.
  *
  * Dropping whole sentences looked simpler and produced a one-word scene: with
- * seventeen scenes, the splitter lands cuts between sentences and hands one scene
- * a fragment. So the cut works *inside* sentences — trailing clauses first, then
+ * seventeen scenes, the splitter lands cuts between sentences and hands one scene a
+ * fragment. So the cut works *inside* sentences — trailing clauses first, then
  * trailing words — and every sentence keeps at least MIN_SCENE_WORDS, the floor a
- * scene needs. The hook and the ending are never touched: they are the video's
- * opening and its turn.
+ * scene needs.
+ *
+ * The first sentence is the hook and the last is the landing. They are what the
+ * video opens and closes on, so they are cut last, and only if nothing else is left.
  */
 export function trimSentencesToFit(document: ScriptDocument, maxWords: number): ScriptDocument {
-  const sentences = (document.narration.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [])
+  const sentences = (document.script.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [])
     .map((text) => text.trim())
     .filter((text) => text.length > 0);
-  const spoken = (parts: readonly string[]): number =>
-    countWords([document.hook, parts.join(' ').trim(), document.ending].join(' '));
+  const spoken = (parts: readonly string[]): number => countWords(parts.join(' ').trim());
 
   const current = [...sentences];
   for (let guard = 0; guard < 500 && current.length > 0 && spoken(current) > maxWords; guard += 1) {
-    let longest = 0;
-    for (let index = 1; index < current.length; index += 1) {
-      if (countWords(current[index]!) > countWords(current[longest]!)) longest = index;
+    // Prefer the longest interior sentence; fall back to the hook or the landing only
+    // when there is no interior left to cut.
+    let longest = -1;
+    const firstInterior = current.length >= 3 ? 1 : 0;
+    const lastInterior = current.length >= 3 ? current.length - 2 : current.length - 1;
+    for (let index = firstInterior; index <= lastInterior; index += 1) {
+      if (longest === -1 || countWords(current[index]!) > countWords(current[longest]!)) {
+        longest = index;
+      }
+    }
+    if (longest === -1) {
+      for (let index = 0; index < current.length; index += 1) {
+        if (longest === -1 || countWords(current[index]!) > countWords(current[longest]!)) {
+          longest = index;
+        }
+      }
     }
     const sentence = current[longest]!;
     const words = sentence.split(/\s+/).filter((word) => word.length > 0);
     if (words.length <= MIN_SCENE_WORDS) break;
-    const clauses = sentence.split(/(?<=,)\s+|\s+—\s+/).filter((clause) => clause.length > 0);
+    const clauses = sentence
+      .split(/(?<=,)\s+|\s+[\u2014\u2013]\s+/)
+      .filter((clause) => clause.length > 0);
     if (clauses.length > 1) {
       const withoutLast = clauses.slice(0, -1).join(' ').trim();
       if (countWords(withoutLast) >= MIN_SCENE_WORDS) {
@@ -96,18 +107,23 @@ export function trimSentencesToFit(document: ScriptDocument, maxWords: number): 
   }
 
   // A stub sentence ("Yes.") becomes a one-word *scene* once the splitter lands a
-  // cut beside it. Merge those into a neighbour: same words, one fewer place for a
-  // scene to collapse into.
-  for (let index = 0; index < current.length; index += 1) {
-    if (current.length === 1) break;
-    if (countWords(current[index]!) >= MIN_SCENE_WORDS) continue;
-    const into = index > 0 ? index - 1 : 1;
-    current[into] = `${current[into]!} ${current[index]!}`.trim();
-    current.splice(index, 1);
-    index -= 1;
+  // cut beside it. Merge those into the sentence before them: same words, one fewer
+  // place for a scene to collapse into. Interior only — the first sentence is the
+  // hook and the last is the landing, and moving either changes what the video opens
+  // and closes on. Only worth doing when a cut actually happened.
+  if (
+    current.length !== sentences.length ||
+    current.some((sentence, index) => sentence !== sentences[index])
+  ) {
+    for (let index = current.length - 2; index >= 1; index -= 1) {
+      if (current.length <= 2) break;
+      if (countWords(current[index]!) >= MIN_SCENE_WORDS) continue;
+      current[index - 1] = `${current[index - 1]!} ${current[index]!}`.trim();
+      current.splice(index, 1);
+    }
   }
 
-  return { ...document, narration: current.join(' ').trim() };
+  return { ...document, script: current.join(' ').trim() };
 }
 
 export interface RepairScene {
@@ -415,12 +431,7 @@ export async function repairOvershoot(
 
   // The same no-dash rule the SC stage enforces. A repair is not a fresh
   // generation, so it is normalised rather than rejected: the take needs to move.
-  trimmed = dedupeHook({
-    ...trimmed,
-    hook: stripForbiddenDashes(trimmed.hook),
-    narration: stripForbiddenDashes(trimmed.narration),
-    ending: stripForbiddenDashes(trimmed.ending),
-  });
+  trimmed = { ...trimmed, script: stripForbiddenDashes(trimmed.script) };
 
   let rebuilt: RebuiltPlan;
   try {

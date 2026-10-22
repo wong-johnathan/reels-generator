@@ -141,3 +141,24 @@ The safe-area promise (R-010-6) is unchanged: a single word is narrower than the
 two-line block, and `buildAssDocument` still refuses a cue that overflows.
 
 **Reversal:** pass `mode: 'grouped'`, or change the default in `buildCaptionDocuments`.
+
+## D-L — One script field, not three (script.v2) (2026-10-22)
+
+TECH_DESIGN / PRD §3 describe a script as `{hook, narration, ending, title,
+description, hashtags}`. In production the split cost more than it bought.
+
+Measured failures it caused: the hook was restated at the top of the narration (19
+words, 7.8 s of a 78 s video saying the opening line twice); the budget was checked
+across all three fields while the prompt told the model to count `narration`, so a
+correct body still failed by the ~50 words the other two added; and the trim had
+three fields to protect rather than one sequence to keep whole.
+
+`ScriptDocument` is now `{script, title, description, hashtags}`, where `script` is
+the entire spoken text. Hook and landing are the first and last sentences, derived
+for display, never stored separately. Consequences: `dedupeHook` and
+`scriptPartTargets` are deleted, `dashOffender` inspects one string, and the trim
+protects the first and last _sentence_ instead of named fields.
+
+**Reversal:** reintroduce the three fields in `ScriptDocumentSchema` and split the
+budget again — but only with a test that the count instruction and the count
+validator name the same text.

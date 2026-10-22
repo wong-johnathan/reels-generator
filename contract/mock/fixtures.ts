@@ -221,11 +221,9 @@ const script = {
   schema_version: '1.0.0',
   status: 'approved',
   content: {
-    hook: 'You are not stuck. You are narrating.',
-    narration:
+    script:
       'You are not stuck. You are narrating. Every time you explain the plan out loud, the plan gets heavier. ' +
-      'Here is the mechanism, and here is the smaller version that actually ships.',
-    ending: 'Say less. Ship the sentence.',
+      'Here is the mechanism, and here is the smaller version that actually ships. Say less. Ship the sentence.',
     title: 'The cost of narrating your own work',
     description: 'A 75-second note on why explaining early costs focus.',
     hashtags: ['#psychology', '#founders', '#focus'],

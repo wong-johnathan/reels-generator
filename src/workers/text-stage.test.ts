@@ -94,7 +94,7 @@ describe('systemPrompt', () => {
   });
 
   it('names the stage schema, so a script call cannot be answered with a topic', () => {
-    expect(systemPrompt(TEXT_SCHEMAS.script as never)).toContain('script.v1');
+    expect(systemPrompt(TEXT_SCHEMAS.script as never)).toContain('script.v2');
   });
 });
 

@@ -125,7 +125,7 @@ describe('GET /videos/:id/script — the S-10 surface', () => {
     const get = await signedIn({ script: createMemoryScriptGateway([approved]) });
     const page = parseHtml((await get('/videos/' + detail.id + '/script')).body);
 
-    for (const field of ['hook', 'narration', 'ending', 'title', 'description', 'hashtags']) {
+    for (const field of ['script', 'title', 'description', 'hashtags']) {
       const input = byTag(page, 'textarea')
         .concat(byTag(page, 'input'))
         .find((node) => node.attrs['data-field'] === field);
@@ -135,8 +135,8 @@ describe('GET /videos/:id/script — the S-10 surface', () => {
       const label = byTag(page, 'label').find((node) => node.attrs['for'] === id);
       expect(label, field + ' label').toBeDefined();
     }
-    const hook = byTag(page, 'textarea').find((node) => node.attrs['data-field'] === 'hook');
-    expect(textOf(hook as HtmlNode)).toBe(approved.content.hook);
+    const body = byTag(page, 'textarea').find((node) => node.attrs['data-field'] === 'script');
+    expect(textOf(body as HtmlNode)).toBe(approved.content.script);
     const revisionField = byTag(page, 'input').find(
       (node) => node.attrs['data-revision-field'] !== undefined,
     );

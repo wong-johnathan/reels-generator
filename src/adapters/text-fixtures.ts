@@ -32,10 +32,9 @@ const TOPIC: TopicDocument = {
 };
 
 const SCRIPT: ScriptDocument = {
-  hook: 'Every founder has heard the same advice. Move faster.',
-  narration:
-    'The advice is not wrong, exactly. It is incomplete. Speed is a multiplier, and a multiplier takes its sign from the thing it multiplies. Point it at a decision that is cheap to reverse, and speed wins you information. Point it at a decision that is expensive to reverse, and speed simply gets you to the wrong place sooner. Psychologists describe the residue as cognitive load. Each open decision holds a small, silent reservation in your head. Ten of them cost more than one, not because the decisions are harder, but because the reservations never fully close. You carry the tab. The founders who look calm are rarely the ones with fewer problems. They are the ones who made the reversible decisions quickly and deliberately refused to hurry the irreversible ones. Hiring, pricing and the shape of the company are slow decisions. Most of the rest, including the ones that feel urgent at midnight, are not. There is a second trap: treating every decision as a decision at all. A surprising amount of a working week is maintenance, not choice. Naming that out loud is unglamorous, and it frees the attention that strategy actually needs.',
-  ending:
+  script:
+    'Every founder has heard the same advice. Move faster. ' +
+    'The advice is not wrong, exactly. It is incomplete. Speed is a multiplier, and a multiplier takes its sign from the thing it multiplies. Point it at a decision that is cheap to reverse, and speed wins you information. Point it at a decision that is expensive to reverse, and speed simply gets you to the wrong place sooner. Psychologists describe the residue as cognitive load. Each open decision holds a small, silent reservation in your head. Ten of them cost more than one, not because the decisions are harder, but because the reservations never fully close. You carry the tab. The founders who look calm are rarely the ones with fewer problems. They are the ones who made the reversible decisions quickly and deliberately refused to hurry the irreversible ones. Hiring, pricing and the shape of the company are slow decisions. Most of the rest, including the ones that feel urgent at midnight, are not. There is a second trap: treating every decision as a decision at all. A surprising amount of a working week is maintenance, not choice. Naming that out loud is unglamorous, and it frees the attention that strategy actually needs. ' +
     'So before you speed up, ask one question. If this goes wrong, how much does it cost to undo? The answer tells you which gear to use.',
   title: 'Some decisions deserve the slow lane',
   description:

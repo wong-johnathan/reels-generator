@@ -13,9 +13,8 @@ import type { ScriptDocument } from '../domain/authoring.js';
 
 function document(overrides: Partial<ScriptDocument> = {}): ScriptDocument {
   return {
-    hook: 'Nobody tells you this.',
-    narration: 'Composure is not silence. It is the pause that makes people lean in.',
-    ending: 'That is the whole trick.',
+    script:
+      'Nobody tells you this. Composure is not silence. It is the pause that makes people lean in. That is the whole trick.',
     title: 'The silent anchor',
     description: 'A short reel about composure.',
     hashtags: ['#psychology'],
@@ -92,10 +91,9 @@ describe('duration repair — rebuilding the plan', () => {
     const source = plan(3, 10);
     const carryovers = sceneCarryovers(source);
     const trimmed = document({
-      hook: 'Composure is not silence and it never was.',
-      narration:
-        'It is the pause that makes a room lean in. A pause works only when the room expects you to fill it.',
-      ending: 'That is the whole trick and nothing more.',
+      script:
+        'Composure is not silence and it never was. It is the pause that makes a room lean in. ' +
+        'A pause works only when the room expects you to fill it. That is the whole trick and nothing more.',
     });
 
     const rebuilt = rebuildPlan({
@@ -116,7 +114,7 @@ describe('duration repair — rebuilding the plan', () => {
   it('refuses a trim that cannot fill every scene', () => {
     const source = plan(4, 10);
     const carryovers = sceneCarryovers(source);
-    const tooShort = document({ hook: 'One two', narration: 'three four', ending: 'five six' });
+    const tooShort = document({ script: 'One two. Three four. Five six.' });
 
     expect(() =>
       rebuildPlan({ plan: source, carryovers, document: tooShort, targetDurationS: 75 }),
@@ -129,9 +127,9 @@ describe('duration repair — rebuilding the plan', () => {
     const source = plan(2, 10);
     const carryovers = sceneCarryovers(source);
     const doc = document({
-      hook: 'Composure is not silence and it never was.',
-      narration: 'It is the pause that makes a room lean in and hold.',
-      ending: 'That is the trick of it.',
+      script:
+        'Composure is not silence and it never was. It is the pause that makes a room lean in and hold. ' +
+        'That is the trick of it.',
     });
 
     const rebuilt = rebuildPlan({
@@ -175,31 +173,32 @@ describe('duration repair — the hard backstop', () => {
     expect(countWords('')).toBe(0);
   });
 
-  it('shortens the longest sentences until the spoken text fits', () => {
+  it('shortens the longest sentences until the script fits, keeping the open and the close', () => {
     const doc = document({
-      hook: 'Composure is not silence.',
-      narration:
-        'It is the pause that makes a room lean in. A much longer sentence that keeps going and going and going well past any useful length for a reel. It works because nobody fills it.',
-      ending: 'That is the trick.',
+      script:
+        'Composure is not silence. It is the pause that makes a room lean in. ' +
+        'A much longer sentence that keeps going and going and going well past any useful length for a reel. ' +
+        'That is the trick.',
     });
-    // The floor is MIN_SCENE_WORDS per sentence, so ~26 is the tightest this
-    // document can become: 4 (hook) + 6 + 6 + 6 + 4 (ending). Ask for 30.
+    // The floor is MIN_SCENE_WORDS per sentence, so this is the tightest it can become.
     const fitted = trimSentencesToFit(doc, 30);
-    expect(
-      countWords([fitted.hook, fitted.narration, fitted.ending].join(' ')),
-    ).toBeLessThanOrEqual(30);
-    // The hook and the ending are the video's opening and its turn: never cut.
-    expect(fitted.hook).toBe(doc.hook);
-    expect(fitted.ending).toBe(doc.ending);
-    expect(fitted.narration).not.toContain('keeps going and going');
-    // No sentence below the floor: that is what produced a one-word scene.
-    for (const sentence of fitted.narration.match(/[^.!?]+[.!?]+/g) ?? []) {
+    expect(countWords(fitted.script)).toBeLessThanOrEqual(30);
+    // The first sentence is the hook and the last is the landing: the video opens and
+    // closes on them, so they survive the cut.
+    expect(fitted.script.startsWith('Composure is not silence.')).toBe(true);
+    expect(fitted.script.endsWith('That is the trick.')).toBe(true);
+    // The cut takes the tail off the longest sentence, so the padding is what goes.
+    expect(fitted.script).not.toContain('well past any useful length');
+    // No interior sentence below the floor: that is what produced a one-word scene.
+    // The hook and the landing are short by nature and are not scenes of their own.
+    const sentences = fitted.script.match(/[^.!?]+[.!?]+/g) ?? [];
+    for (const sentence of sentences.slice(1, -1)) {
       expect(countWords(sentence)).toBeGreaterThanOrEqual(6);
     }
   });
 
   it('leaves a document that already fits untouched', () => {
-    const doc = document({ hook: 'One two.', narration: 'Three four.', ending: 'Five six.' });
+    const doc = document({ script: 'One two. Three four. Five six.' });
     expect(trimSentencesToFit(doc, 100)).toEqual(doc);
   });
 });

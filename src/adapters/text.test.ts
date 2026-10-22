@@ -307,7 +307,7 @@ describe('DeepSeekTextAdapter error classification (R-011-2, R-012-4)', () => {
 
     expect(error).toBeInstanceOf(ProviderSchemaError);
     expect((error as ProviderSchemaError).errorClass).toBe('non_retryable');
-    expect((error as ProviderSchemaError).schemaVersion).toBe('script.v1');
+    expect((error as ProviderSchemaError).schemaVersion).toBe('script.v2');
   });
 
   it('rejects a schema violation and names the failing field (R-004-2 hand-off data)', async () => {
@@ -324,7 +324,7 @@ describe('DeepSeekTextAdapter error classification (R-011-2, R-012-4)', () => {
     expect(error).toBeInstanceOf(ProviderSchemaError);
     const schemaError = error as ProviderSchemaError;
     expect(schemaError.fieldErrors.join(' ')).toContain('hashtags');
-    expect(schemaError.message).toContain('script.v1');
+    expect(schemaError.message).toContain('script.v2');
     // A wrong shape is never retried in place: the provider call already billed.
     expect(schemaError.errorClass).toBe('non_retryable');
   });

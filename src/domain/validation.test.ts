@@ -26,13 +26,13 @@ import {
   validateWithRetry,
 } from './validation.js';
 
-/** The canonical script fixture with `ending` removed — a malformed payload. */
-function withoutEnding(): Record<string, unknown> {
+/** The canonical script fixture with `script` removed — a malformed payload. */
+function withoutScriptBody(): Record<string, unknown> {
   const payload = structuredClone(QUIET_MACHINES_FIXTURES.script) as unknown as Record<
     string,
     unknown
   >;
-  delete payload.ending;
+  delete payload.script;
   return payload;
 }
 
@@ -66,14 +66,14 @@ describe('DOCUMENT_SCHEMAS — one version authority for the three text stages',
 
 describe('validateAttempt — a failing field and its version, never the payload', () => {
   it('names the failing top-level field', () => {
-    const outcome = validateAttempt(TEXT_SCHEMAS.script, withoutEnding(), 1);
+    const outcome = validateAttempt(TEXT_SCHEMAS.script, withoutScriptBody(), 1);
 
     expect(outcome.ok).toBe(false);
     if (outcome.ok) throw new Error('expected a validation failure');
     expect(outcome.failure.code).toBe('schema_invalid');
-    expect(outcome.failure.failing_field).toBe('ending');
+    expect(outcome.failure.failing_field).toBe('script');
     expect(outcome.failure.schema_name).toBe('script');
-    expect(outcome.failure.schema_version).toBe('script.v1');
+    expect(outcome.failure.schema_version).toBe('script.v2');
     expect(outcome.failure.stage).toBe('SC');
     expect(outcome.failure.retry_count).toBe(1);
     expect(outcome.failure.field_errors.length).toBeGreaterThan(0);
@@ -88,7 +88,7 @@ describe('validateAttempt — a failing field and its version, never the payload
   });
 
   it('carries field paths and codes only — no model content', () => {
-    const outcome = validateAttempt(TEXT_SCHEMAS.script, withoutEnding(), 1);
+    const outcome = validateAttempt(TEXT_SCHEMAS.script, withoutScriptBody(), 1);
     if (outcome.ok) throw new Error('expected a validation failure');
 
     expect(Object.keys(outcome.failure).sort()).not.toContain('payload');
@@ -98,7 +98,7 @@ describe('validateAttempt — a failing field and its version, never the payload
   });
 
   it('marks the producing stages that a failure stops, and zero downstream billable calls', () => {
-    const outcome = validateAttempt(TEXT_SCHEMAS.script, withoutEnding(), 3);
+    const outcome = validateAttempt(TEXT_SCHEMAS.script, withoutScriptBody(), 3);
     if (outcome.ok) throw new Error('expected a validation failure');
 
     expect(outcome.failure.blocked_stages).toEqual(['SB', 'IM', 'NA', 'TC', 'RE', 'QC']);
@@ -116,7 +116,7 @@ describe('blockedStagesAfter — pipeline order, gates excluded', () => {
 
 describe('validateWithRetry — R-004-2 signal', () => {
   it('retries a malformed payload three times then surfaces field + version + retry count', async () => {
-    const generate = vi.fn(async () => withoutEnding());
+    const generate = vi.fn(async () => withoutScriptBody());
 
     const outcome = await validateWithRetry({
       schema: TEXT_SCHEMAS.script,
@@ -128,8 +128,8 @@ describe('validateWithRetry — R-004-2 signal', () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) throw new Error('expected exhausted validation');
     expect(outcome.failure.retry_count).toBe(3);
-    expect(outcome.failure.failing_field).toBe('ending');
-    expect(outcome.failure.schema_version).toBe('script.v1');
+    expect(outcome.failure.failing_field).toBe('script');
+    expect(outcome.failure.schema_version).toBe('script.v2');
     expect(outcome.failures).toHaveLength(3);
     expect(outcome.failures.map((failure) => failure.retry_count)).toEqual([1, 2, 3]);
     // No document on the failure branch, so no downstream stage can be enqueued.
@@ -140,7 +140,7 @@ describe('validateWithRetry — R-004-2 signal', () => {
     let call = 0;
     const generate = vi.fn(async () => {
       call += 1;
-      return call < 3 ? withoutEnding() : structuredClone(QUIET_MACHINES_FIXTURES.script);
+      return call < 3 ? withoutScriptBody() : structuredClone(QUIET_MACHINES_FIXTURES.script);
     });
 
     const outcome = await validateWithRetry({ schema: TEXT_SCHEMAS.script, generate });
@@ -149,16 +149,16 @@ describe('validateWithRetry — R-004-2 signal', () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) throw new Error('expected a validated document');
     expect(outcome.attempts).toBe(3);
-    expect(outcome.schema_version).toBe('script.v1');
+    expect(outcome.schema_version).toBe('script.v2');
     expect(outcome.failures).toHaveLength(2);
-    expect(outcome.document.ending.length).toBeGreaterThan(0);
+    expect(outcome.document.script.length).toBeGreaterThan(0);
   });
 
   it('reports each invalid attempt to the caller on the way (the UI counter)', async () => {
     const seen: number[] = [];
     const outcome = await validateWithRetry({
       schema: TEXT_SCHEMAS.script,
-      generate: async () => withoutEnding(),
+      generate: async () => withoutScriptBody(),
       onInvalid: (failure) => {
         seen.push(failure.retry_count);
       },
@@ -172,7 +172,7 @@ describe('validateWithRetry — R-004-2 signal', () => {
     await expect(
       validateWithRetry({
         schema: TEXT_SCHEMAS.script,
-        generate: async () => withoutEnding(),
+        generate: async () => withoutScriptBody(),
         maxAttempts: 4,
       }),
     ).rejects.toThrow(RangeError);
@@ -182,7 +182,7 @@ describe('validateWithRetry — R-004-2 signal', () => {
     await expect(
       validateWithRetry({
         schema: TEXT_SCHEMAS.script,
-        generate: async () => withoutEnding(),
+        generate: async () => withoutScriptBody(),
         maxAttempts: 0,
       }),
     ).rejects.toThrow(RangeError);
@@ -204,18 +204,18 @@ describe('surfacingFor — what the UI shows on the 3rd failure', () => {
   it('returns the failing field, schema version and retry count verbatim', async () => {
     const outcome = await validateWithRetry({
       schema: TEXT_SCHEMAS.script,
-      generate: async () => withoutEnding(),
+      generate: async () => withoutScriptBody(),
     });
     if (outcome.ok) throw new Error('expected exhausted validation');
 
     const surface = surfacingFor(outcome.failure);
 
-    expect(surface.failing_field).toBe('ending');
-    expect(surface.schema_version).toBe('script.v1');
+    expect(surface.failing_field).toBe('script');
+    expect(surface.schema_version).toBe('script.v2');
     expect(surface.retry_count).toBe(3);
     expect(surface.max_attempts).toBe(3);
-    expect(surface.message).toContain('ending');
-    expect(surface.message).toContain('script.v1');
+    expect(surface.message).toContain('script');
+    expect(surface.message).toContain('script.v2');
     expect(surface.message).toContain('3 of 3');
     expect(surface.message).toContain('No downstream billable stage ran');
   });
@@ -223,7 +223,7 @@ describe('surfacingFor — what the UI shows on the 3rd failure', () => {
   it('wraps the same failure for callers that prefer an exception', async () => {
     const outcome = await validateWithRetry({
       schema: TEXT_SCHEMAS.script,
-      generate: async () => withoutEnding(),
+      generate: async () => withoutScriptBody(),
     });
     if (outcome.ok) throw new Error('expected exhausted validation');
 
@@ -231,7 +231,7 @@ describe('surfacingFor — what the UI shows on the 3rd failure', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect(error.failure).toBe(outcome.failure);
-    expect(error.message).toContain('script.v1');
-    expect(error.message).toContain('ending');
+    expect(error.message).toContain('script.v2');
+    expect(error.message).toContain('script');
   });
 });

@@ -31,7 +31,7 @@ export type TextStageCode = (typeof TEXT_STAGE_CODES)[number];
 export type TextSchemaName = 'topic' | 'script' | 'storyboard';
 
 export const TOPIC_DOCUMENT_VERSION = 'topic.v1';
-export const SCRIPT_DOCUMENT_VERSION = 'script.v1';
+export const SCRIPT_DOCUMENT_VERSION = 'script.v2';
 export const STORYBOARD_DOCUMENT_VERSION = 'storyboard.v1';
 
 /** `S01`…`S99` — the stable scene id (R-007-2, TECH_DESIGN §3.2). */
@@ -51,22 +51,16 @@ export const TopicDocumentSchema = z.object({
 });
 
 export const ScriptDocumentSchema = z.object({
-  hook: z
+  // One field, deliberately. Three fields meant three targets, a total that was
+  // measured across all of them, and a model that could satisfy the instruction it
+  // was given and still fail the check by the size of the two it was not counting.
+  // One string is the only text that exists, so its length is the length.
+  script: z
     .string()
     .min(1)
     .describe(
-      'The first line spoken, one sentence, the line that stops the scroll. It is spoken once, at the very start.',
+      'The entire spoken script as one continuous piece of narration. Open with a hook line that stops the scroll, develop the idea, and close with a landing line. Plain prose only: no headings, no stage directions, no speaker labels, no em dashes.',
     ),
-  narration: z
-    .string()
-    .min(1)
-    .describe(
-      'The body of the video, spoken immediately after the hook. Continue from the hook: never repeat it, and never restate it in different words.',
-    ),
-  ending: z
-    .string()
-    .min(1)
-    .describe('The closing line, spoken last. It must not repeat the hook either.'),
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
   hashtags: z

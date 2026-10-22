@@ -35,7 +35,7 @@ describe('text document schemas (R-004-1, R-008-3)', () => {
     expect(TEXT_SCHEMAS.script.stage).toBe('SC');
     expect(TEXT_SCHEMAS.storyboard.stage).toBe('SB');
     expect(TOPIC_DOCUMENT_VERSION).toBe('topic.v1');
-    expect(SCRIPT_DOCUMENT_VERSION).toBe('script.v1');
+    expect(SCRIPT_DOCUMENT_VERSION).toBe('script.v2');
     expect(STORYBOARD_DOCUMENT_VERSION).toBe('storyboard.v1');
   });
 
@@ -60,22 +60,18 @@ describe('text document schemas (R-004-1, R-008-3)', () => {
   });
 
   it('keeps the script inside the measured 75 s word band (216–239, R-009-2/3)', () => {
-    const spoken = [
-      QUIET_MACHINES_FIXTURES.script.hook,
-      QUIET_MACHINES_FIXTURES.script.narration,
-      QUIET_MACHINES_FIXTURES.script.ending,
-    ].join(' ');
+    const spoken = QUIET_MACHINES_FIXTURES.script.script;
     const words = spokenWords(spoken);
     expect(words).toBeGreaterThanOrEqual(216);
     expect(words).toBeLessThanOrEqual(239);
   });
 
   it('rejects a document that is not conformant, naming the field', () => {
-    const broken = { ...QUIET_MACHINES_FIXTURES.script, narration: undefined };
+    const broken = { ...QUIET_MACHINES_FIXTURES.script, script: undefined };
     const result = TEXT_SCHEMAS.script.schema.safeParse(broken);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain('narration');
+      expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain('script');
     }
   });
 
@@ -101,7 +97,7 @@ describe('text document schemas (R-004-1, R-008-3)', () => {
     const json = jsonSchemaFor(TEXT_SCHEMAS.script);
     expect(json).toMatchObject({ type: 'object' });
     expect(json.required).toEqual(
-      expect.arrayContaining(['hook', 'narration', 'ending', 'title', 'description', 'hashtags']),
+      expect.arrayContaining(['script', 'title', 'description', 'hashtags']),
     );
 
     const first = schemaHashOf(TEXT_SCHEMAS.script);

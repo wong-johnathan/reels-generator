@@ -24,7 +24,7 @@ describe('FakeTextAdapter (TECH_DESIGN §6: deterministic, in-memory)', () => {
     const second = await new FakeTextAdapter().generate(request, run);
 
     expect(second).toEqual(first);
-    expect(first.provider_request_id).toBe(`fake-${FIXED_RUN_ID.slice(0, 8)}-script.v1`);
+    expect(first.provider_request_id).toBe(`fake-${FIXED_RUN_ID.slice(0, 8)}-script.v2`);
     expect(first.content).toEqual(QUIET_MACHINES_FIXTURES.script);
   });
 
@@ -82,7 +82,7 @@ describe('FakeTextAdapter (TECH_DESIGN §6: deterministic, in-memory)', () => {
       runId: 'run-recorded',
       stage: 'SC',
       schemaName: 'script',
-      schemaVersion: 'script.v1',
+      schemaVersion: 'script.v2',
     });
   });
 
@@ -91,7 +91,7 @@ describe('FakeTextAdapter (TECH_DESIGN §6: deterministic, in-memory)', () => {
       responses: [
         { kind: 'http', status: 503 },
         { kind: 'timeout' },
-        { kind: 'invalid-schema', content: { ...QUIET_MACHINES_FIXTURES.script, hook: 42 } },
+        { kind: 'invalid-schema', content: { ...QUIET_MACHINES_FIXTURES.script, script: 42 } },
       ],
     });
     const request = { stage: 'SC', schema: TEXT_SCHEMAS.script, messages: MESSAGES } as const;
@@ -118,7 +118,7 @@ describe('FakeTextAdapter (TECH_DESIGN §6: deterministic, in-memory)', () => {
   it('can return a caller-supplied valid document, e.g. to test the word budget', async () => {
     const tooShort = {
       ...QUIET_MACHINES_FIXTURES.script,
-      narration: 'One short sentence only.',
+      script: 'One short sentence only.',
     };
     const fake = new FakeTextAdapter({ responses: [{ kind: 'content', content: tooShort }] });
 

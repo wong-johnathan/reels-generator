@@ -222,7 +222,6 @@ export function buildScriptPrompt(input: ScriptPromptInput): ScriptPrompt {
       ? (input.claims ?? []).filter((claim) => claim.is_factual).map((claim) => `- ${claim.text}`)
       : [];
 
-  const partTargets = scriptPartTargets(budget.target_words);
   const sections = [
     'SERIES',
     seriesLines.join('\n'),
@@ -235,22 +234,17 @@ export function buildScriptPrompt(input: ScriptPromptInput): ScriptPrompt {
     ...(claimLines.length > 0 ? ['', 'FACTUAL CLAIMS TO COVER', claimLines.join('\n')] : []),
     '',
     'LENGTH',
-    // The budget is measured on hook + narration + ending, but the model was being
-    // told to count `narration` alone — so a perfectly-sized body still failed by the
-    // ~50 words the hook and ending add. The contract is now split three ways and
-    // stated as one total, which is the number that is actually checked.
-    `- target ${budget.target_words} words for ${targetDuration} s at ${NARRATION_WORDS_PER_SECOND} words/s; acceptable ${budget.min_words}–${budget.max_words} words`,
-    `- that total is all three spoken fields together: hook plus narration plus ending. The hook and the ending are part of it, not extra.`,
-    `- hook: one sentence, about ${partTargets.hook} words`,
-    `- narration: the body, about ${partTargets.narration} words`,
-    `- ending: one or two sentences, about ${partTargets.ending} words`,
+    // One field, one number. The count that is checked is the count that is asked for.
+    `- write one continuous script of ${budget.target_words} words: ${budget.min_words}–${budget.max_words} is acceptable, for ${targetDuration} s at ${NARRATION_WORDS_PER_SECOND} words/s`,
+    '- the whole script is spoken, start to finish, so every word you write is a word of runtime',
     // A bare number is not something a model can hit. Give it countable units and
     // require the check: the same request produced 136 words for a 228-word target
     // while 'target 228 words' sat in the prompt unread.
-    `- that is about ${scriptSentences} spoken sentences of ${wordsPerSentence} words each`,
-    `- the storyboard will split it into about ${targetScenes} scenes, so each scene carries roughly ${wordsPerScene} words of narration`,
-    `- COUNT hook + narration + ending together before you answer. If that total is below ${budget.min_words} or above ${budget.max_words}, fix it before returning the JSON.`,
+    `- that is about ${scriptSentences} sentences of ${wordsPerSentence} words each`,
+    `- the storyboard will cut it into about ${targetScenes} scenes, so each scene carries roughly ${wordsPerScene} words`,
+    `- COUNT the words before you answer. If the script is below ${budget.min_words} or above ${budget.max_words}, rewrite it before returning the JSON.`,
     '- being short is the failure mode here, not being long: a short script cannot fill the video and is rejected',
+    '- the first sentence is the hook and the last sentence is the landing; both belong inside the script, not outside it',
     '',
     'PUNCTUATION',
     '- Never use an em dash (—) or an en dash (–) anywhere in the script.',
@@ -274,7 +268,7 @@ export function buildScriptPrompt(input: ScriptPromptInput): ScriptPrompt {
         content:
           'You write short-form narration for a faceless video series. Reply with one JSON object and ' +
           `nothing else. It must validate against ${TEXT_SCHEMAS.script.version} ` +
-          '({hook, narration, ending, title, description, hashtags}). Use the style summaries for tone; ' +
+          '({script, title, description, hashtags}). Use the style summaries for tone; ' +
           'never quote or paraphrase the reference source text, which you are not given.',
       },
       { role: 'user', content: sections.join('\n') },
@@ -315,26 +309,6 @@ export function checkWordBudget(
     budget,
     within_band: wordCount >= budget.min_words && wordCount <= budget.max_words,
   };
-}
-
-/** A target this size, for a script whose parts are counted together. */
-export interface ScriptPartTargets {
-  readonly hook: number;
-  readonly narration: number;
-  readonly ending: number;
-}
-
-/**
- * Split a spoken-word target across the three spoken fields.
- *
- * Roughly 7 % hook and 11 % ending — a one-sentence opener and a two-sentence close
- * with the argument in the body. The split exists so the model is given numbers it can
- * act on per field instead of one total it has to divide itself.
- */
-export function scriptPartTargets(totalWords: number): ScriptPartTargets {
-  const hook = Math.max(10, Math.round(totalWords * 0.07));
-  const ending = Math.max(18, Math.round(totalWords * 0.11));
-  return { hook, narration: Math.max(20, totalWords - hook - ending), ending };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -526,16 +500,11 @@ export function targetSceneCount(targetDurationS: number = SCENE_REFERENCE_DURAT
 /** Em dash and en dash. Banned in generated scripts — see `buildScriptPrompt`. */
 export const FORBIDDEN_DASH = /[\u2014\u2013]/;
 
-/** The first script field carrying an em or en dash, or null when the script is clean. */
-export function dashOffender(document: {
-  readonly hook: string;
-  readonly narration: string;
-  readonly ending: string;
-}): string | null {
-  if (FORBIDDEN_DASH.test(document.hook)) return 'hook';
-  if (FORBIDDEN_DASH.test(document.narration)) return 'narration';
-  if (FORBIDDEN_DASH.test(document.ending)) return 'ending';
-  return null;
+/**
+ * Whether the script carries an em or en dash. One field now, so there is one answer.
+ */
+export function dashOffender(document: { readonly script: string }): string | null {
+  return FORBIDDEN_DASH.test(document.script) ? 'script' : null;
 }
 
 /** Replace em/en dashes with the punctuation a reader would expect. */
@@ -673,66 +642,10 @@ export function splitNarration(
 }
 
 /** The spoken text of a script: hook + narration + ending, in that order. */
-export function spokenNarration(script: {
-  readonly hook: string;
-  readonly narration: string;
-  readonly ending: string;
-}): string {
-  return [script.hook, script.narration, script.ending]
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-    .join(' ');
-}
-
-/**
- * Remove a hook the model restated at the top of the narration.
- *
- * The spoken text is hook + narration + ending, so a narration that opens by
- * repeating the hook says the opening line twice — heard as a stutter, and counted
- * twice against the word budget. Prompts have not prevented it, so the duplicate is
- * removed structurally: when the narration's first words match the hook's, those
- * words are dropped from the narration and it is re-capitalised.
- *
- * Deliberately conservative: only an exact word-for-word prefix counts (case and
- * punctuation ignored), the hook must be at least three words, and the narration
- * must still have at least eight words left — a trim that empties the body would
- * trade a repetition for a hole.
- */
-export function dedupeHook<T extends { readonly hook: string; readonly narration: string }>(
-  script: T,
-): T {
-  const hookWords = wordsOf(script.hook);
-  if (hookWords.length < 3) return script;
-  const narrationWords = wordsOf(script.narration);
-  if (narrationWords.length <= hookWords.length + 8) return script;
-  const prefixMatches = hookWords.every((word, index) => narrationWords[index] === word);
-  if (!prefixMatches) return script;
-
-  const rest = cutWords(script.narration, hookWords.length)
-    .replace(/^[\s,;:.!?\u2014\u2013-]+/u, '')
-    .trim();
-  if (rest === '') return script;
-  return { ...script, narration: rest.charAt(0).toUpperCase() + rest.slice(1) };
-}
-
-/** Lower-cased, punctuation-free words — the form two texts are compared in. */
-function wordsOf(text: string): string[] {
-  return Array.from(text.toLowerCase().matchAll(/[\p{L}\p{N}']+/gu), (match) =>
-    match[0].replace(/'/g, ''),
-  );
-}
-
-/** Everything after the first `count` words of `text`, punctuation intact. */
-function cutWords(text: string, count: number): string {
-  const pattern = /[\p{L}\p{N}']+/gu;
-  let seen = 0;
-  let match: RegExpExecArray | null = pattern.exec(text);
-  while (match !== null) {
-    seen += 1;
-    if (seen === count) return text.slice(match.index + match[0].length);
-    match = pattern.exec(text);
-  }
-  return '';
+export function spokenNarration(script: { readonly script: string }): string {
+  // The script is the spoken text. It used to be assembled from three fields, which
+  // is how the hook got said twice and counted twice.
+  return script.script.trim();
 }
 
 export interface StoryboardSceneInput {

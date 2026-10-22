@@ -78,14 +78,12 @@ function scriptBlock(video: BatchVideoDetail): string {
     '<div class="batch-script">' +
     `<p class="batch-script-meta">${escapeHtml(stats.join(' · '))}</p>` +
     paragraph('Title', script.title) +
-    paragraph('Hook', script.hook) +
     paragraph('Description', script.description) +
     hashtags +
-    (script.narration === null
+    (script.script === null
       ? ''
-      : '<details class="batch-narration"><summary>Narration</summary>' +
-        `<p>${escapeHtml(script.narration)}</p></details>`) +
-    (script.ending === null ? '' : paragraph('Ending', script.ending)) +
+      : '<details class="batch-narration" open><summary>Script</summary>' +
+        `<p>${escapeHtml(script.script)}</p></details>`) +
     '</div>'
   );
 }

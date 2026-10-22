@@ -68,9 +68,7 @@ export interface EightGramScanResult {
 
 /** The prose fields of a script document: every field a provider generated. */
 export interface ScriptText {
-  readonly hook: string;
-  readonly narration: string;
-  readonly ending: string;
+  readonly script: string;
   readonly title: string;
   readonly description: string;
   readonly hashtags?: readonly string[] | null;
@@ -211,9 +209,7 @@ export function scanForVerbatimRuns(
 /** Every provider-generated text field of a script, in display order. */
 export function scriptFields(script: ScriptText): GeneratedField[] {
   const fields: GeneratedField[] = [
-    { field: 'hook', text: script.hook },
-    { field: 'narration', text: script.narration },
-    { field: 'ending', text: script.ending },
+    { field: 'script', text: script.script },
     { field: 'title', text: script.title },
     { field: 'description', text: script.description },
   ];

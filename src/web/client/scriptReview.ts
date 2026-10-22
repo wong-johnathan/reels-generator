@@ -49,9 +49,7 @@ export interface Conflict {
 }
 
 export interface ScriptContent {
-  readonly hook: string;
-  readonly narration: string;
-  readonly ending: string;
+  readonly script: string;
   readonly title: string;
   readonly description: string;
   readonly hashtags: readonly string[];
@@ -123,13 +121,11 @@ export interface ScriptReviewEnhancer {
   conflictKeep(): Promise<void>;
 }
 
-const FIELD_NAMES = ['hook', 'narration', 'ending', 'title', 'description', 'hashtags'] as const;
+const FIELD_NAMES = ['script', 'title', 'description', 'hashtags'] as const;
 type FieldName = (typeof FIELD_NAMES)[number];
 
 const FIELDS: Readonly<Record<FieldName, string>> = {
-  hook: 'script-hook',
-  narration: 'script-narration',
-  ending: 'script-ending',
+  script: 'script-body',
   title: 'script-title',
   description: 'script-description',
   hashtags: 'script-hashtags',
@@ -201,9 +197,7 @@ function readFields(doc: ScriptDocument): Record<FieldName, string> {
 
 function toContent(values: Record<FieldName, string>): ScriptContent {
   return {
-    hook: values.hook,
-    narration: values.narration,
-    ending: values.ending,
+    script: values.script,
     title: values.title,
     description: values.description,
     hashtags: values.hashtags
@@ -529,9 +523,7 @@ export function initScriptReview(
     const server = result.script;
     const contentValue = server.content;
     const assignments: Record<FieldName, string> = {
-      hook: contentValue.hook,
-      narration: contentValue.narration,
-      ending: contentValue.ending,
+      script: contentValue.script,
       title: contentValue.title,
       description: contentValue.description,
       hashtags: contentValue.hashtags.join(', '),

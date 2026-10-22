@@ -222,6 +222,6 @@ describe.skipIf(!hasDatabase)('text adapter qualification (R-008-3, US-012)', ()
     const second = await new FakeTextAdapter().qualify(deps);
     expect(second.details.checks).toEqual(outcome.details.checks);
     expect(second.details.schema_hashes).toEqual(outcome.details.schema_hashes);
-    expect(QUIET_MACHINES_FIXTURES.script.narration.length).toBeGreaterThan(0);
+    expect(QUIET_MACHINES_FIXTURES.script.script.length).toBeGreaterThan(0);
   }, 30_000);
 });
