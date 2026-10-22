@@ -92,6 +92,8 @@ import { RenderRefusedError, type RenderGateway } from './quality/gateway.js';
 import { redactText } from '../security/redact.js';
 import type { RenderView } from './quality/model.js';
 import { qualityNotice, type QualityNotice } from './quality/notice.js';
+import type { BatchSummary } from './batches/postgres.js';
+import { renderBatches } from './render/batches.js';
 import { renderQualityPanel } from './render/quality.js';
 
 type Overview = z.infer<typeof OverviewSchema>;
@@ -103,6 +105,13 @@ export interface WebAppDependencies {
   readonly sessions: SessionStore;
   readonly authenticate: Authenticate;
   readonly overview: Overview;
+  /**
+   * Re-reads the overview. `overview` is a boot-time snapshot, so without this a
+   * batch created after start-up never changes the numbers on the page.
+   */
+  readonly reloadOverview?: () => Promise<Overview>;
+  /** S-05 the Batches page. Absent builds answer 503 rather than inventing rows. */
+  readonly batches?: { list(): Promise<readonly BatchSummary[]> };
   readonly health?: HealthReport;
   readonly now?: () => number;
   /** B-13's synchroniser token (contract `SessionInfo.csrf_token`). */
@@ -425,6 +434,11 @@ export function createWebApp(
       });
     }
 
+    if (pathname === '/batches') {
+      if (effective !== 'GET' && effective !== 'HEAD') return methodNotAllowed('GET, HEAD');
+      return batchesPage(sessionInfo(record));
+    }
+
     if (pathname === '/health') {
       if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
       return healthPage({ search: target.searchParams, session: sessionInfo(record) });
@@ -449,8 +463,25 @@ export function createWebApp(
 
   // ── S-02 Overview (W-01, IP-05) ──────────────────────────────────────────
 
+  async function batchesPage(session: SessionInfo): Promise<WebResponse> {
+    if (deps.batches === undefined) {
+      return html(renderNotFoundPage({ variant: 'not_found' }), 503);
+    }
+    const batches = await deps.batches.list();
+    return html(
+      page({
+        title: 'Batches',
+        nav: 'batches',
+        breadcrumbs: [{ label: 'Batches' }],
+        content: renderBatches({ batches, now: new Date(now()) }),
+        session,
+      }),
+    );
+  }
+
   async function overviewPage(session: SessionInfo): Promise<WebResponse> {
-    const overview = deps.overview;
+    const overview =
+      deps.reloadOverview === undefined ? deps.overview : await deps.reloadOverview();
     const empty =
       overview.attention.length === 0 &&
       overview.batches.length === 0 &&

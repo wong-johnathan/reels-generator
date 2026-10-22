@@ -52,6 +52,7 @@ import {
 } from '../web/middleware/auth.js';
 import { createWebApp, type WebAppDependencies } from '../web/app.js';
 import { createDbSessionStore } from '../web/auth/dbSession.js';
+import { loadBatches, type BatchSummary } from '../web/batches/postgres.js';
 import { EMPTY_OVERVIEW, loadOverview, type Overview } from '../web/overview/postgres.js';
 import { handleSeriesRequest } from './series-routes.js';
 import { createPostgresOpsGateway } from '../web/health/postgres.js';
@@ -95,6 +96,10 @@ export interface ContentRuntime {
    * database per request.
    */
   readonly overview?: Overview;
+  /** Re-reads the overview per request, so the dashboard is not a boot snapshot. */
+  readonly reloadOverview?: () => Promise<Overview>;
+  /** S-05 Batches page read model. */
+  readonly batches?: { list(): Promise<readonly BatchSummary[]> };
   /**
    * The final-video download seam. Bound only when an object store is available;
    * a handler built without it answers 503 on /videos/:id/download rather than
@@ -380,6 +385,8 @@ function webDeps(auth: AuthRuntime, content?: ContentRuntime): WebAppDependencie
       return { kind: 'rejected' };
     },
     overview: content?.overview ?? EMPTY_OVERVIEW,
+    ...(content?.reloadOverview === undefined ? {} : { reloadOverview: content.reloadOverview }),
+    ...(content?.batches === undefined ? {} : { batches: content.batches }),
     // Storage adapters. Every one of these reads only columns that exist in the
     // frozen schema (m001…m009); a field with no column behind it is left as the
     // view type's documented empty value rather than a plausible default, so a
@@ -682,9 +689,9 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
       },
     });
 
-    // The dashboard overview is a startup snapshot (the SSE enhancer refreshes
-    // it in place), so it is read once here, after the operator seed proved the
-    // database reachable, and handed to the mount.
+    // The startup snapshot is still passed in, but the mount also gets a loader:
+    // a boot-time snapshot meant a batch started after 09:00 never changed the
+    // numbers on the dashboard until the container restarted.
     const overview = await loadOverview(pool);
 
     const server = startServer({
@@ -698,6 +705,8 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
       content: {
         pool,
         overview,
+        reloadOverview: () => loadOverview(pool),
+        batches: { list: () => loadBatches(pool) },
         download: createPostgresDownloadGateway(pool, stores.content),
       },
     });
