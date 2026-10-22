@@ -1513,6 +1513,7 @@ export function createWebApp(
       readonly conflict?: SeriesEditorModel['conflict'];
       readonly savedVersion?: number;
       readonly unchanged?: boolean;
+      readonly batchedCount?: number;
       readonly saveError?: string;
     },
   ): Promise<SeriesEditorModel> {
@@ -1531,6 +1532,7 @@ export function createWebApp(
       ...(input.conflict === undefined ? {} : { conflict: input.conflict }),
       ...(input.savedVersion === undefined ? {} : { savedVersion: input.savedVersion }),
       ...(input.unchanged === undefined ? {} : { unchanged: input.unchanged }),
+      ...(input.batchedCount === undefined ? {} : { batchedCount: input.batchedCount }),
       ...(input.saveError === undefined ? {} : { saveError: input.saveError }),
       inFlightBatches: detail.in_flight_batches,
       inFlightVideos,
@@ -1835,10 +1837,15 @@ export function createWebApp(
       const savedRaw = input.search.get('saved');
       const saved = savedRaw === null ? Number.NaN : Number(savedRaw);
       const unchanged = input.search.get('unchanged') === '1';
+      const batchedRaw = input.search.get('batched');
+      const batched = batchedRaw === null ? Number.NaN : Number(batchedRaw);
       return renderEditPage(gateway, seriesId, {
         session,
         ...(Number.isFinite(saved) ? { savedVersion: saved } : {}),
         ...(unchanged ? { unchanged: true } : {}),
+        // The POST redirects here with ?batched=N; ignoring it meant a batch that
+        // had just been created left no confirmation on screen.
+        ...(Number.isFinite(batched) && batched > 0 ? { batchedCount: batched } : {}),
       });
     }
     if (effective === 'POST') return saveSeries(gateway, seriesId, body, session);

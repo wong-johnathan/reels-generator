@@ -491,6 +491,15 @@ export function renderSeriesEditor(model: SeriesEditorModel): SeriesEditorParts 
         '</p>'
       : '';
 
+  const batched =
+    model.batchedCount === undefined
+      ? ''
+      : '<section class="series-batched" role="status"><h2 class="sr-only">Batch started</h2>' +
+        '<p>Started ' +
+        model.batchedCount +
+        (model.batchedCount === 1 ? ' video' : ' videos') +
+        '. Watch it on the <a href="/batches">Batches</a> page.</p></section>';
+
   const unchanged =
     model.unchanged === true
       ? '<p class="series-unchanged">No changes. Nothing was saved.</p>'
@@ -546,6 +555,7 @@ export function renderSeriesEditor(model: SeriesEditorModel): SeriesEditorParts 
     archived +
     conflict +
     saved +
+    batched +
     unchanged +
     saveError +
     meta +

@@ -39,6 +39,24 @@ const edit = (overrides: Partial<SeriesEditorModel> = {}) => {
   return { ...parts, doc: parseHtml(parts.main), panel: parseHtml(parts.aside), html: parts.main };
 };
 
+describe('batch confirmation', () => {
+  it('confirms a started batch and links to the Batches page', () => {
+    const { html } = edit({ batchedCount: 2 });
+    expect(html).toContain('Started 2 videos');
+    expect(html).toContain('href="/batches"');
+  });
+
+  it('uses the singular for a one-video batch', () => {
+    const { html } = edit({ batchedCount: 1 });
+    expect(html).toContain('Started 1 video.');
+  });
+
+  it('says nothing when no batch was just started', () => {
+    const { html } = edit();
+    expect(html).not.toContain('Started');
+  });
+});
+
 const create = (overrides: Partial<SeriesEditorModel> = {}) =>
   renderSeriesEditor(
     base({

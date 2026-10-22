@@ -64,6 +64,8 @@ export interface SeriesEditorModel {
   readonly savedVersion?: number;
   /** `?unchanged=1` — a save that minted nothing. */
   readonly unchanged?: boolean;
+  /** Set when the page was reached from a successful batch request. */
+  readonly batchedCount?: number;
   /** A save/load failure that kept the form and its typed text intact. */
   readonly saveError?: string;
   readonly createReady?: boolean;
