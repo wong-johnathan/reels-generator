@@ -6,6 +6,7 @@ import {
   sceneRowPosition,
   systemPrompt,
   unwrapTextDocument,
+  withRepairFeedback,
 } from './text-stage.js';
 
 /**
@@ -94,5 +95,17 @@ describe('systemPrompt', () => {
 
   it('names the stage schema, so a script call cannot be answered with a topic', () => {
     expect(systemPrompt(TEXT_SCHEMAS.script as never)).toContain('script.v1');
+  });
+});
+
+describe('withRepairFeedback', () => {
+  it('carries the rejection into the next request instead of repeating it', () => {
+    const base = [{ role: 'system' as const, content: 'sys' }];
+    const next = withRepairFeedback(base, 'scene count 11 is outside 14–20');
+    expect(next).toHaveLength(2);
+    expect(next[1]!.content).toContain('scene count 11 is outside 14–20');
+    expect(next[1]!.content).toContain('corrected JSON object');
+    // The original messages are untouched: a repair is an addition, not a rewrite.
+    expect(base).toHaveLength(1);
   });
 });

@@ -23,12 +23,14 @@ import type { Pool } from 'pg';
 
 import {
   planStoryboard,
+  sceneCountBand,
   spokenNarration,
+  targetSceneCount,
   type ScriptDocument,
   type StoryboardDocument,
 } from '../domain/authoring.js';
 import { TEXT_SCHEMAS, type TextSchema, type TextStageCode } from '../adapters/text-schemas.js';
-import type { TextAdapter, TextRequest } from '../adapters/text.js';
+import type { ChatMessage, TextAdapter, TextRequest } from '../adapters/text.js';
 import { withTransaction } from '../db/client.js';
 import { insertAsset, linkAssetToProject } from '../db/repositories/assets.js';
 import {
@@ -223,12 +225,20 @@ async function buildStoryboardRequest(
   context: SeriesContext,
 ): Promise<TextRequest<unknown>> {
   const script = await loadApprovedScript(pool, projectId);
+  // The count is a hard rule (R-009-2) we enforce after the fact, so it has to be
+  // stated up front. Without it the model guessed ~6.5 s per scene and returned 11
+  // for a 75 s target, and all three blind retries returned 11 again.
+  const target = targetSceneCount(context.targetDurationS);
+  const band = sceneCountBand(context.targetDurationS);
   return requestFor('SB', TEXT_SCHEMAS.storyboard, {
     instruction:
-      'Split the approved narration into sequential scenes (S01…) that reconstruct it exactly, ' +
-      'each with an image prompt, camera move, caption emphasis and fallback text.',
+      `Split the approved narration into exactly ${target} sequential scenes (S01…), ` +
+      `and never fewer than ${band.min} or more than ${band.max}. Each scene reconstructs ` +
+      'its part of the narration verbatim, with an image prompt, camera move, caption ' +
+      'emphasis and fallback text.',
     narration: spokenNarration(script),
     target_duration_s: context.targetDurationS,
+    scene_count: { target, min: band.min, max: band.max },
   });
 }
 
@@ -437,6 +447,41 @@ export function unwrapTextDocument(result: unknown): unknown {
   return (result as { content: unknown }).content;
 }
 
+/**
+ * Retries used to re-send the identical prompt. When the failure is deterministic —
+ * a scene count outside the band, a missing field — that buys three identical
+ * rejections and three bills. The previous attempt's message is now carried into the
+ * next request, so attempt 2 is a repair rather than a repeat.
+ */
+export function withRepairFeedback(
+  messages: readonly ChatMessage[],
+  failure: string,
+): ChatMessage[] {
+  return [
+    ...messages,
+    {
+      role: 'user',
+      content:
+        `Your previous reply for this stage was rejected: ${failure}\n` +
+        'Reply again with a corrected JSON object that validates against the schema, ' +
+        'changing whatever caused the rejection.',
+    },
+  ];
+}
+
+/** The most recent rejection for this job, if any. Redacted text only. */
+async function loadPreviousFailure(pool: Pool, jobId: string): Promise<string | null> {
+  const result = await pool.query<{ error_message: string | null }>(
+    `SELECT error_message FROM job_attempt
+      WHERE job_id = $1 AND status = 'failed'
+      ORDER BY attempt_no DESC
+      LIMIT 1`,
+    [jobId],
+  );
+  const message = result.rows[0]?.error_message ?? null;
+  return message === null || message.trim() === '' ? null : message;
+}
+
 export async function runTextStage(
   deps: TextStageDeps,
   stage: TextStageCode,
@@ -449,7 +494,12 @@ export async function runTextStage(
       : stage === 'SC'
         ? await buildScriptRequest(deps.pool, job.projectId, context)
         : await buildStoryboardRequest(deps.pool, job.projectId, context);
-  const hash = promptHash(request.messages);
+  // Repair feedback is part of what we send, so it is part of the provenance hash.
+  const repair = job.attemptNo > 1 ? await loadPreviousFailure(deps.pool, job.jobId) : null;
+  const messages =
+    repair === null ? request.messages : withRepairFeedback(request.messages, repair);
+  const attemptRequest: TextRequest<unknown> = { ...request, messages };
+  const hash = promptHash(messages);
   const next = stage === 'T' ? 'RS' : stage === 'SC' ? 'SB' : 'IM';
 
   await beginStage(deps.pool, job.projectId, stage, {
@@ -459,7 +509,7 @@ export async function runTextStage(
   const outcome = await runProviderAttempt(
     {
       pool: deps.pool,
-      adapter: deps.text.forRequest(request),
+      adapter: deps.text.forRequest(attemptRequest),
       onResult: async (result, ref) => {
         // runProviderAttempt hands back the adapter's envelope (TextResult), not
         // the document. Casting the envelope to ScriptDocument left `hook`,
