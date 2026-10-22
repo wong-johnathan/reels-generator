@@ -32,6 +32,30 @@ export const EMPTY_BATCHES: readonly BatchSummary[] = [];
 
 /** Newest batch first; videos in their position order. */
 export async function loadBatches(db: Queryable): Promise<readonly BatchSummary[]> {
+  return loadBatchesWhere(db, null);
+}
+
+/** Every batch for one series, newest first; videos in their position order. */
+export async function loadBatchesForSeries(
+  db: Queryable,
+  seriesId: string,
+): Promise<readonly BatchSummary[]> {
+  return loadBatchesWhere(db, seriesId);
+}
+
+/**
+ * Shared batch loader. A `null` series reads every batch (the old S-05 flat
+ * list); a concrete series reads only that series' batches, so the series page
+ * can never leak another series' work. Newest first, then by the stored
+ * `ordinal` so two batches minted in the same instant keep a stable order.
+ */
+async function loadBatchesWhere(
+  db: Queryable,
+  seriesId: string | null,
+): Promise<readonly BatchSummary[]> {
+  const filter = seriesId === null ? '' : ' WHERE b.series_id = $1';
+  const values = seriesId === null ? [] : [seriesId];
+
   const batches = await db.query<{
     id: string;
     ordinal: number;
@@ -41,12 +65,16 @@ export async function loadBatches(db: Queryable): Promise<readonly BatchSummary[
     series_id: string;
     series_name: string;
     series_slug: string;
-  }>(/* sql */ `
+  }>(
+    /* sql */ `
     SELECT b.id, b.ordinal, b.status, b.target_count, b.created_at,
            s.id AS series_id, s.name AS series_name, s.slug AS series_slug
       FROM batch b
       JOIN series s ON s.id = b.series_id
-     ORDER BY b.created_at DESC, b.ordinal DESC`);
+     ${filter}
+     ORDER BY b.created_at DESC, b.ordinal DESC`,
+    values,
+  );
 
   if (batches.rows.length === 0) return EMPTY_BATCHES;
 
@@ -57,7 +85,8 @@ export async function loadBatches(db: Queryable): Promise<readonly BatchSummary[
     status: string;
     current_stage: string | null;
     video_asset_id: string | null;
-  }>(/* sql */ `
+  }>(
+    /* sql */ `
     SELECT p.batch_id, p.id, p.position_in_batch, p.status, p.current_stage,
            (SELECT a.id
               FROM asset a
@@ -66,7 +95,10 @@ export async function loadBatches(db: Queryable): Promise<readonly BatchSummary[
              ORDER BY a.created_at DESC
              LIMIT 1) AS video_asset_id
       FROM project p
-     ORDER BY p.position_in_batch ASC`);
+     WHERE p.batch_id = ANY($1::uuid[])
+     ORDER BY p.position_in_batch ASC`,
+    [batches.rows.map((row) => row.id)],
+  );
 
   const byBatch = new Map<string, BatchVideo[]>();
   for (const row of videos.rows) {
@@ -92,6 +124,100 @@ export async function loadBatches(db: Queryable): Promise<readonly BatchSummary[
     seriesSlug: row.series_slug,
     videos: byBatch.get(row.id) ?? [],
   }));
+}
+
+// ── S-05 series index (`/batches` lists series, not a flat batch list) ───────
+
+export interface SeriesBatchIndexEntry {
+  readonly seriesId: string;
+  readonly seriesName: string;
+  readonly seriesSlug: string;
+  readonly batchCount: number;
+  readonly activeBatches: number;
+  readonly completeBatches: number;
+  readonly cancelledBatches: number;
+  readonly videoCount: number;
+  readonly downloadableCount: number;
+  readonly newestBatchAt: string | null;
+}
+
+export const EMPTY_SERIES_INDEX: readonly SeriesBatchIndexEntry[] = [];
+
+/**
+ * Deterministic series order for the index: case-insensitive name, then the
+ * series id as a stable tie-breaker. Kept pure so the ordering rule is testable
+ * without a database, and applied after the query so there is exactly one
+ * implementation of it.
+ */
+export function compareSeriesIndexEntries(
+  a: Pick<SeriesBatchIndexEntry, 'seriesName' | 'seriesId'>,
+  b: Pick<SeriesBatchIndexEntry, 'seriesName' | 'seriesId'>,
+): number {
+  const nameA = a.seriesName.toLowerCase();
+  const nameB = b.seriesName.toLowerCase();
+  if (nameA < nameB) return -1;
+  if (nameA > nameB) return 1;
+  if (a.seriesId < b.seriesId) return -1;
+  if (a.seriesId > b.seriesId) return 1;
+  return 0;
+}
+
+/**
+ * One row per series, with its batch status breakdown and video progress.
+ * Only columns that exist are read — a series with no batches contributes zero
+ * counts, and a batch with no rendered video contributes no downloadable count.
+ */
+export async function loadSeriesBatchIndex(
+  db: Queryable,
+): Promise<readonly SeriesBatchIndexEntry[]> {
+  const rows = await db.query<{
+    series_id: string;
+    series_name: string;
+    series_slug: string;
+    batch_count: number;
+    active_batches: number;
+    complete_batches: number;
+    cancelled_batches: number;
+    video_count: number;
+    downloadable_count: number;
+    newest_batch_at: Date | string | null;
+  }>(/* sql */ `
+    SELECT s.id AS series_id, s.name AS series_name, s.slug AS series_slug,
+           count(DISTINCT b.id)::int AS batch_count,
+           count(DISTINCT b.id) FILTER (WHERE b.status = 'ACTIVE')::int AS active_batches,
+           count(DISTINCT b.id) FILTER (WHERE b.status = 'COMPLETE')::int AS complete_batches,
+           count(DISTINCT b.id) FILTER (WHERE b.status = 'CANCELLED')::int AS cancelled_batches,
+           count(p.id)::int AS video_count,
+           count(v.video_asset_id)::int AS downloadable_count,
+           max(b.created_at) AS newest_batch_at
+      FROM series s
+      LEFT JOIN batch b ON b.series_id = s.id
+      LEFT JOIN project p ON p.batch_id = b.id
+      LEFT JOIN LATERAL (
+        SELECT a.id AS video_asset_id
+          FROM asset a
+          JOIN asset_ref r ON r.asset_id = a.id
+         WHERE r.project_id = p.id AND r.role = 'video' AND a.stage = 'RE'
+         ORDER BY a.created_at DESC
+         LIMIT 1
+      ) v ON true
+     GROUP BY s.id, s.name, s.slug`);
+
+  return rows.rows
+    .map((row) => ({
+      seriesId: row.series_id,
+      seriesName: row.series_name,
+      seriesSlug: row.series_slug,
+      batchCount: row.batch_count,
+      activeBatches: row.active_batches,
+      completeBatches: row.complete_batches,
+      cancelledBatches: row.cancelled_batches,
+      videoCount: row.video_count,
+      downloadableCount: row.downloadable_count,
+      newestBatchAt:
+        row.newest_batch_at === null ? null : new Date(row.newest_batch_at).toISOString(),
+    }))
+    .sort(compareSeriesIndexEntries);
 }
 
 // ── batch detail (S-06) ──────────────────────────────────────────────────────

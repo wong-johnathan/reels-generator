@@ -94,9 +94,10 @@ import { RenderRefusedError, type RenderGateway } from './quality/gateway.js';
 import { redactText } from '../security/redact.js';
 import type { RenderView } from './quality/model.js';
 import { qualityNotice, type QualityNotice } from './quality/notice.js';
-import type { BatchDetail, BatchSummary } from './batches/postgres.js';
+import type { BatchDetail, BatchSummary, SeriesBatchIndexEntry } from './batches/postgres.js';
 import { renderBatches } from './render/batches.js';
 import { renderBatchDetail } from './render/batchDetail.js';
+import { renderBatchSeriesIndex } from './render/seriesBatches.js';
 import { BatchCancelledError, BatchNotFoundError } from '../domain/regenerate.js';
 import { renderQualityPanel } from './render/quality.js';
 
@@ -113,6 +114,10 @@ export interface BatchesGateway {
     batchId: string,
     operatorUsername: string | null,
   ): Promise<{ readonly requeued: number }>;
+  /** The `/batches` index: every series with its batch counts and progress. */
+  seriesIndex(): Promise<readonly SeriesBatchIndexEntry[]>;
+  /** Every batch belonging to one series, newest first. */
+  bySeries(seriesId: string): Promise<readonly BatchSummary[]>;
 }
 
 export interface WebAppDependencies {
@@ -531,13 +536,13 @@ export function createWebApp(
       if (input.method !== 'GET' && input.method !== 'HEAD') {
         return methodNotAllowed('GET, HEAD');
       }
-      const batches = await deps.batches.list();
+      const series = await deps.batches.seriesIndex();
       return html(
         page({
           title: 'Batches',
           nav: 'batches',
           breadcrumbs: [{ label: 'Batches' }],
-          content: renderBatches({ batches, now: new Date(now()) }),
+          content: renderBatchSeriesIndex({ series, now: new Date(now()) }),
           session: input.session,
         }),
       );
@@ -1906,6 +1911,64 @@ export function createWebApp(
       if (effective === 'GET') return renderCreatePage({ session });
       if (effective === 'POST') return createSeries(gateway, body, session);
       return methodNotAllowed('GET, HEAD, POST');
+    }
+
+    // GET /series/:seriesId/batch — every batch belonging to this series only
+    // (the exact route the owner requested). An unknown series stays SY-3 (404),
+    // never an empty list, and a series with no batches shows the honest empty
+    // state.
+    const seriesBatchesMatch = pathname.match(/^\/series\/([^/]+)\/batch$/);
+    if (seriesBatchesMatch !== null) {
+      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
+      const batchesGateway = deps.batches;
+      if (batchesGateway === undefined) {
+        return unavailablePage({
+          title: 'Batches',
+          nav: 'series',
+          message: 'Batches are not mounted in this build, so there is no list to show.',
+          session,
+        });
+      }
+
+      let detail: SeriesDetail | null;
+      try {
+        detail = await gateway.get(seriesBatchesMatch[1] as string);
+      } catch {
+        return unavailablePage({
+          title: 'Series',
+          nav: 'series',
+          message: 'The series could not be loaded. Nothing was changed.',
+          session,
+        });
+      }
+      if (detail === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+
+      let batches: readonly BatchSummary[];
+      try {
+        batches = await batchesGateway.bySeries(detail.id);
+      } catch {
+        return unavailablePage({
+          title: 'Batches',
+          nav: 'series',
+          message: 'The batches could not be loaded. Nothing was changed.',
+          session,
+        });
+      }
+
+      return html(
+        page({
+          title: detail.name + ' · batches',
+          nav: 'series',
+          breadcrumbs: [
+            { label: 'Overview', href: '/' },
+            { label: 'Series', href: '/series' },
+            { label: detail.name, href: '/series/' + encodeURIComponent(detail.id) },
+            { label: 'Batches' },
+          ],
+          content: renderBatches({ batches, now: new Date(now()) }),
+          session,
+        }),
+      );
     }
 
     // POST /series/:id/batches — the operator's explicit batch request (R-019-4).
