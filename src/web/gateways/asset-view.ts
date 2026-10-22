@@ -13,6 +13,7 @@
 import type { z } from 'zod';
 
 import type { AssetViewSchema } from '../../../contract/api.js';
+import { publicAssetUrl } from './public-asset-url.js';
 
 export type AssetView = z.infer<typeof AssetViewSchema>;
 
@@ -22,7 +23,7 @@ export type AssetView = z.infer<typeof AssetViewSchema>;
  * uuid the provenance row carries.
  */
 export const ASSET_VIEW_FIELDS = /* sql */ `
-  a.id, a.stage, a.kind, a.width, a.height, a.object_size_bytes, a.content_sha256,
+  a.id, a.object_key, a.stage, a.kind, a.width, a.height, a.object_size_bytes, a.content_sha256,
   a.provider, a.model, a.provider_request_id, a.prompt_hash, a.prompt_text, a.seed,
   a.series_version_id, a.created_at, a.rights_metadata, sv.version AS series_version
 `;
@@ -30,6 +31,7 @@ export const ASSET_VIEW_FIELDS = /* sql */ `
 /** The row shape `ASSET_VIEW_FIELDS` returns. */
 export interface AssetViewRow {
   readonly id: string;
+  readonly object_key: string;
   readonly stage: string;
   readonly kind: string;
   readonly width: number | null;
@@ -61,6 +63,7 @@ export function assetView(row: AssetViewRow): AssetView {
     height: row.height,
     size_bytes: sizeBytes(row.object_size_bytes),
     content_sha256: row.content_sha256,
+    public_url: publicAssetUrl(row.object_key),
     urls: {
       thumb: '/asset/' + row.id + '/thumb',
       detail: '/asset/' + row.id + '/detail',

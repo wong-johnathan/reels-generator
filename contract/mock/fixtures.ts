@@ -248,6 +248,7 @@ function sceneAsset(sceneIndex: number) {
     height: 1376,
     size_bytes: 184_320,
     content_sha256: sha(sceneIndex),
+    public_url: null,
     urls: {
       thumb: `/asset/${IDS.image}/thumb`,
       detail: `/asset/${IDS.image}/detail`,
@@ -306,6 +307,7 @@ const audioAsset = {
   height: null,
   size_bytes: 1_204_224,
   content_sha256: sha(200),
+  public_url: null,
   urls: {
     thumb: `/asset/${IDS.audio}/thumb`,
     detail: `/asset/${IDS.audio}/detail`,
@@ -354,6 +356,7 @@ const renderAsset = {
   height: 1920,
   size_bytes: 48_234_112,
   content_sha256: sha(300),
+  public_url: null,
   urls: {
     thumb: `/asset/${IDS.videoAsset}/thumb`,
     detail: `/asset/${IDS.videoAsset}/detail`,

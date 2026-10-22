@@ -144,8 +144,7 @@ const SPECS = [
     key: 'MINIO_PUBLIC_ENDPOINT',
     kind: 'url',
     roles: [],
-    default: 'http://localhost:8080/asset',
-    expected: 'absolute http(s) URL served by the web process',
+    expected: 'public MinIO http(s) base URL; unset disables public original-object links',
   },
 
   // ── provider credentials (worker only) ──

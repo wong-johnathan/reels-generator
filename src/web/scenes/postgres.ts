@@ -42,6 +42,7 @@ import { targetSceneCount } from '../../domain/authoring.js';
 import { IllegalTransitionError, transitionStage } from '../../domain/state-machine.js';
 import type { StageState } from '../../shared/stages.js';
 import type { CameraMove } from '../../shared/states.js';
+import { publicAssetUrl } from '../gateways/public-asset-url.js';
 import {
   SceneConflictError,
   SceneNotFoundError,
@@ -74,6 +75,7 @@ interface SceneAssetRow {
   readonly uses_protagonist: boolean;
   readonly revision: number;
   readonly asset_id: string | null;
+  readonly asset_object_key: string | null;
   readonly asset_stage: string | null;
   readonly asset_kind: string | null;
   readonly asset_width: number | null;
@@ -94,6 +96,7 @@ const SCENE_ASSET_SELECT = /* sql */ `
   s.id, s.scene_no, s.position, s.narration_start_ms, s.narration_end_ms,
   s.image_prompt, s.camera_move, s.caption_emphasis, s.fallback_text,
   s.uses_protagonist, s.revision, s.asset_id,
+  a.object_key AS asset_object_key,
   a.stage     AS asset_stage,
   a.kind      AS asset_kind,
   a.width     AS asset_width,
@@ -160,6 +163,7 @@ function toAssetView(row: SceneAssetRow): AssetView {
     height: row.asset_height,
     size_bytes: row.asset_size_bytes === null ? 0 : Number(row.asset_size_bytes),
     content_sha256: row.asset_sha256 ?? '',
+    public_url: row.asset_object_key === null ? null : publicAssetUrl(row.asset_object_key),
     urls: assetUrls(assetId),
     provenance: {
       provider: row.asset_provider,

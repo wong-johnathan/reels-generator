@@ -3974,6 +3974,10 @@ paths:
                                 content_sha256:
                                   type: string
                                   pattern: ^[0-9a-f]{64}$
+                                public_url:
+                                  type:
+                                    - string
+                                    - "null"
                                 urls:
                                   type: object
                                   properties:
@@ -4045,6 +4049,7 @@ paths:
                                 - height
                                 - size_bytes
                                 - content_sha256
+                                - public_url
                                 - urls
                                 - provenance
                               additionalProperties: false
@@ -4243,6 +4248,10 @@ paths:
                                 content_sha256:
                                   type: string
                                   pattern: ^[0-9a-f]{64}$
+                                public_url:
+                                  type:
+                                    - string
+                                    - "null"
                                 urls:
                                   type: object
                                   properties:
@@ -4314,6 +4323,7 @@ paths:
                                 - height
                                 - size_bytes
                                 - content_sha256
+                                - public_url
                                 - urls
                                 - provenance
                               additionalProperties: false
@@ -4505,6 +4515,10 @@ paths:
                                 content_sha256:
                                   type: string
                                   pattern: ^[0-9a-f]{64}$
+                                public_url:
+                                  type:
+                                    - string
+                                    - "null"
                                 urls:
                                   type: object
                                   properties:
@@ -4576,6 +4590,7 @@ paths:
                                 - height
                                 - size_bytes
                                 - content_sha256
+                                - public_url
                                 - urls
                                 - provenance
                               additionalProperties: false
@@ -4736,6 +4751,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -4807,6 +4826,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -5107,6 +5127,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -5178,6 +5202,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -5513,6 +5538,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -5584,6 +5613,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -5773,6 +5803,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -5844,6 +5878,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -5898,6 +5933,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -5969,6 +6008,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -6026,6 +6066,10 @@ paths:
                               content_sha256:
                                 type: string
                                 pattern: ^[0-9a-f]{64}$
+                              public_url:
+                                type:
+                                  - string
+                                  - "null"
                               urls:
                                 type: object
                                 properties:
@@ -6097,6 +6141,7 @@ paths:
                               - height
                               - size_bytes
                               - content_sha256
+                              - public_url
                               - urls
                               - provenance
                             additionalProperties: false
@@ -6151,6 +6196,10 @@ paths:
                               content_sha256:
                                 type: string
                                 pattern: ^[0-9a-f]{64}$
+                              public_url:
+                                type:
+                                  - string
+                                  - "null"
                               urls:
                                 type: object
                                 properties:
@@ -6222,6 +6271,7 @@ paths:
                               - height
                               - size_bytes
                               - content_sha256
+                              - public_url
                               - urls
                               - provenance
                             additionalProperties: false
@@ -6397,6 +6447,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -6468,6 +6522,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -6522,6 +6577,10 @@ paths:
                           content_sha256:
                             type: string
                             pattern: ^[0-9a-f]{64}$
+                          public_url:
+                            type:
+                              - string
+                              - "null"
                           urls:
                             type: object
                             properties:
@@ -6593,6 +6652,7 @@ paths:
                           - height
                           - size_bytes
                           - content_sha256
+                          - public_url
                           - urls
                           - provenance
                         additionalProperties: false
@@ -6650,6 +6710,10 @@ paths:
                               content_sha256:
                                 type: string
                                 pattern: ^[0-9a-f]{64}$
+                              public_url:
+                                type:
+                                  - string
+                                  - "null"
                               urls:
                                 type: object
                                 properties:
@@ -6721,6 +6785,7 @@ paths:
                               - height
                               - size_bytes
                               - content_sha256
+                              - public_url
                               - urls
                               - provenance
                             additionalProperties: false
@@ -6775,6 +6840,10 @@ paths:
                               content_sha256:
                                 type: string
                                 pattern: ^[0-9a-f]{64}$
+                              public_url:
+                                type:
+                                  - string
+                                  - "null"
                               urls:
                                 type: object
                                 properties:
@@ -6846,6 +6915,7 @@ paths:
                               - height
                               - size_bytes
                               - content_sha256
+                              - public_url
                               - urls
                               - provenance
                             additionalProperties: false
