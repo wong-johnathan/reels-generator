@@ -30,6 +30,7 @@ import { insertOrReuseAsset } from '../db/repositories/assets.js';
 import { runMigrations } from '../db/runner.js';
 import { createBatch } from '../domain/batch.js';
 import { FakeTextAdapter } from '../adapters/fake-text.js';
+import { createPostgresSceneGateway } from '../web/scenes/postgres.js';
 import { FakeTtsAdapter } from '../adapters/tts.js';
 import { FakeImageAdapter } from '../adapters/fake-image.js';
 import { InMemoryImageQualificationStore } from '../adapters/image-qualification.js';
@@ -131,7 +132,41 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       drainWhenEmpty: true,
       logger: (line) => console.error(line),
     });
-    expect(contentProcessed).toBe(CONTENT_JOB_COUNT);
+    // The operator's gate: T, RS, SC and SB run, then the pipeline stops with the
+    // words written and nothing spent on images. This used to run straight through
+    // to a video, which is exactly the behaviour the gate replaces.
+    expect(contentProcessed).toBe(4);
+
+    const gate = await db.pool.query<{ state: string }>(
+      `SELECT state FROM video_stage WHERE project_id = $1 AND stage = 'SB'`,
+      [projectId],
+    );
+    expect(gate.rows[0]!.state).toBe('awaiting_approval');
+
+    const imageJobsBeforeApproval = await db.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM job WHERE project_id = $1 AND stage IN ('IM','NA','TC')`,
+      [projectId],
+    );
+    expect(imageJobsBeforeApproval.rows[0]!.n).toBe(0);
+
+    // The operator reads the storyboard and approves it — the same gateway the
+    // approve button uses, so this exercises the release rather than faking it.
+    const scenesGateway = createPostgresSceneGateway(db.pool);
+    const board = await scenesGateway.storyboard(projectId);
+    expect(board).not.toBeNull();
+    await scenesGateway.approveStoryboard(projectId, { revision: board!.revision });
+
+    const afterApproval = await runWorkerLoop({
+      pool: db.pool,
+      stages: CONTENT_STAGES,
+      runStage: (job) => runStage(deps, job),
+      advanceAfterStage: (job) => advanceAfterStage(db.pool, job),
+      maxJobs: CONTENT_JOB_COUNT - 4,
+      pollIntervalMs: 5,
+      drainWhenEmpty: true,
+      logger: (line) => console.error(line),
+    });
+    expect(afterApproval).toBe(CONTENT_JOB_COUNT - 4);
 
     const renderProcessed = await runWorkerLoop({
       pool: db.pool,
