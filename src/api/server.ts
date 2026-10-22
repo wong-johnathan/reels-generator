@@ -53,7 +53,12 @@ import {
 import { createWebApp, type WebAppDependencies } from '../web/app.js';
 import { createDbSessionStore } from '../web/auth/dbSession.js';
 import { regenerateBatch } from '../domain/regenerate.js';
-import { loadBatchDetail, loadBatches } from '../web/batches/postgres.js';
+import {
+  loadBatchDetail,
+  loadBatches,
+  loadBatchesForSeries,
+  loadSeriesBatchIndex,
+} from '../web/batches/postgres.js';
 import type { BatchesGateway } from '../web/app.js';
 import { EMPTY_OVERVIEW, loadOverview, type Overview } from '../web/overview/postgres.js';
 import { handleSeriesRequest } from './series-routes.js';
@@ -715,6 +720,8 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
           detail: (batchId: string) => loadBatchDetail(pool, batchId),
           regenerate: (batchId: string, operatorUsername: string | null) =>
             regenerateBatch(pool, { batchId, operatorUsername }),
+          seriesIndex: () => loadSeriesBatchIndex(pool),
+          bySeries: (seriesId: string) => loadBatchesForSeries(pool, seriesId),
         },
         download: createPostgresDownloadGateway(pool, stores.content),
       },

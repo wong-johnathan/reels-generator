@@ -55,6 +55,21 @@ describe('batch confirmation', () => {
     const { html } = edit();
     expect(html).not.toContain('Started');
   });
+
+  it('links to this series batch page from the editor, including for an archived series', () => {
+    const { panel } = edit();
+    const link = byTag(panel, 'a').find((node) => textOf(node) === 'View batches');
+    expect(link?.attrs['href']).toBe('/series/' + detail.id + '/batch');
+
+    const archived = edit({
+      status: 'archived',
+      detail: SeriesDetailSchema.parse({ ...detail, status: 'archived' }),
+    });
+    const archivedLink = byTag(archived.panel, 'a').find((node) => textOf(node) === 'View batches');
+    expect(archivedLink?.attrs['href']).toBe('/series/' + detail.id + '/batch');
+    // An archived series still offers no batch-minting button.
+    expect(byTag(archived.panel, 'button')).toHaveLength(0);
+  });
 });
 
 const create = (overrides: Partial<SeriesEditorModel> = {}) =>

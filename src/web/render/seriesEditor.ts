@@ -420,11 +420,30 @@ function renderPanel(model: SeriesEditorModel): string {
  * the series editor — no timer, cron or schedule reaches this form. The size
  * comes from the series snapshot (`videos_per_batch`), read back here so the
  * button says exactly what it will create.
+ *
+ * The same section links to `/series/:id/batch` (this series' batches), so an
+ * archived series — which can no longer mint a batch — still reaches its
+ * existing work.
  */
 function renderBatchAction(model: SeriesEditorModel): string {
-  if (model.mode !== 'edit' || model.status === 'archived' || model.detail === undefined) {
+  if (model.mode !== 'edit' || model.detail === undefined) {
     return '';
   }
+  const viewBatches =
+    '<a class="btn series-view-batches" href="/series/' +
+    escapeAttr(model.detail.id) +
+    '/batch">View batches</a>';
+
+  if (model.status === 'archived') {
+    return (
+      '<section class="series-batch" aria-labelledby="batch-heading">' +
+      '<h2 class="series-commit-heading" id="batch-heading">Batches</h2>' +
+      '<p class="series-commit-lead">This series is archived; its existing batches remain viewable.</p>' +
+      viewBatches +
+      '</section>'
+    );
+  }
+
   const profile = model.detail.profile as { videos_per_batch?: unknown };
   const raw =
     typeof profile.videos_per_batch === 'number' ? Math.trunc(profile.videos_per_batch) : 1;
@@ -439,6 +458,7 @@ function renderBatchAction(model: SeriesEditorModel): string {
     '<form method="post" action="/series/' +
     escapeAttr(model.detail.id) +
     '/batches"><button class="btn btn-primary" type="submit">Start batch</button></form>' +
+    viewBatches +
     '</section>'
   );
 }
