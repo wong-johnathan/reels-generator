@@ -423,11 +423,16 @@ export async function runStage(deps: OrchestratorDeps, job: ClaimedJob): Promise
  * does not re-park it.
  */
 export async function storyboardGateApplies(pool: Pool, projectId: string): Promise<boolean> {
-  const result = await pool.query<{ state: string }>(
-    'SELECT state FROM video_stage WHERE project_id = $1 AND stage = $2',
-    [projectId, 'SB'],
+  // "Has anybody approved this?" is answered by the ledger, not by SB's state:
+  // the stage is already `done` when this runs, and approval sets it to `done`
+  // too, so the two are indistinguishable by state alone. Image generation only
+  // ever exists because an operator released the gate (or a legacy batch predates
+  // it), which makes the IM job's absence the one honest signal.
+  const result = await pool.query<{ n: string }>(
+    `SELECT count(*)::text AS n FROM job WHERE project_id = $1 AND stage = 'IM'`,
+    [projectId],
   );
-  return result.rows[0]?.state === 'running';
+  return result.rows[0]?.n === '0';
 }
 
 /**
