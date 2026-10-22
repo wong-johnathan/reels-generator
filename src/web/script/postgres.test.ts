@@ -103,7 +103,7 @@ describe.skipIf(!hasDatabase)('ScriptGateway (postgres)', { timeout: DB_TEST_TIM
     expect(script!.status).toBe('approved');
     expect(script!.word_count).toBe(228);
     expect(script!.estimated_runtime_s).toBeCloseTo(75.1, 1);
-    expect(script!.content.script).toBe('You are not stuck.');
+    expect(script!.content.script).toBe('You are not stuck. You are narrating. Say less.');
     expect(script!.content.hashtags).toEqual(['#psychology', '#founders']);
 
     // budget is re-derived from target_duration_s=75: round(75 * 3.035) = 228.
