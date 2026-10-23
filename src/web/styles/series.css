@@ -599,6 +599,87 @@ textarea.series-control {
 
 /* ── responsive (UI_SPEC §7) ─────────────────────────────────────────────── */
 
+.series-name,
+.series-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-download,
+.overview-error .btn,
+.series-error .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-videos {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--target-gap);
+  text-align: left;
+}
+
+.batch-videos th,
+.batch-videos td {
+  padding: var(--s-2) var(--s-4);
+}
+
+.batch-videos th {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.batch-card-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-video-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: var(--s-4);
+}
+
+.batch-video-cards li {
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+}
+
+.batch-video-cards h3 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-40);
+}
+
+.batch-video-cards dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-4);
+  margin: 0;
+}
+
+.batch-video-cards dt {
+  color: var(--text-secondary);
+}
+
+.batch-video-cards dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1023px) {
   .series-field {
     grid-template-columns: minmax(0, 1fr);
@@ -607,6 +688,14 @@ textarea.series-control {
 }
 
 @media (max-width: 767px) {
+  .batch-video-table {
+    display: none;
+  }
+
+  .batch-video-cards {
+    display: grid;
+  }
+
   .series-table,
   .series-table tbody,
   .series-table td {

@@ -1757,6 +1757,87 @@ textarea.series-control {
 
 /* ── responsive (UI_SPEC §7) ─────────────────────────────────────────────── */
 
+.series-name,
+.series-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-download,
+.overview-error .btn,
+.series-error .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-videos {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--target-gap);
+  text-align: left;
+}
+
+.batch-videos th,
+.batch-videos td {
+  padding: var(--s-2) var(--s-4);
+}
+
+.batch-videos th {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.batch-card-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-video-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: var(--s-4);
+}
+
+.batch-video-cards li {
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+}
+
+.batch-video-cards h3 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-40);
+}
+
+.batch-video-cards dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-4);
+  margin: 0;
+}
+
+.batch-video-cards dt {
+  color: var(--text-secondary);
+}
+
+.batch-video-cards dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1023px) {
   .series-field {
     grid-template-columns: minmax(0, 1fr);
@@ -1765,6 +1846,14 @@ textarea.series-control {
 }
 
 @media (max-width: 767px) {
+  .batch-video-table {
+    display: none;
+  }
+
+  .batch-video-cards {
+    display: grid;
+  }
+
   .series-table,
   .series-table tbody,
   .series-table td {
@@ -4344,6 +4433,8 @@ export const narrationCss = String.raw`/*
 
 .narration-table-wrap {
   max-height: 360px;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-3);
@@ -4353,6 +4444,18 @@ export const narrationCss = String.raw`/*
 .narration-table-wrap:focus-visible {
   outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.narration-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
 }
 
 .narration-words {
@@ -4526,7 +4629,7 @@ export const narrationCss = String.raw`/*
 .narration-rerun-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
 .narration-rerun-form label {
@@ -4701,6 +4804,7 @@ export const qualityCss = String.raw`/*
 
 .quality-player,
 .quality-checks {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
@@ -4831,6 +4935,8 @@ export const qualityCss = String.raw`/*
 
 .quality-table-wrap {
   max-height: 520px;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
@@ -4839,6 +4945,18 @@ export const qualityCss = String.raw`/*
 .quality-table-wrap:focus-visible {
   outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.quality-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
 }
 
 .quality-table {
@@ -5041,7 +5159,7 @@ export const qualityCss = String.raw`/*
 .quality-approve-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   max-width: 56ch;
 }
 
@@ -5084,7 +5202,7 @@ export const qualityCss = String.raw`/*
 .quality-return-links {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-3);
+  gap: var(--s-4);
   padding: 0;
   list-style: none;
 }
@@ -5170,6 +5288,7 @@ export const operationsCss = String.raw`/*
 .health-table-wrap,
 .settings-table-wrap {
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
@@ -5271,6 +5390,34 @@ export const operationsCss = String.raw`/*
 }
 
 /* ══ S-16 — export & provenance ═══════════════════════════════════════════ */
+
+/* AX-14: persistent rather than hover-only scroll guidance. */
+.ops-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ops-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.export-table-wrap::before,
+.export-pin-table-wrap::before,
+.health-table-wrap::before,
+.settings-table-wrap::before,
+.ops-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
 
 .export {
   display: flex;
@@ -6338,7 +6485,7 @@ export const operationsCss = String.raw`/*
 }
 
 .export-file-item .export-file-download {
-  min-height: var(--target-primary);
+  min-height: var(--target-review);
 }
 
 @media (max-width: 767px) {

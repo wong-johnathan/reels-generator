@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
+import { extractBlock } from './helpers/css.js';
 
 /**
  * S-16/S-19/S-21 styling guard: token-only colour, 44 px primary controls,
@@ -43,6 +44,24 @@ describe('operations.css tokens and contrast', () => {
 });
 
 describe('operations.css layout and targets', () => {
+  it('uses a defined 44 px token for mobile package downloads', () => {
+    expect(extractBlock(css, '.export-file-item .export-file-download')).toContain(
+      'min-height: var(--target-review)',
+    );
+  });
+
+  it('contains generic table regions and a persistent visible scroll cue', () => {
+    expect(extractBlock(css, '.ops-table-wrap')).toContain('overflow-x: auto');
+    expect(extractBlock(css, '.ops-table-wrap')).toContain('max-width: 100%');
+    expect(extractBlock(css, '.ops-table-wrap:focus-visible')).toContain('outline');
+    expect(
+      extractBlock(
+        css,
+        '.export-table-wrap::before, .export-pin-table-wrap::before, .health-table-wrap::before, .settings-table-wrap::before, .ops-table-wrap::before',
+      ),
+    ).toContain('content:');
+  });
+
   it('puts package and pins side by side only from 1024 px', () => {
     expect(block('.export-grid')).toContain('grid-template-columns');
     expect(block('.export-grid')).toContain('var(--aside-wide)');

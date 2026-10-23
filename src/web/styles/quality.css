@@ -90,6 +90,7 @@
 
 .quality-player,
 .quality-checks {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
@@ -220,6 +221,8 @@
 
 .quality-table-wrap {
   max-height: 520px;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
@@ -228,6 +231,18 @@
 .quality-table-wrap:focus-visible {
   outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.quality-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
 }
 
 .quality-table {
@@ -430,7 +445,7 @@
 .quality-approve-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   max-width: 56ch;
 }
 
@@ -473,7 +488,7 @@
 .quality-return-links {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-3);
+  gap: var(--s-4);
   padding: 0;
   list-style: none;
 }

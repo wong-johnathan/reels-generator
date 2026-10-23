@@ -229,11 +229,12 @@ function renderClaims(script: ScriptView): string {
     '</h3>' +
     (claims.rows.length === 0
       ? '<p class="claims-empty">No claims are recorded for this revision.</p>'
-      : '<table class="claims-table"><caption class="sr-only">Claims and their sources</caption>' +
+      : '<div class="ops-table-wrap" role="region" aria-label="Claims and their sources" tabindex="0">' +
+        '<table class="claims-table"><caption class="sr-only">Claims and their sources</caption>' +
         '<thead><tr><th scope="col">Claim</th><th scope="col">Source</th></tr></thead>' +
         '<tbody>' +
         rows +
-        '</tbody></table>') +
+        '</tbody></table></div>') +
     '</section>'
   );
 }

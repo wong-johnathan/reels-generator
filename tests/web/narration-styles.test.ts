@@ -13,6 +13,12 @@ import { extractBlock, mediaBlocks } from './helpers/css.js';
 const css = readFileSync(new URL('../../src/web/styles/narration.css', import.meta.url), 'utf8');
 
 describe('S-14 narration styles', () => {
+  it('keeps timing tables contained, discoverable and retry controls separated by 8 px', () => {
+    expect(extractBlock(css, '.narration-table-wrap')).toContain('min-width: 0');
+    expect(extractBlock(css, '.narration-table-wrap::before')).toContain('content:');
+    expect(extractBlock(css, '.narration-rerun-form')).toContain('gap: var(--s-4)');
+  });
+
   it('uses tokens for every colour — no raw hex', () => {
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });

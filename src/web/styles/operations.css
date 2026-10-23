@@ -17,6 +17,7 @@
 .health-table-wrap,
 .settings-table-wrap {
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
@@ -118,6 +119,34 @@
 }
 
 /* ══ S-16 — export & provenance ═══════════════════════════════════════════ */
+
+/* AX-14: persistent rather than hover-only scroll guidance. */
+.ops-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ops-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.export-table-wrap::before,
+.export-pin-table-wrap::before,
+.health-table-wrap::before,
+.settings-table-wrap::before,
+.ops-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
 
 .export {
   display: flex;
@@ -1185,7 +1214,7 @@
 }
 
 .export-file-item .export-file-download {
-  min-height: var(--target-primary);
+  min-height: var(--target-review);
 }
 
 @media (max-width: 767px) {

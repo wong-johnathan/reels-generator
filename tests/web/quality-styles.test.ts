@@ -13,6 +13,13 @@ import { extractBlock, mediaBlocks } from './helpers/css.js';
 const css = readFileSync(new URL('../../src/web/styles/quality.css', import.meta.url), 'utf8');
 
 describe('S-15 quality styles', () => {
+  it('keeps checks contained, with a visible scroll cue and 8 px action gaps', () => {
+    expect(extractBlock(css, '.quality-player, .quality-checks')).toContain('min-width: 0');
+    expect(extractBlock(css, '.quality-table-wrap::before')).toContain('content:');
+    expect(extractBlock(css, '.quality-approve-form')).toContain('gap: var(--s-4)');
+    expect(extractBlock(css, '.quality-return-links')).toContain('gap: var(--s-4)');
+  });
+
   it('uses tokens for every colour — no raw hex', () => {
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
