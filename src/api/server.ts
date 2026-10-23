@@ -72,6 +72,7 @@ import { createSeriesGateway } from '../web/series/postgres.js';
 import { createVideoGateway } from '../web/workspace/postgres.js';
 import { createPostgresDownloadGateway } from '../web/download/postgres.js';
 import type { VideoDownloadGateway } from '../web/download/gateway.js';
+import { createPostgresAssetProxyGateway } from '../web/assets/proxy.js';
 import { createS3Stores, s3ConfigFromEnv } from '../storage/s3-store.js';
 
 export interface Readiness {
@@ -113,6 +114,8 @@ export interface ContentRuntime {
    * inventing bytes.
    */
   readonly download?: VideoDownloadGateway;
+  /** Authenticated asset proxy backed by the same object store as generation. */
+  readonly assetProxy?: ReturnType<typeof createPostgresAssetProxyGateway>;
 }
 
 /** What the production entrypoint injects. Tests pass the same shape. */
@@ -411,6 +414,7 @@ function webDeps(auth: AuthRuntime, content?: ContentRuntime): WebAppDependencie
           render: createPostgresRenderGateway(content.pool),
           exportPackage: createPostgresExportGateway(content.pool),
           download: content.download,
+          assetProxy: content.assetProxy,
           ops: createPostgresOpsGateway(content.pool),
         }),
     // The web session record carries only the operator and expiry; the CSRF
@@ -724,6 +728,7 @@ export async function startFromEnvironment(): Promise<ReturnType<typeof createSe
           bySeries: (seriesId: string) => loadBatchesForSeries(pool, seriesId),
         },
         download: createPostgresDownloadGateway(pool, stores.content),
+        assetProxy: createPostgresAssetProxyGateway(pool, stores.content),
       },
     });
     server.on('close', () => {
