@@ -4246,7 +4246,7 @@ export const workspaceCss = String.raw`/*
 .scene-replace-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   align-items: flex-start;
 }
 

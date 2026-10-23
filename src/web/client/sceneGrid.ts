@@ -16,6 +16,7 @@ import { isTextField, type ActiveElementShape } from './behaviours.js';
 
 export interface GridElement {
   textContent: string;
+  readonly tagName?: string;
   disabled?: boolean;
   value?: string;
   focus?(): void;
@@ -40,6 +41,10 @@ export interface GridDocumentLike {
 export interface SceneGridEnvironment {
   readonly navigate?: (href: string) => void;
   readonly columnTracks?: () => string;
+  readonly matchMedia?: (query: string) => {
+    readonly matches: boolean;
+    addEventListener(type: 'change', handler: () => void): void;
+  };
 }
 
 export interface SceneGridEnhancer {
@@ -231,6 +236,57 @@ export function initSceneGrid(
     controls?.removeAttribute?.('hidden');
   }
   paintSelection();
+
+  // CSS swaps whole reading surfaces. Remember focus before display:none can
+  // blur it to BODY, but never steal focus from a control outside these surfaces.
+  const listTiles = toArray(doc.querySelectorAll('[data-scene-list]'));
+  let lastFocused: GridElement | null = null;
+  doc.addEventListener?.('focusin', (event) => {
+    lastFocused = event.target ?? null;
+  });
+  const runtime = globalThis as { matchMedia?: SceneGridEnvironment['matchMedia'] };
+  const matchMedia = env.matchMedia ?? runtime.matchMedia?.bind(globalThis);
+  if (matchMedia !== undefined) {
+    const desktop = matchMedia('(min-width: 1024px)');
+    const tablet = matchMedia('(min-width: 768px)');
+    const band = () => (desktop.matches ? 'grid' : tablet.matches ? 'pager' : 'list');
+    let previousBand = band();
+    const onBandChange = () => {
+      const nextBand = band();
+      if (nextBand === previousBand) return;
+      previousBand = nextBand;
+      const active = doc.activeElement;
+      const source = active == null || active.tagName === 'BODY' ? lastFocused : active;
+      const gridIndex = source === null ? -1 : tiles.indexOf(source);
+      const pagerTileIndex = source === null ? -1 : pagerTiles.indexOf(source);
+      const listIndex = source === null ? -1 : listTiles.indexOf(source);
+      const sceneIndex =
+        gridIndex >= 0
+          ? gridIndex
+          : listIndex >= 0
+            ? listIndex
+            : pagerTileIndex >= 0 || attr(source, 'data-pager-step') !== null
+              ? pagerIndex
+              : -1;
+      if (sceneIndex < 0) return;
+      index = Math.min(sceneIndex, tiles.length - 1);
+      if (pagerItems.length > 0) paintPager(sceneIndex, false);
+      paintSelection(false);
+      const destination =
+        nextBand === 'grid'
+          ? tiles[index]
+          : nextBand === 'pager'
+            ? pagerTiles[pagerIndex]
+            : listTiles[sceneIndex];
+      // Pending placeholders are not native links, but remain a logical scene
+      // destination without adding another stop to the ordinary Tab sequence.
+      if (attr(destination ?? null, 'href') === null) destination?.setAttribute?.('tabindex', '-1');
+      destination?.focus?.();
+      lastFocused = destination ?? null;
+    };
+    desktop.addEventListener('change', onBandChange);
+    tablet.addEventListener('change', onBandChange);
+  }
   return enhancer;
 }
 

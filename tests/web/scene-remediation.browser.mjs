@@ -19,7 +19,24 @@ const output = new URL('../../evidence/remed-scene/', import.meta.url);
 mkdirSync(output, { recursive: true });
 const detail = FIXTURES['video.get'];
 const storyboard = { ...FIXTURES['storyboard.get'], approved: false, approved_at: null };
-const scene = storyboard.scenes[6];
+const scene = storyboard.scenes.find((scene) => scene.asset !== null);
+assert.ok(scene, 'stored-image replacement fixture');
+const storyboardStates = {
+  pending: { detail, storyboard },
+  approved: { detail, storyboard: { ...storyboard, approved: true } },
+  blocked: {
+    detail: {
+      ...detail,
+      stages: detail.stages.map((row) =>
+        row.stage === 'SB'
+          ? { ...row, state: 'blocked', blocked_reason: 'Script approval required' }
+          : row,
+      ),
+    },
+    storyboard: null,
+  },
+  empty: { detail, storyboard: null },
+};
 const states = {
   wired: { wired: true, blockedReason: null },
   unwired: { wired: false, blockedReason: null },
@@ -43,8 +60,28 @@ const pages = Object.fromEntries(
     shell(renderSceneDetail({ detail, scene, total: 17, replace })),
   ]),
 );
-pages['/storyboard'] = shell(renderStoryboard({ detail, storyboard }));
+for (const [state, input] of Object.entries(storyboardStates))
+  pages['/storyboard?state=' + state] = shell(renderStoryboard(input));
 pages['/grid'] = shell(renderSceneGrid({ detail, storyboard, release: { wired: true } }), true);
+pages['/grid-checkpoint'] = shell(
+  renderSceneGrid({
+    detail: {
+      ...detail,
+      stages: detail.stages.map((row) =>
+        row.stage === 'IM' ? { ...row, blocked_reason: null } : row,
+      ),
+    },
+    storyboard: {
+      ...storyboard,
+      first_three_reviewed: false,
+      scenes: storyboard.scenes.map((scene, i) =>
+        i < 3 ? { ...scene, state: 'done' } : { ...scene, state: 'not_run', asset: null },
+      ),
+    },
+    release: { wired: true },
+  }),
+  true,
+);
 const server = createServer((req, res) => {
   if (req.url === '/assets/app.css') {
     res.setHeader('content-type', 'text/css');
@@ -74,11 +111,65 @@ const browser = await chromium.launch({
   ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
 });
 const results = [];
+const primaryFailures = [];
 const monitoring = 'Approvals need a screen 1024 px or wider. This view is monitoring only.';
-async function target(page, selector) {
-  const box = await page.locator(selector).first().boundingBox();
-  assert.ok(box && box.width >= 24 && box.height >= 24, `${selector}: ${JSON.stringify(box)}`);
-  return box;
+async function targets(page, selector, minimum = 24) {
+  const boxes = [];
+  for (const item of await page.locator(selector).all()) {
+    const box = await item.boundingBox();
+    assert.ok(
+      box && box.width >= minimum && box.height >= minimum,
+      `${selector}: ${JSON.stringify(box)}`,
+    );
+    boxes.push(box);
+  }
+  return boxes;
+}
+async function primaryAudit(page, root) {
+  // Settle the bottom-sticky selection bar at its natural end position before
+  // measuring neighbors; otherwise offscreen tiles behind the overlay are
+  // incorrectly treated as adjacent controls.
+  await page.locator(root).evaluate((el) => el.scrollIntoView({ block: 'end' }));
+  const audit = await page.locator(root).evaluate((root) => {
+    const visible = (el) =>
+      el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+    const controls = [
+      ...root.querySelectorAll('a[href], button, textarea, input:not([type="hidden"]), summary'),
+    ].filter(visible);
+    return controls
+      .filter((el) => el.matches('.btn-primary, [data-selection-replace], [data-pager-step]'))
+      .map((el) => {
+        const box = el.getBoundingClientRect();
+        const neighbors = controls
+          .filter((other) => other !== el)
+          .map((other) => {
+            const b = other.getBoundingClientRect();
+            const dx = Math.max(0, b.left - box.right, box.left - b.right);
+            const dy = Math.max(0, b.top - box.bottom, box.top - b.bottom);
+            return { name: other.textContent?.trim().slice(0, 60), gap: Math.hypot(dx, dy) };
+          });
+        return { name: el.textContent?.trim(), width: box.width, height: box.height, neighbors };
+      });
+  });
+  for (const item of audit) {
+    if (item.width < 44 || item.height < 44)
+      primaryFailures.push({
+        url: page.url(),
+        viewport: page.viewportSize(),
+        item,
+        failure: '44px target',
+      });
+    for (const neighbor of item.neighbors)
+      if (neighbor.gap < 7.99)
+        primaryFailures.push({
+          url: page.url(),
+          viewport: page.viewportSize(),
+          item: item.name,
+          neighbor,
+          failure: '8px separation',
+        });
+  }
+  return audit;
 }
 async function exposed(page, selector, visible) {
   assert.equal(await page.locator(selector).isVisible(), visible, selector);
@@ -133,7 +224,11 @@ try {
           width < 1024,
           'Image prompt for this scene',
         );
-        const back = await target(page, '.scene-detail-back a');
+        const back = await targets(page, '.scene-detail-back a');
+        assert.equal(await page.locator('[data-replace]').count(), 1);
+        assert.equal(await page.locator('[data-replace]').isDisabled(), state !== 'wired');
+        const primary = await primaryAudit(page, '.scene-detail');
+        assert.equal(primary.length, width >= 1024 ? 1 : 0);
         if (state === 'wired' && [1440, 768, 390, 320].includes(width)) {
           await page.screenshot({
             path: new URL(`scene-${width}-js${javaScriptEnabled}.png`, output).pathname,
@@ -147,30 +242,87 @@ try {
           javaScriptEnabled,
           replaceVisible: width >= 1024,
           back,
+          primary,
         });
       }
-      await page.goto(origin + '/storyboard');
-      await exposed(page, '.storyboard-approve', width >= 768);
-      await exposed(page, '.storyboard-monitoring-note', width < 768);
-      await axAndTab(page, '[data-approve-storyboard]', width < 768, 'Approve storyboard');
-      if (width >= 768) {
-        const approve = await page.locator('[data-approve-storyboard]').boundingBox();
-        assert.ok(approve.width >= 44 && approve.height >= 44);
-      }
-      const link = await target(page, '.storyboard-scene');
-      results.push({
-        surface: 'storyboard',
-        width,
-        javaScriptEnabled,
-        approveVisible: width >= 768,
-        link,
-      });
-      if (width === 1440 || width === 390)
-        await page.screenshot({
-          path: new URL(`storyboard-${width}-js${javaScriptEnabled}.png`, output).pathname,
-          fullPage: true,
+      for (const state of Object.keys(storyboardStates)) {
+        await page.goto(origin + '/storyboard?state=' + state);
+        const pending = state === 'pending';
+        assert.equal(await page.locator('[data-approve-storyboard]').count(), pending ? 1 : 0);
+        if (pending) {
+          await exposed(page, '.storyboard-approve', width >= 768);
+          await exposed(page, '.storyboard-monitoring-note', width < 768);
+        }
+        await axAndTab(
+          page,
+          '[data-approve-storyboard]',
+          !pending || width < 768,
+          'Approve storyboard',
+        );
+        const links = await targets(page, '.storyboard-scene');
+        assert.equal(links.length, pending || state === 'approved' ? storyboard.scenes.length : 0);
+        if (state === 'approved')
+          assert.equal(await page.locator('[data-storyboard-approved]').isVisible(), true);
+        if (state === 'blocked')
+          assert.match(
+            await page.locator('.storyboard-reason').textContent(),
+            /Script approval required/,
+          );
+        const primary = await primaryAudit(page, '.storyboard');
+        assert.equal(primary.length, pending && width >= 768 ? 1 : 0);
+        results.push({
+          surface: 'storyboard',
+          state,
+          width,
+          javaScriptEnabled,
+          approveVisible: pending && width >= 768,
+          links,
+          primary,
         });
+        if (pending && (width === 1440 || width === 390))
+          await page.screenshot({
+            path: new URL(`storyboard-${width}-js${javaScriptEnabled}.png`, output).pathname,
+            fullPage: true,
+          });
+      }
       await page.goto(origin + '/grid');
+      if (width >= 768 && width < 1024 && javaScriptEnabled) {
+        const prev = page.locator('[data-pager-step="-1"]');
+        const next = page.locator('[data-pager-step="1"]');
+        await next.waitFor({ state: 'visible' });
+        const primary = await primaryAudit(page, '.scene-grid');
+        assert.equal(primary.length, 2);
+        const [prevBox] = await targets(page, '[data-pager-step="-1"]', 44);
+        const [nextBox] = await targets(page, '[data-pager-step="1"]', 44);
+        assert.ok(nextBox.x - prevBox.x - prevBox.width >= 8);
+        await page.locator('[data-scene-pager]').first().focus();
+        await page.keyboard.press('Tab');
+        assert.equal(await prev.evaluate((el) => el === document.activeElement), true);
+        await page.keyboard.press('Tab');
+        assert.equal(await next.evaluate((el) => el === document.activeElement), true);
+        await page.keyboard.press('Enter');
+        assert.equal(await page.locator('[data-pager-readout]').textContent(), 'S02 of 17');
+        assert.equal(await next.evaluate((el) => el === document.activeElement), true);
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Space');
+        assert.equal(await page.locator('[data-pager-readout]').textContent(), 'S01 of 17');
+        assert.equal(await prev.evaluate((el) => el === document.activeElement), true);
+        await page.locator('[data-scene-pager]').first().focus();
+        await page.keyboard.press('ArrowRight');
+        assert.equal(
+          await page.locator('[data-scene-pager]:focus').getAttribute('data-scene-label'),
+          'S02',
+        );
+        await page.keyboard.press('ArrowLeft');
+        assert.equal(
+          await page.locator('[data-scene-pager]:focus').getAttribute('data-scene-label'),
+          'S01',
+        );
+        assert.equal(await page.locator('[data-pager-item]:not([hidden])').count(), 1);
+        results.push({ surface: 'pager-keyboard', width, javaScriptEnabled, primary });
+      } else {
+        assert.equal(await page.locator('[data-pager-controls]').isVisible(), false);
+      }
       if (width >= 1024) {
         const columns = await page
           .locator('.scene-tiles')
@@ -198,10 +350,39 @@ try {
             'S01',
           );
         }
-        results.push({ surface: 'grid', width, javaScriptEnabled, columns });
+        const primary = await primaryAudit(page, '.scene-grid');
+        assert.equal(primary.length, 1);
+        results.push({ surface: 'grid', width, javaScriptEnabled, columns, primary });
       }
+      await page.goto(origin + '/grid-checkpoint');
+      assert.equal(await page.locator('[data-release]').count(), 1);
+      const primary = await primaryAudit(page, '.scene-grid');
+      assert.equal(await page.locator('[data-release]').isVisible(), width >= 768);
+      results.push({ surface: 'checkpoint-primary', width, javaScriptEnabled, primary });
     }
     if (javaScriptEnabled) {
+      await page.setViewportSize({ width: 768, height: 1000 });
+      await page.goto(origin + '/grid');
+      await page.locator('[data-pager-step="1"]').focus();
+      await page.keyboard.press('ArrowRight');
+      for (const [width, selector] of [
+        [1024, '[data-scene-tile][data-scene-no="S02"]'],
+        [768, '[data-scene-pager][data-scene-label="S02"]'],
+        [390, '[data-scene-list][data-scene-label="S02"]'],
+        [1440, '[data-scene-tile][data-scene-no="S02"]'],
+      ]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.waitForFunction(
+          (selector) => document.activeElement?.matches(selector),
+          selector,
+        );
+        assert.equal(
+          await page.locator(selector).evaluate((el) => el === document.activeElement),
+          true,
+        );
+        assert.equal(await page.locator(selector).isVisible(), true);
+        results.push({ surface: 'logical-resize-focus', width, selector });
+      }
       await page.goto(origin + '/grid');
       for (const [width, expected] of [
         [1024, 'S05'],
@@ -221,6 +402,11 @@ try {
     await context.close();
   }
   writeFileSync(new URL('browser-results.json', output), JSON.stringify(results, null, 2) + '\n');
+  writeFileSync(
+    new URL('primary-failures.json', output),
+    JSON.stringify(primaryFailures, null, 2) + '\n',
+  );
+  assert.deepEqual(primaryFailures, [], 'primary target/neighbor audit');
   console.log(`PASS: ${results.length} browser cases, JS on/off, real tab/AX, live resize`);
 } finally {
   await browser.close();
