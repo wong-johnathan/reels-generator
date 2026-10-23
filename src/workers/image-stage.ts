@@ -292,6 +292,7 @@ interface StageContext {
   readonly project: ProjectRow;
   readonly stage: VideoStageRow;
   readonly series_version_id: string | null;
+  readonly art_style: unknown | null;
   readonly scenes: SceneRow[];
   readonly references: LoadedReferenceSet;
   readonly checkpoint_applies: boolean;
@@ -418,6 +419,17 @@ export async function currentSeriesVersionId(pool: Pool, seriesId: string): Prom
   return result.rows[0]?.current_version_id ?? null;
 }
 
+export async function currentSeriesArtStyle(pool: Pool, seriesId: string): Promise<unknown | null> {
+  const result = await pool.query<{ art_style: unknown | null }>(
+    `SELECT v.snapshot->'art_style' AS art_style
+       FROM series s
+       LEFT JOIN series_version v ON v.id = s.current_version_id
+      WHERE s.id = $1`,
+    [seriesId],
+  );
+  return result.rows[0]?.art_style ?? null;
+}
+
 async function loadStageContext(
   deps: ImageStageDeps,
   projectId: string,
@@ -441,6 +453,7 @@ async function loadStageContext(
   }
   const scenes = await listScenes(deps.pool, projectId);
   const references = await loadReferenceSet(deps, projectId);
+  const artStyle = await currentSeriesArtStyle(deps.pool, project.series_id);
   const approval = await latestApproval(deps.pool, projectId, 'IM');
   const anchor = await latestCheckpointSceneAssetAt(
     deps.pool,
@@ -459,6 +472,7 @@ async function loadStageContext(
     project,
     stage,
     series_version_id: await currentSeriesVersionId(deps.pool, project.series_id),
+    art_style: artStyle,
     scenes,
     references,
     checkpoint_applies: job.recurringProtagonist ?? derivesProtagonist,
@@ -468,15 +482,43 @@ async function loadStageContext(
   };
 }
 
+export function artDirectionInstruction(style: unknown): string {
+  const preset =
+    typeof style === 'string'
+      ? style.trim()
+      : typeof style === 'object' &&
+          style !== null &&
+          typeof (style as { preset?: unknown }).preset === 'string'
+        ? ((style as { preset: string }).preset ?? '').trim()
+        : '';
+  if (preset === '') return '';
+
+  if (preset.toLowerCase().includes('comic')) {
+    return (
+      'MANDATORY ART DIRECTION: comic. Render this as a 2D illustration with deliberate ink linework, ' +
+      'graphic shapes, and flat or cel shading. This is not photorealistic, not photographic, not hyperrealistic, ' +
+      'and not a 3D render. The comic treatment must be visible in every scene.'
+    );
+  }
+  return (
+    `MANDATORY ART DIRECTION: ${preset}. Treat this as a hard visual constraint and do not replace it with ` +
+    'a generic realistic or photographic treatment unless the style explicitly requests realism.'
+  );
+}
+
 export function buildImageRequest(
   scene: PlannerScene,
   references: LoadedReferenceSet,
   imageSize: ImageSize,
   characterLocked = false,
+  artStyle: unknown = null,
 ): ImageGenerateRequest {
   const prompt = (scene.image_prompt ?? '').trim();
+  const artDirection = artDirectionInstruction(artStyle);
   return {
-    prompt: characterLocked ? CHARACTER_LOCK_INSTRUCTION + prompt : prompt,
+    prompt: [artDirection, characterLocked ? CHARACTER_LOCK_INSTRUCTION : '', prompt]
+      .filter((part) => part !== '')
+      .join(' '),
     reference_images: references.images,
     image_size: imageSize,
     aspect_ratio: IMAGE_ASPECT_RATIO,
@@ -684,6 +726,7 @@ async function runGenerationPass(
       anchored,
       deps.adapter.imageSize,
       characterAnchor !== null,
+      context.art_style,
     );
     const promptHash = promptHashFor(request);
     const runInput = {
