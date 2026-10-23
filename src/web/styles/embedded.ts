@@ -3496,7 +3496,7 @@ export const workspaceCss = String.raw`/*
 .scene-tiles {
   display: grid;
   overflow-x: auto;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(6, minmax(168px, 1fr));
   gap: var(--s-5);
   margin: 0 0 var(--s-5);
   padding: 0;
@@ -3953,6 +3953,10 @@ export const workspaceCss = String.raw`/*
 }
 
 .storyboard-scene {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
   color: var(--text-link);
   font-weight: var(--fw-bold);
   text-decoration: none;
@@ -4124,6 +4128,23 @@ export const workspaceCss = String.raw`/*
   border-radius: var(--r-3);
 }
 
+.scene-detail-back a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.scene-replace-width-note,
+.scene-replace-monitoring-note,
+.storyboard-monitoring-note {
+  display: none;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
 .scene-replace-copy {
   margin: 0 0 var(--s-5);
   color: var(--text-primary);
@@ -4177,7 +4198,20 @@ export const workspaceCss = String.raw`/*
 
 /* ── responsive bands (UI_SPEC §7.2) ─────────────────────────────────────── */
 
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .scene-tiles {
+    grid-template-columns: repeat(4, minmax(168px, 1fr));
+  }
+}
+
 @media (max-width: 1023px) {
+  .scene-replace {
+    display: none;
+  }
+
+  .scene-replace-width-note {
+    display: block;
+  }
   .scene-detail-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4188,6 +4222,19 @@ export const workspaceCss = String.raw`/*
 }
 
 @media (max-width: 767px) {
+  .storyboard-approve {
+    display: none;
+  }
+
+  .scene-replace-width-note {
+    display: none;
+  }
+
+  .scene-replace-monitoring-note,
+  .storyboard-monitoring-note {
+    display: block;
+  }
+
   .scene-grid-head {
     align-items: flex-start;
   }

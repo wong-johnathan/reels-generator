@@ -89,6 +89,17 @@ describe('scene detail content (US-019)', () => {
 });
 
 describe('replace image (UC-09, R-007-1, C-02)', () => {
+  it.each([
+    { wired: true, blockedReason: null },
+    { wired: false, blockedReason: null },
+    { wired: true, blockedReason: 'Image stage is running.' },
+  ])('server renders both width notes for replacement state %j', (replace) => {
+    const html = renderSceneDetail({ detail: detail as never, scene, total: 17, replace });
+    expect(html).toContain('Open at 1024 px or wider to replace a scene image.');
+    expect(html).toContain(
+      'Approvals need a screen 1024 px or wider. This view is monitoring only.',
+    );
+  });
   it('states the C-02 consequence verbatim before the control', () => {
     const { html, root } = render({});
     expect(textOf(root)).toContain(replaceConsequence(scene, 17));

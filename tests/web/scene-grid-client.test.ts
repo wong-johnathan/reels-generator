@@ -46,9 +46,21 @@ function setup(board: StoryboardView = firstThree, columns = 6) {
       '</body></html>',
   );
   const navigations: string[] = [];
-  const enhancer = initSceneGrid(doc, { navigate: (href) => navigations.push(href) });
+  let tracks = Array.from({ length: columns }, () => '168px').join(' ');
+  const enhancer = initSceneGrid(doc, {
+    navigate: (href) => navigations.push(href),
+    columnTracks: () => tracks,
+  });
   const tiles = doc.querySelectorAll('[data-scene-tile]');
-  return { doc, enhancer, tiles, navigations };
+  return {
+    doc,
+    enhancer,
+    tiles,
+    navigations,
+    setTracks: (value: string) => {
+      tracks = value;
+    },
+  };
 }
 
 describe('selection (UC-07, AX-02)', () => {
@@ -121,6 +133,20 @@ describe('selection (UC-07, AX-02)', () => {
 });
 
 describe('keyboard (j/k, arrows, r, Esc)', () => {
+  it('ignores static data-columns and remeasures live tracks after resize', () => {
+    const { doc, tiles, enhancer, setTracks } = setup();
+    setTracks('168px 168px 168px 168px');
+    doc.press('ArrowDown', tiles[0] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(4);
+    doc.press('ArrowUp', tiles[4] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(0);
+    setTracks('168px 168px 168px 168px 168px 168px');
+    doc.press('ArrowDown', tiles[0] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(6);
+    setTracks('none');
+    doc.press('ArrowDown', tiles[0] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(1);
+  });
   it('pages through pending scenes, wraps, and never replaces from reading surfaces', () => {
     const { doc, navigations } = setup({ ...firstThree, scenes: firstThree.scenes.slice(0, 3) });
     const pager = doc.querySelectorAll('[data-scene-pager]');

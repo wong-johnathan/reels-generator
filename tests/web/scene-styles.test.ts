@@ -15,10 +15,10 @@ import { extractBlock, mediaBlocks } from './helpers/css.js';
 const css = readFileSync(new URL('../../src/web/styles/workspace.css', import.meta.url), 'utf8');
 
 describe('scene grid geometry (UI_SPEC §4.4, §5 UC-07)', () => {
-  it('is an auto-fill grid of 168 px minimum tiles with a 12 px gap', () => {
+  it('uses six explicit columns with a 12 px gap', () => {
     const grid = extractBlock(css, '.scene-tiles');
     expect(grid).toMatch(/display:\s*grid/);
-    expect(grid).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(168px,\s*1fr\)\)/);
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(168px,\s*1fr\)\)/);
     expect(grid).toMatch(/gap:\s*var\(--s-5\)/);
   });
 
@@ -100,6 +100,29 @@ describe('scene detail (UC-09)', () => {
 });
 
 describe('responsive bands (UI_SPEC §7.2)', () => {
+  it('hides replacement below 1024 and approvals below 768, including without JS', () => {
+    const band = (query: string) =>
+      mediaBlocks(css)
+        .filter((m) => m.query === query)
+        .map((m) => m.body)
+        .join('\n');
+    expect(extractBlock(band('(max-width: 1023px)'), '.scene-replace')).toMatch(/display:\s*none/);
+    expect(extractBlock(band('(max-width: 767px)'), '.storyboard-approve')).toMatch(
+      /display:\s*none/,
+    );
+    expect(
+      extractBlock(band('(min-width: 1024px) and (max-width: 1439px)'), '.scene-tiles'),
+    ).toMatch(/repeat\(4,/);
+  });
+
+  it('gives scene navigation links 24px targets, not review-sized targets', () => {
+    for (const selector of ['.scene-detail-back a', '.storyboard-scene']) {
+      const block = extractBlock(css, selector);
+      expect(block).toMatch(/display:\s*inline-flex/);
+      expect(block).toMatch(/min-height:\s*24px/);
+      expect(block).toMatch(/min-width:\s*24px/);
+    }
+  });
   it('stacks the detail into one column below 1024', () => {
     const bodies = mediaBlocks(css)
       .filter((media) => media.query.includes('max-width: 1023px'))

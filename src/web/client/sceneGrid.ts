@@ -39,6 +39,7 @@ export interface GridDocumentLike {
 
 export interface SceneGridEnvironment {
   readonly navigate?: (href: string) => void;
+  readonly columnTracks?: () => string;
 }
 
 export interface SceneGridEnhancer {
@@ -73,9 +74,19 @@ export function initSceneGrid(
   const tiles = toArray(doc.querySelectorAll('[data-scene-tile]'));
   if (tiles.length === 0) return null;
 
-  const parsedColumns = Number(attr(grid, 'data-columns') ?? '6');
-  const columns =
-    Number.isFinite(parsedColumns) && parsedColumns > 0 ? Math.trunc(parsedColumns) : 6;
+  const tileList = doc.querySelector('[data-scene-tiles]');
+  // Resolve tracks on each arrow, so resizing never leaves a stale stride.
+  function columns(): number {
+    const runtime = globalThis as {
+      getComputedStyle?: (element: GridElement) => { gridTemplateColumns: string };
+    };
+    const tracks =
+      env.columnTracks?.() ??
+      (tileList !== null && runtime.getComputedStyle !== undefined
+        ? runtime.getComputedStyle(tileList).gridTemplateColumns
+        : 'none');
+    return Math.max(1, tracks.match(/\d+(?:\.\d+)?px/g)?.length ?? 0);
+  }
   const selectionText = doc.querySelector('[data-selection-text]');
   const announce = doc.querySelector('[data-grid-announce]');
   const replace = doc.querySelector('[data-selection-replace]');
@@ -185,11 +196,11 @@ export function initSceneGrid(
         return;
       case 'ArrowDown':
         event.preventDefault?.();
-        enhancer.select(Math.min(tiles.length - 1, current + columns));
+        enhancer.select(Math.min(tiles.length - 1, current + columns()));
         return;
       case 'ArrowUp':
         event.preventDefault?.();
-        enhancer.select(Math.max(0, current - columns));
+        enhancer.select(Math.max(0, current - columns()));
         return;
       case 'r': {
         const selected = index >= 0 ? tiles[index] : tiles[current];

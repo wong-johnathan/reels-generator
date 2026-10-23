@@ -1,0 +1,190 @@
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/remed-scene
+
+ ❯ tests/web/scene-styles.test.ts (18 tests | 3 failed) 120ms
+   × scene grid geometry (UI_SPEC §4.4, §5 UC-07) > uses six explicit columns with a 12 px gap 41ms
+     → expected '\n  display: grid;\n  overflow-x: aut…' to match /grid-template-columns:\s*repeat\(6,\s…/
+   ✓ scene grid geometry (UI_SPEC §4.4, §5 UC-07) > is a 168 px tile with a clipped 9:16 thumb and a 32 px meta row 13ms
+   ✓ scene grid geometry (UI_SPEC §4.4, §5 UC-07) > keeps the image still on hover and inverts nothing but the border (UC-08) 3ms
+   ✓ scene grid geometry (UI_SPEC §4.4, §5 UC-07) > draws the focus ring inside the clip so it is never cut off 3ms
+   ✓ scene grid geometry (UI_SPEC §4.4, §5 UC-07) > marks the selected tile with a 2 px accent outline and a selected meta row 5ms
+   ✓ checkpoint banner and release control (UC-07 variants) > is a 40 px amber-tinted banner above the grid 3ms
+   ✓ checkpoint banner and release control (UC-07 variants) > gives the release and replace controls a 44 px review target 3ms
+   ✓ checkpoint banner and release control (UC-07 variants) > keeps the selection bar 44 px and sticky at the bottom of the tab 3ms
+   ✓ checkpoint banner and release control (UC-07 variants) > separates the reorder controls by at least 8 px (AX-17) 3ms
+   ✓ scene detail (UC-09) > fixes the image box at 360 by 640 so a missing image cannot shift the layout 3ms
+   ✓ scene detail (UC-09) > keeps the prompt readable at 13 px mono with a scroll cap 3ms
+   ✓ scene detail (UC-09) > lays provenance out as a two-column description list 1ms
+   × responsive bands (UI_SPEC §7.2) > hides replacement below 1024 and approvals below 768, including without JS 2ms
+     → no block for selector: .scene-replace
+   × responsive bands (UI_SPEC §7.2) > gives scene navigation links 24px targets, not review-sized targets 4ms
+     → no block for selector: .scene-detail-back a
+   ✓ responsive bands (UI_SPEC §7.2) > stacks the detail into one column below 1024 1ms
+   ✓ responsive bands (UI_SPEC §7.2) > replaces the grid and mutation controls with monitoring rows below 768 1ms
+   ✓ responsive bands (UI_SPEC §7.2) > uses a review-lite pager only between 768 and 1023 5ms
+   ✓ responsive bands (UI_SPEC §7.2) > never lets the grid force a horizontal page scroll 14ms
+ ❯ tests/web/scene-detail-page.test.ts (17 tests | 3 failed) 185ms
+   ✓ scene detail content (US-019) > names the scene by id and position 11ms
+   ✓ scene detail content (US-019) > renders the current image with the prompt summary as its alt text 35ms
+   ✓ scene detail content (US-019) > shows the prompt verbatim and the narration span 15ms
+   ✓ scene detail content (US-019) > renders the provenance table with model, seed, prompt hash and pin 5ms
+   ✓ scene detail content (US-019) > names the provenance fields the contract does not carry 5ms
+   ✓ scene detail content (US-019) > states the image stage attempt count from the video detail 8ms
+   × replace image (UC-09, R-007-1, C-02) > server renders both width notes for replacement state {"wired":true,"blockedReason":null} 52ms
+     → expected '<section class="scene-detail" data-sc…' to contain 'Open at 1024 px or wider to replace a…'
+   × replace image (UC-09, R-007-1, C-02) > server renders both width notes for replacement state {"wired":false,"blockedReason":null} 9ms
+     → expected '<section class="scene-detail" data-sc…' to contain 'Open at 1024 px or wider to replace a…'
+   × replace image (UC-09, R-007-1, C-02) > server renders both width notes for replacement state {"wired":true,"blockedReason":"Image stage is running."} 8ms
+     → expected '<section class="scene-detail" data-sc…' to contain 'Open at 1024 px or wider to replace a…'
+   ✓ replace image (UC-09, R-007-1, C-02) > states the C-02 consequence verbatim before the control 2ms
+   ✓ replace image (UC-09, R-007-1, C-02) > posts the scene revision and the prefilled prompt 7ms
+   ✓ replace image (UC-09, R-007-1, C-02) > never autofocuses the spending control (AX-04) 1ms
+   ✓ replace image (UC-09, R-007-1, C-02) > is disabled with the checkpoint reason while scenes 4+ wait 1ms
+   ✓ replace image (UC-09, R-007-1, C-02) > shows the queue confirmation after a committed replace 1ms
+   ✓ scene without an image (W-06 tile states) > keeps the fixed 9:16 box and names the state instead of a broken image 2ms
+   ✓ scene without an image (W-06 tile states) > offers no replace until an image exists 1ms
+   ✓ scene without an image (W-06 tile states) > names a failed scene attempt against its maximum 17ms
+ ❯ tests/web/storyboard-page.test.ts (11 tests | 1 failed) 210ms
+   × storyboard ready (US-018) > server renders the monitoring note beside an unapproved gate 140ms
+     → expected '<section class="storyboard" data-stor…' to contain 'Approvals need a screen 1024 px or wi…'
+   ✓ storyboard ready (US-018) > states the scene count against the target 2ms
+   ✓ storyboard ready (US-018) > lists all 17 scenes with span, prompt, protagonist use and camera move 11ms
+   ✓ storyboard ready (US-018) > carries a state chip with the word, not just a colour, on every row 23ms
+   ✓ storyboard ready (US-018) > links each scene to its S-13 detail 8ms
+   ✓ storyboard ready (US-018) > gives the table a caption and column headers for screen readers 9ms
+   ✓ optional storyboard gate (UX_SPEC S-11 primary action) > offers an approve form while the storyboard is unapproved 1ms
+   ✓ optional storyboard gate (UX_SPEC S-11 primary action) > replaces the control with the record line once approved 8ms
+   ✓ storyboard states (UX_SPEC S-11 row) > says there is no storyboard yet before the script is approved 1ms
+   ✓ storyboard states (UX_SPEC S-11 row) > shows the split in progress without inventing spans 1ms
+   ✓ storyboard states (UX_SPEC S-11 row) > states the attempt count when the split failed 0ms
+ ❯ tests/web/scene-grid-client.test.ts (14 tests | 1 failed) 783ms
+   ✓ selection (UC-07, AX-02) > pages forward/back with one visible scene, exact readout, and focus retained 214ms
+   ✓ selection (UC-07, AX-02) > starts with no selection and one tab stop 79ms
+   ✓ selection (UC-07, AX-02) > moves the roving tabindex and the selection bar to the chosen tile 35ms
+   ✓ selection (UC-07, AX-02) > points the replace control at the selected scene 44ms
+   ✓ selection (UC-07, AX-02) > announces the selection with the UI_SPEC sentence 80ms
+   × keyboard (j/k, arrows, r, Esc) > ignores static data-columns and remeasures live tracks after resize 73ms
+     → expected 6 to be 4 // Object.is equality
+   ✓ keyboard (j/k, arrows, r, Esc) > pages through pending scenes, wraps, and never replaces from reading surfaces 50ms
+   ✓ keyboard (j/k, arrows, r, Esc) > moves with j and k, selection following focus 31ms
+   ✓ keyboard (j/k, arrows, r, Esc) > moves a row with ArrowDown and ArrowUp using the rendered column count 26ms
+   ✓ keyboard (j/k, arrows, r, Esc) > wraps at the end of the grid rather than falling off it 28ms
+   ✓ keyboard (j/k, arrows, r, Esc) > opens the replace scope with r 35ms
+   ✓ keyboard (j/k, arrows, r, Esc) > clears the selection with Escape without navigating 57ms
+   ✓ keyboard (j/k, arrows, r, Esc) > stays inert while a text field has focus (AX-03) 20ms
+   ✓ keyboard (j/k, arrows, r, Esc) > returns null when the page has no scene grid 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/web/scene-detail-page.test.ts > replace image (UC-09, R-007-1, C-02) > server renders both width notes for replacement state {"wired":true,"blockedReason":null}
+ FAIL  tests/web/scene-detail-page.test.ts > replace image (UC-09, R-007-1, C-02) > server renders both width notes for replacement state {"wired":false,"blockedReason":null}
+ FAIL  tests/web/scene-detail-page.test.ts > replace image (UC-09, R-007-1, C-02) > server renders both width notes for replacement state {"wired":true,"blockedReason":"Image stage is running."}
+AssertionError: expected '<section class="scene-detail" data-sc…' to contain 'Open at 1024 px or wider to replace a…'
+
+Expected: [32m"Open at 1024 px or wider to replace a scene image."[39m
+Received: [31m"<section class="scene-detail" data-scene-detail data-video-id="22222222-2222-4222-8222-111111111111" data-scene-no="S07" data-state="done"><header class="scene-detail-head"><p class="scene-detail-back"><a href="/videos/22222222-2222-4222-8222-111111111111/scenes">← All scenes</a></p><h2 class="scene-detail-title" id="scene-detail-title">S07 · scene 7 of 17</h2><span class="vchip" data-state="done" data-size="md"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">Done</span></span><span class="scene-pin mono">v3</span></header><div class="scene-detail-body"><figure class="scene-detail-figure"><img class="scene-detail-image" src="/asset/99999999-9999-4999-8999-111111111111/detail" alt="Scene 7: the protagonist meets the idea" width="360" height="640" loading="eager" decoding="async"><figcaption class="scene-detail-caption mono">current · attempt 1 of 3 · 2026-10-20T09:00:00Z · prompt hash prompt-07</figcaption></figure><div class="scene-detail-info"><section class="scene-detail-block"><h3 class="scene-detail-heading">Prompt</h3><p class="scene-prompt mono" data-scene-prompt>Scene 7: the protagonist meets the idea</p></section><section class="scene-detail-block"><h3 class="scene-detail-heading">Scene facts</h3><dl class="scene-detail-dl"><dt>Narration</dt><dd class="mono">4.4 s <span class="sr-only">4.4 seconds</span></dd><dt>Camera move</dt><dd>zoom out</dd><dt>Protagonist reference</dt><dd>used by this scene</dd><dt>Fallback text</dt><dd>Scene 7</dd><dt>Image state</dt><dd><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span> <span class="mono">stage attempt 1 of 3</span></dd></dl></section><section class="scene-provenance" data-provenance><h3 class="scene-detail-heading">Provenance</h3><dl class="scene-provenance-dl"><dt>Provider</dt><dd>gemini</dd><dt>Model</dt><dd>gemini-nano-banana-2.1</dd><dt>Prompt hash</dt><dd>prompt-07</dd><dt>Seed</dt><dd>1729411200</dd><dt>Series pin</dt><dd>v3</dd><dt>Created</dt><dd>2026-10-20T09:00:00Z</dd><dt>Provider request id</dt><dd data-missing="true">not recorded by the scenes endpoint</dd><dt>Rights / licence</dt><dd data-missing="true">not recorded by the scenes endpoint</dd></dl><p class="scene-provenance-gaps">The provider request id and rights/licence metadata are not recorded by the scenes endpoint (contract gap F-06-2), and previous attempts are not exposed for a scene (gap F-06-3); the current asset and the image stage attempt count are shown instead.</p></section><section class="scene-replace" id="replace-image" data-scene-replace="ready"><h3 class="scene-detail-heading">Replace this image</h3><p class="scene-replace-copy" data-replace-copy>Replacing scene 7&#39;s image costs 1 image call. Scene 7&#39;s visual and the render become stale. Images 1–6 and 8–17 and the narration survive.</p><form class="scene-replace-form" method="post" action="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000007/replace-image"><input type="hidden" name="revision" value="1"><label class="scene-replace-label" for="image-prompt">Image prompt for this scene</label><textarea class="scene-replace-prompt" id="image-prompt" name="image_prompt" rows="3">Scene 7: the protagonist meets the idea</textarea><button class="btn btn-primary" type="submit" data-replace>Replace image · 1 image call</button></form></section></div></div></section>"[39m
+
+ ❯ tests/web/scene-detail-page.test.ts:98:18
+     96|   ])('server renders both width notes for replacement state %j', (repl…
+     97|     const html = renderSceneDetail({ detail: detail as never, scene, t…
+     98|     expect(html).toContain('Open at 1024 px or wider to replace a scen…
+       |                  ^
+     99|     expect(html).toContain('Approvals need a screen 1024 px or wider. …
+    100|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  tests/web/scene-grid-client.test.ts > keyboard (j/k, arrows, r, Esc) > ignores static data-columns and remeasures live tracks after resize
+AssertionError: expected 6 to be 4 // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 4[39m
+[31m+ 6[39m
+
+ ❯ tests/web/scene-grid-client.test.ts:132:39
+    130|     setTracks('168px 168px 168px 168px');
+    131|     doc.press('ArrowDown', tiles[0] ?? null);
+    132|     expect(enhancer?.selectedIndex()).toBe(4);
+       |                                       ^
+    133|     doc.press('ArrowUp', tiles[4] ?? null);
+    134|     expect(enhancer?.selectedIndex()).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  tests/web/scene-styles.test.ts > scene grid geometry (UI_SPEC §4.4, §5 UC-07) > uses six explicit columns with a 12 px gap
+AssertionError: expected '\n  display: grid;\n  overflow-x: aut…' to match /grid-template-columns:\s*repeat\(6,\s…/
+
+[32m- Expected:[39m 
+/grid-template-columns:\s*repeat\(6,\s*minmax\(168px,\s*1fr\)\)/
+
+[31m+ Received:[39m 
+"
+  display: grid;
+  overflow-x: auto;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--s-5);
+  margin: 0 0 var(--s-5);
+  padding: 0;
+  list-style: none;
+"
+
+ ❯ tests/web/scene-styles.test.ts:21:18
+     19|     const grid = extractBlock(css, '.scene-tiles');
+     20|     expect(grid).toMatch(/display:\s*grid/);
+     21|     expect(grid).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax…
+       |                  ^
+     22|     expect(grid).toMatch(/gap:\s*var\(--s-5\)/);
+     23|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  tests/web/scene-styles.test.ts > responsive bands (UI_SPEC §7.2) > hides replacement below 1024 and approvals below 768, including without JS
+Error: no block for selector: .scene-replace
+ ❯ extractBlock tests/web/helpers/css.ts:38:9
+     36|   }
+     37| 
+     38|   throw new Error('no block for selector: ' + selector);
+       |         ^
+     39| }
+     40| 
+ ❯ tests/web/scene-styles.test.ts:105:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  tests/web/scene-styles.test.ts > responsive bands (UI_SPEC §7.2) > gives scene navigation links 24px targets, not review-sized targets
+Error: no block for selector: .scene-detail-back a
+ ❯ extractBlock tests/web/helpers/css.ts:38:9
+     36|   }
+     37| 
+     38|   throw new Error('no block for selector: ' + selector);
+       |         ^
+     39| }
+     40| 
+ ❯ tests/web/scene-styles.test.ts:112:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  tests/web/storyboard-page.test.ts > storyboard ready (US-018) > server renders the monitoring note beside an unapproved gate
+AssertionError: expected '<section class="storyboard" data-stor…' to contain 'Approvals need a screen 1024 px or wi…'
+
+Expected: [32m"Approvals need a screen 1024 px or wider. This view is monitoring only."[39m
+Received: [31m"<section class="storyboard" data-storyboard data-video-id="22222222-2222-4222-8222-111111111111" data-state="ready"><header class="storyboard-head"><div class="storyboard-heading"><h2 class="storyboard-title">Storyboard</h2><span class="vchip" data-state="done" data-size="md"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">Done</span></span><p class="storyboard-count mono" data-storyboard-count>17 scenes · target 17</p></div><form class="storyboard-approve" method="post" action="/videos/22222222-2222-4222-8222-111111111111/storyboard/approve"><input type="hidden" name="revision" value="2"><button class="btn btn-primary" type="submit" data-approve-storyboard>Approve storyboard <span class="btn-sub">· optional gate</span></button></form></header><p class="sr-only" data-storyboard-state="ready"></p><p class="storyboard-note">Editing one prompt in S-13 affects that scene only (R-007-1). Scene ids stay stable across replace and reorder (R-007-2). Camera moves read from the storyboard: zoom in, zoom out, pan left, pan right, static.</p><table class="storyboard-table"><caption class="sr-only">Storyboard scenes: scene, narration span, prompt, protagonist reference, camera move and image state</caption><thead><tr><th scope="col">Scene</th><th scope="col">Narration</th><th scope="col">Prompt</th><th scope="col">Protagonist</th><th scope="col">Camera</th><th scope="col">State</th></tr></thead><tbody><tr data-scene-no="S01"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000001">S01</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 1: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom in</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S02"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000002">S02</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 2: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom out</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S03"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000003">S03</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 3: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">pan left</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S04"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000004">S04</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 4: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">pan right</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S05"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000005">S05</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 5: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">static</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S06"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000006">S06</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 6: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom in</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S07"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000007">S07</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 7: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom out</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S08"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000008">S08</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 8: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">pan left</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S09"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000009">S09</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 9: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">pan right</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S10"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000010">S10</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 10: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">static</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S11"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000011">S11</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 11: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom in</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S12"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000012">S12</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 12: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom out</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S13"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000013">S13</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 13: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">pan left</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S14"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000014">S14</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 14: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">pan right</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S15"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000015">S15</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 15: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">static</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S16"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000016">S16</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 16: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom in</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr><tr data-scene-no="S17"><td data-label="Scene"><a class="storyboard-scene mono" data-scene-link href="/videos/22222222-2222-4222-8222-111111111111/scenes/dddddddd-dddd-4ddd-8ddd-000000000017">S17</a></td><td data-label="Narration" class="mono">4.4 s</td><td data-label="Prompt" class="storyboard-prompt">Scene 17: the protagonist meets the idea</td><td data-label="Protagonist">yes</td><td data-label="Camera">zoom out</td><td data-label="State"><span class="vchip" data-state="done" data-size="sm"><span class="vchip-glyph" data-glyph><svg class="glyph" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="vchip-label">DONE</span></span></td></tr></tbody></table></section>"[39m
+
+ ❯ tests/web/storyboard-page.test.ts:40:18
+     38|   it('server renders the monitoring note beside an unapproved gate', (…
+     39|     const html = renderStoryboard({ detail, storyboard: { ...storyboar…
+     40|     expect(html).toContain('Approvals need a screen 1024 px or wider. …
+       |                  ^
+     41|     expect(html).toContain('data-approve-storyboard');
+     42|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  8 failed | 52 passed (60)
+   Start at  11:26:14
+   Duration  2.38s (transform 972ms, setup 0ms, collect 2.56s, tests 1.30s, environment 2ms, prepare 981ms)
+
