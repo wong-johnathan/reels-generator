@@ -400,6 +400,10 @@ export const shellCss = String.raw`/*
 }
 
 .status-cause {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   color: var(--text-secondary);
   text-decoration: none;
 }
@@ -514,6 +518,13 @@ export const shellCss = String.raw`/*
   font-weight: var(--fw-bold);
   line-height: 20px;
   text-align: center;
+}
+
+.rail-signout-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
 }
 
 /* ── main region, breadcrumb and page title ──────────────────────────────── */

@@ -281,7 +281,7 @@ export const SAFE_AREA_LINE =
 export const LEAVE_NOTE = 'Leaving this page does not stop the job.';
 
 export const MONITORING_NOTE =
-  'Approvals need a screen 768 px or wider. This view is monitoring only.';
+  'Approvals need a screen 1024 px or wider. This view is monitoring only.';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State

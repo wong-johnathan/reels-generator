@@ -339,11 +339,11 @@ describe('S-15 notices and the monitoring band', () => {
   it('states the monitoring rule for the narrow band, outside the hidden controls', () => {
     const page = parseHtml(html());
     expect(textOf(byId(page, 'quality-band-note') as HtmlNode)).toBe(
-      'Approvals need a screen 768 px or wider. This view is monitoring only.',
+      'Approvals need a screen 1024 px or wider. This view is monitoring only.',
     );
     // §7.1 hides .quality-approval below 768; the note must not be inside it or
     // it would disappear with the control it replaces.
     expect(textOf(byId(page, 'quality-approval') as HtmlNode)).not.toContain('monitoring only');
-    expect(textOf(page)).toContain('Approvals need a screen 768 px or wider');
+    expect(textOf(page)).toContain('Approvals need a screen 1024 px or wider');
   });
 });
