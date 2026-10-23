@@ -134,11 +134,14 @@ function renderBanner(input: {
   return '';
 }
 
-function renderTile(tile: ReturnType<typeof sceneTiles>[number]): string {
+function renderTile(
+  tile: ReturnType<typeof sceneTiles>[number],
+  surface: 'grid' | 'pager' | 'list' = 'grid',
+): string {
   const span = tile.span;
   const attrs = [
     'class="scene-tile"',
-    'data-scene-tile',
+    surface === 'grid' ? 'data-scene-tile' : 'data-scene-' + surface,
     'data-scene-no="' + escapeAttr(tile.no) + '"',
     'data-state="' + escapeAttr(tile.state) + '"',
     'data-announce="' + escapeAttr(tile.announce) + '"',
@@ -148,7 +151,9 @@ function renderTile(tile: ReturnType<typeof sceneTiles>[number]): string {
     'aria-label="' + escapeAttr(tile.accessibleName) + '"',
   ].join(' ');
   return (
-    '<li class="scene-tile-item">' +
+    '<li class="scene-tile-item"' +
+    (surface === 'pager' ? ' data-pager-item' : '') +
+    '>' +
     '<a ' +
     attrs +
     '>' +
@@ -181,13 +186,29 @@ function renderTile(tile: ReturnType<typeof sceneTiles>[number]): string {
 }
 
 /** Placeholder for a target scene the storyboard has not produced yet. */
-function renderPendingTile(position: number): string {
+function renderPendingTile(
+  position: number,
+  surface: 'grid' | 'pager' | 'list' = 'grid',
+  total = position,
+): string {
   const no = 'S' + String(position).padStart(2, '0');
   return (
-    '<li class="scene-tile-item">' +
+    '<li class="scene-tile-item"' +
+    (surface === 'pager' ? ' data-pager-item' : '') +
+    '>' +
     '<div class="scene-tile scene-tile-pending" data-scene-pending="' +
     escapeAttr(no) +
-    '">' +
+    '" data-scene-no="' +
+    no +
+    '" aria-label="Scene ' +
+    position +
+    ' of ' +
+    total +
+    ', ' +
+    no +
+    ', not started"' +
+    (surface === 'grid' ? '' : ' data-scene-' + surface) +
+    '>' +
     '<span class="scene-thumb scene-thumb-empty" aria-hidden="true">▦</span>' +
     '<span class="scene-meta">' +
     '<span class="scene-no mono">' +
@@ -232,9 +253,10 @@ export function renderSceneGrid(input: SceneGridInput): string {
     total: counts.total,
     checkpoint,
   });
-  const pending = Array.from({ length: Math.max(0, counts.total - tiles.length) }, (_, index) =>
-    renderPendingTile(tiles.length + index + 1),
-  ).join('');
+  const pendingFor = (surface: 'grid' | 'pager' | 'list') =>
+    Array.from({ length: Math.max(0, counts.total - tiles.length) }, (_, index) =>
+      renderPendingTile(tiles.length + index + 1, surface, counts.total),
+    ).join('');
 
   const stageLine =
     im === undefined
@@ -317,8 +339,27 @@ export function renderSceneGrid(input: SceneGridInput): string {
     renderBanner({ detail, checkpoint, firstSceneId: firstScene?.id ?? null }) +
     '<p class="sr-only" data-grid-announce aria-live="polite"></p>' +
     '<ul class="scene-tiles" data-scene-tiles role="list">' +
-    tiles.map(renderTile).join('') +
-    pending +
+    tiles.map((tile) => renderTile(tile)).join('') +
+    pendingFor('grid') +
+    '</ul>' +
+    '<p class="scene-grid-width-note">Open at 1024 px or wider to replace a scene image.</p>' +
+    '<section class="scene-pager" aria-label="Scene review pager">' +
+    '<ul class="scene-pager-track" role="list">' +
+    tiles.map((tile) => renderTile(tile, 'pager')).join('') +
+    pendingFor('pager') +
+    '</ul>' +
+    '<div class="scene-pager-controls" data-pager-controls hidden>' +
+    '<button class="btn" type="button" data-pager-step="-1" aria-label="Previous scene">Previous</button>' +
+    '<span class="mono" data-pager-readout>' +
+    escapeHtml(tiles[0]?.no ?? '—') +
+    ' of ' +
+    counts.total +
+    '</span>' +
+    '<button class="btn" type="button" data-pager-step="1" aria-label="Next scene">Next</button>' +
+    '</div></section>' +
+    '<ul class="scene-list" role="list">' +
+    tiles.map((tile) => renderTile(tile, 'list')).join('') +
+    pendingFor('list') +
     '</ul>' +
     renderSelectionBar(tiles[0]?.href ?? null) +
     '</section>'

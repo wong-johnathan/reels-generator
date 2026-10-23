@@ -79,9 +79,39 @@ export function initSceneGrid(
   const selectionText = doc.querySelector('[data-selection-text]');
   const announce = doc.querySelector('[data-grid-announce]');
   const replace = doc.querySelector('[data-selection-replace]');
+  const pagerItems = toArray(doc.querySelectorAll('[data-pager-item]'));
+  const pagerTiles = toArray(doc.querySelectorAll('[data-scene-pager]'));
+  const readout = doc.querySelector('[data-pager-readout]');
+  const controls = doc.querySelector('[data-pager-controls]');
+  let pagerIndex = 0;
   let index = -1;
 
-  function paintSelection(): void {
+  // Pager selection must not focus the hidden desktop grid.
+  function paintPager(next: number, speak = true): void {
+    pagerIndex = ((next % pagerItems.length) + pagerItems.length) % pagerItems.length;
+    for (const [position, item] of pagerItems.entries()) {
+      if (position === pagerIndex) item.removeAttribute?.('hidden');
+      else item.setAttribute?.('hidden', '');
+      pagerTiles[position]?.setAttribute?.(
+        'aria-current',
+        position === pagerIndex ? 'true' : 'false',
+      );
+    }
+    const tile = pagerTiles[pagerIndex];
+    const label = (attr(tile ?? null, 'data-scene-no') ?? '—') + ' of ' + pagerItems.length;
+    if (readout !== null) readout.textContent = label;
+    if (speak) {
+      index = pagerIndex < tiles.length ? pagerIndex : -1;
+      paintSelection(false);
+      if (announce !== null)
+        announce.textContent =
+          label +
+          '. ' +
+          (attr(tile ?? null, 'data-announce') ?? attr(tile ?? null, 'aria-label') ?? '');
+    }
+  }
+
+  function paintSelection(focus = true): void {
     for (const [position, tile] of tiles.entries()) {
       const selected = position === index;
       tile.setAttribute?.('tabindex', selected || (index === -1 && position === 0) ? '0' : '-1');
@@ -109,7 +139,7 @@ export function initSceneGrid(
       announce.textContent = tile === undefined ? '' : (attr(tile, 'data-announce') ?? '');
       if (tile !== undefined) announce.setAttribute?.('data-announced', 'true');
     }
-    tile?.focus?.();
+    if (focus) tile?.focus?.();
   }
 
   const enhancer: SceneGridEnhancer = {
@@ -118,6 +148,7 @@ export function initSceneGrid(
       if (tiles.length === 0) return;
       const wrapped = ((next % tiles.length) + tiles.length) % tiles.length;
       index = wrapped;
+      if (pagerItems.length > 0) paintPager(index, false);
       paintSelection();
     },
     clear(): void {
@@ -129,6 +160,15 @@ export function initSceneGrid(
   function onKeydown(event: GridEventLike): void {
     if (isTextField((doc.activeElement ?? null) as ActiveElementShape | null)) return;
     const active = event.target ?? doc.activeElement ?? null;
+    const pagerCurrent = active === null ? -1 : pagerTiles.indexOf(active);
+    if (pagerCurrent >= 0 || attr(active, 'data-pager-step') !== null) {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        event.preventDefault?.();
+        paintPager(pagerIndex + (event.key === 'ArrowRight' ? 1 : -1));
+        if (pagerCurrent >= 0) pagerTiles[pagerIndex]?.focus?.();
+      }
+      return;
+    }
     const current = active === null ? -1 : tiles.indexOf(active);
     if (current < 0) return;
 
@@ -171,6 +211,14 @@ export function initSceneGrid(
   }
 
   doc.addEventListener?.('keydown', onKeydown);
+  doc.addEventListener?.('click', (event) => {
+    const step = attr(event.target ?? null, 'data-pager-step');
+    if (step !== null) paintPager(pagerIndex + Number(step));
+  });
+  if (pagerItems.length > 0) {
+    paintPager(0, false);
+    controls?.removeAttribute?.('hidden');
+  }
   paintSelection();
   return enhancer;
 }

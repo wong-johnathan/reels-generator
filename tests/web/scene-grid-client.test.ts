@@ -5,7 +5,7 @@ import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { initSceneGrid } from '../../src/web/client/sceneGrid.js';
 import { renderSceneGrid } from '../../src/web/render/sceneGrid.js';
 import type { StoryboardView } from '../../src/web/scenes/model.js';
-import { FakeDocument } from './helpers/fake-dom.js';
+import { FakeDocument, type FakeElement } from './helpers/fake-dom.js';
 
 /**
  * S-12 keyboard behaviour (UI_SPEC §5 UC-07, §8.4 AX-02, UI_SPEC §6.7).
@@ -52,6 +52,30 @@ function setup(board: StoryboardView = firstThree, columns = 6) {
 }
 
 describe('selection (UC-07, AX-02)', () => {
+  it('pages forward/back with one visible scene, exact readout, and focus retained', () => {
+    const { doc } = setup();
+    let click: ((event: { key: string; target?: FakeElement | null }) => void) | undefined;
+    const listen = doc.addEventListener.bind(doc);
+    doc.addEventListener = (type, handler) => {
+      if (type === 'click') click = handler;
+      else listen(type, handler);
+    };
+    initSceneGrid(doc);
+    const next = doc.querySelector('[data-pager-step="1"]');
+    const prev = doc.querySelector('[data-pager-step="-1"]');
+    next?.focus();
+    click?.({ key: '', target: next });
+    click?.({ key: '', target: next });
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S03 of 17');
+    expect(doc.querySelector('[data-grid-announce]')?.textContent).toContain('S03 of 17');
+    const items = doc.querySelectorAll('[data-pager-item]');
+    expect(items.filter((item) => item.getAttribute('hidden') === null)).toHaveLength(1);
+    expect(items[2]?.getAttribute('hidden')).toBeNull();
+    expect(doc.activeElement).toBe(next);
+    click?.({ key: '', target: prev });
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S02 of 17');
+  });
+
   it('starts with no selection and one tab stop', () => {
     const { enhancer, tiles, doc } = setup();
     expect(enhancer).not.toBeNull();
@@ -97,6 +121,22 @@ describe('selection (UC-07, AX-02)', () => {
 });
 
 describe('keyboard (j/k, arrows, r, Esc)', () => {
+  it('pages through pending scenes, wraps, and never replaces from reading surfaces', () => {
+    const { doc, navigations } = setup({ ...firstThree, scenes: firstThree.scenes.slice(0, 3) });
+    const pager = doc.querySelectorAll('[data-scene-pager]');
+    const next = doc.querySelector('[data-pager-step="1"]');
+    expect(pager).toHaveLength(17);
+    next?.focus();
+    for (let step = 0; step < 16; step += 1) doc.press('ArrowRight', next);
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S17 of 17');
+    expect(doc.activeElement).toBe(next);
+    doc.press('ArrowRight', next);
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S01 of 17');
+    doc.press('r', pager[0] ?? null);
+    doc.press('r', doc.querySelector('[data-scene-list]'));
+    expect(navigations).toEqual([]);
+  });
+
   it('moves with j and k, selection following focus', () => {
     const { doc, tiles, enhancer } = setup();
     tiles[0]?.focus();
