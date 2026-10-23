@@ -793,3 +793,83 @@ textarea.series-control {
     padding: var(--s-6);
   }
 }
+
+/* ── S-06 batch detail ──────────────────────────────────────────────────── */
+
+.batch-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-subject a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-width-note {
+  display: none;
+}
+
+.batch-regenerate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--target-gap);
+  margin-bottom: var(--s-6);
+}
+
+.batch-regenerate p {
+  margin: 0;
+}
+
+.batch-regenerate .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+  white-space: normal;
+  line-height: var(--lh-30);
+}
+
+.batch-video {
+  margin-bottom: var(--s-6);
+  padding: var(--s-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-panel);
+}
+
+.batch-video-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--target-gap);
+}
+
+.batch-video-head .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-failure {
+  margin-top: var(--s-5);
+  padding: var(--s-5);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--r-2);
+  background: var(--surface-danger-tint);
+}
+
+.batch-subject a:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 767px) {
+  .batch-regenerate {
+    display: none;
+  }
+
+  .batch-width-note {
+    display: block;
+  }
+}

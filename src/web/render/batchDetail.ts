@@ -34,6 +34,15 @@ function failureBlock(video: BatchVideoDetail): string {
     '<section class="batch-failure" role="alert">' +
     `<h4>Stage ${escapeHtml(failure.stage)} failed — ${escapeHtml(attempt + kind)}</h4>` +
     `<p class="mono">${escapeHtml(message)}</p>` +
+    `<p>Class: ${escapeHtml(failure.errorClass ?? 'not recorded')} · Attempts used: ${failure.attemptNo}</p>` +
+    (failure.chargeStatus === 'unknown' ? '<p>unknown charge</p>' : '') +
+    '<p><strong>What survived:</strong> ' +
+    (video.topic === null ? 'No topic recorded' : 'Topic retained') +
+    (video.script === null ? '; no script recorded' : '; script retained') +
+    `; ${video.sceneCount} scene records retained.</p>` +
+    '<p>Scene records do not confirm successful images or narration.</p>' +
+    '<p>Retry requeues only failed jobs and keeps everything already generated.</p>' +
+    '<p>Next action: use Regenerate failed videos at 768 px or wider.</p>' +
     '</section>'
   );
 }
@@ -154,6 +163,7 @@ export function renderBatchDetail(input: {
     `started ${escapeHtml(describeAge(input.now.getTime(), batch.createdAt).text)}</p>` +
     `</header>` +
     notice +
+    '<p class="batch-width-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>' +
     regenerate +
     batch.videos.map(videoCard).join('') +
     (batch.videos.length === 0 ? '<p class="muted">This batch has no videos.</p>' : '') +
