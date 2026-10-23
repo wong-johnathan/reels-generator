@@ -65,13 +65,46 @@ describe('batch detail page', () => {
         'Retry requeues only failed jobs and keeps everything already generated.',
       );
       expect(html).toContain('Next action: use Regenerate failed videos at 768 px or wider.');
-      expect(html.includes('unknown charge')).toBe(chargeStatus === 'unknown');
+      expect(html).toContain('<p>unknown charge</p>');
       expect(html).not.toContain('unbilled');
       expect(html).toContain(
         'Approvals need a screen 1024 px or wider. This view is monitoring only.',
       );
     },
   );
+
+  it.each([
+    { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: 'unknown', unknown: true },
+    {
+      attemptStatus: 'unknown_charge',
+      runStatus: 'failed',
+      chargeStatus: 'pending',
+      unknown: true,
+    },
+    { attemptStatus: 'failed', runStatus: 'timed_out', chargeStatus: null, unknown: true },
+    { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: 'billed', unknown: false },
+    { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: 'unbilled', unknown: false },
+    { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: 'pending', unknown: false },
+    { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: null, unknown: false },
+    { attemptStatus: 'succeeded', runStatus: 'succeeded', chargeStatus: 'billed', unknown: false },
+  ] as const)('discloses only surfaced billing evidence: %j', (facts) => {
+    const failure = Object.freeze({
+      stage: 'IM' as const,
+      attemptNo: 2,
+      attemptStatus: facts.attemptStatus,
+      runStatus: facts.runStatus,
+      chargeStatus: facts.chargeStatus,
+      errorClass: 'non_retryable' as const,
+      // Text alone must never imply billing, even if it mentions a timeout.
+      message: 'Provider request timed out.',
+      at: NOW.toISOString(),
+    });
+    const html = renderBatchDetail({ now: NOW, batch: batch([video({ failure })]) });
+    expect(html.includes('<p>unknown charge</p>')).toBe(facts.unknown);
+    expect(html).not.toContain('unbilled');
+    expect(html).not.toContain('free');
+    expect(failure.chargeStatus).toBe(facts.chargeStatus);
+  });
 
   it('defines JS-independent monitoring gates and batch-only target sizes', () => {
     const css = readFileSync('src/web/styles/series.css', 'utf8').split(

@@ -35,7 +35,11 @@ function failureBlock(video: BatchVideoDetail): string {
     `<h4>Stage ${escapeHtml(failure.stage)} failed — ${escapeHtml(attempt + kind)}</h4>` +
     `<p class="mono">${escapeHtml(message)}</p>` +
     `<p>Class: ${escapeHtml(failure.errorClass ?? 'not recorded')} · Attempts used: ${failure.attemptNo}</p>` +
-    (failure.chargeStatus === 'unknown' ? '<p>unknown charge</p>' : '') +
+    (failure.chargeStatus === 'unknown' ||
+    failure.attemptStatus === 'unknown_charge' ||
+    failure.runStatus === 'timed_out'
+      ? '<p>unknown charge</p>'
+      : '') +
     '<p><strong>What survived:</strong> ' +
     (video.topic === null ? 'No topic recorded' : 'Topic retained') +
     (video.script === null ? '; no script recorded' : '; script retained') +
