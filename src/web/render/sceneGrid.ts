@@ -142,7 +142,7 @@ function renderTile(
   const attrs = [
     'class="scene-tile"',
     surface === 'grid' ? 'data-scene-tile' : 'data-scene-' + surface,
-    'data-scene-no="' + escapeAttr(tile.no) + '"',
+    (surface === 'grid' ? 'data-scene-no' : 'data-scene-label') + '="' + escapeAttr(tile.no) + '"',
     'data-state="' + escapeAttr(tile.state) + '"',
     'data-announce="' + escapeAttr(tile.announce) + '"',
     ...(tile.blockedByCheckpoint ? ['data-blocked="checkpoint"'] : []),
@@ -198,7 +198,9 @@ function renderPendingTile(
     '>' +
     '<div class="scene-tile scene-tile-pending" data-scene-pending="' +
     escapeAttr(no) +
-    '" data-scene-no="' +
+    '" ' +
+    (surface === 'grid' ? 'data-scene-no' : 'data-scene-label') +
+    '="' +
     no +
     '" aria-label="Scene ' +
     position +

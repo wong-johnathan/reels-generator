@@ -187,6 +187,9 @@ describe('tiles (UC-08)', () => {
 describe('selection bar (UC-07, UC-10)', () => {
   it('renders read-only pager and list from the same scene facts (AX-15/22)', () => {
     const root = render({ storyboard });
+    expect(
+      byTag(root, 'a').filter((node) => node.attrs['data-scene-no'] !== undefined),
+    ).toHaveLength(17);
     for (const surface of ['scene-pager', 'scene-list']) {
       const region = byTag(root, surface === 'scene-pager' ? 'section' : 'ul').find(
         (node) => node.attrs['class'] === surface,

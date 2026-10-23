@@ -98,7 +98,7 @@ export function initSceneGrid(
       );
     }
     const tile = pagerTiles[pagerIndex];
-    const label = (attr(tile ?? null, 'data-scene-no') ?? '—') + ' of ' + pagerItems.length;
+    const label = (attr(tile ?? null, 'data-scene-label') ?? '—') + ' of ' + pagerItems.length;
     if (readout !== null) readout.textContent = label;
     if (speak) {
       index = pagerIndex < tiles.length ? pagerIndex : -1;
