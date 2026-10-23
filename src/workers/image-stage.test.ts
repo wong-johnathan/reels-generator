@@ -34,6 +34,7 @@ import {
 } from '../../tests/helpers/pg.js';
 import { seedProject, type SeededProject } from '../../tests/helpers/fixtures.js';
 import {
+  buildImageRequest,
   FIRST_THREE_CHECKPOINT_SCENES,
   ImageStagePreconditionError,
   planImageStage,
@@ -194,6 +195,21 @@ function fullPlan(sceneCount: number, generatedFirst: number, reviewed: boolean,
     checkpointReviewed: reviewed,
   });
 }
+
+describe('buildImageRequest art-direction binding', () => {
+  it('turns the configured comic preset into a mandatory non-photorealistic image instruction', () => {
+    const request = buildImageRequest(
+      plannerScene(1, null, 'A person at a doorway'),
+      { images: [], rights: [], digest: 'empty' },
+      '1K',
+      false,
+      { preset: 'comic' },
+    );
+    expect(request.prompt).toContain('comic');
+    expect(request.prompt).toContain('2D illustration');
+    expect(request.prompt).toContain('not photorealistic');
+  });
+});
 
 describe('planImageStage (PRD 10 first-three checkpoint)', () => {
   it('refuses scenes 4+ while the checkpoint is open', () => {
