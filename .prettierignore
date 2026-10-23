@@ -3,3 +3,7 @@ dist/
 coverage/
 package-lock.json
 contract/openapi.yaml
+PRD.md
+TECH_DESIGN.md
+UX_SPEC.md
+UI_SPEC.md
