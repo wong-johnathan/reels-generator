@@ -72,6 +72,7 @@ import { loadSeriesRows, type SeriesEditorModel } from './series/model.js';
 import { APP_CSS } from './styles/embedded.js';
 import type { VideoGateway } from './workspace/gateway.js';
 import type { VideoDownloadFile, VideoDownloadGateway } from './download/gateway.js';
+import { ASSET_VARIANTS, type AssetProxyGateway, type AssetVariant } from './assets/proxy.js';
 import { StageCodeSchema, UuidSchema } from '../../contract/api.js';
 import type { StageCode } from '../shared/stages.js';
 import type { OpsGateway, ProviderSettingsView } from './health/gateway.js';
@@ -156,6 +157,8 @@ export interface WebAppDependencies {
   readonly exportPackage?: ExportGateway;
   /** S-15 final-video download. Absent builds answer 503 rather than inventing bytes. */
   readonly download?: VideoDownloadGateway;
+  /** Authenticated image/audio/video bytes from the configured object store. */
+  readonly assetProxy?: AssetProxyGateway;
   /** S-19/S-21 health, provider settings and attempt rows. Absent builds answer 503. */
   readonly ops?: OpsGateway;
   readonly assets?: {
@@ -409,6 +412,47 @@ export function createWebApp(
       return source === null
         ? json(404, 'not_found', 'No shared module ' + shared)
         : { status: 200, headers: { ...JS_HEADERS }, body: source };
+    }
+
+    const assetMatch = /^\/asset\/([^/]+)\/(thumb|detail|full)$/.exec(pathname);
+    if (assetMatch !== null) {
+      if (effective !== 'GET') return methodNotAllowed('GET, HEAD');
+      let assetId: string;
+      try {
+        assetId = decodeURIComponent(assetMatch[1]!);
+      } catch {
+        return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      }
+      if (!UuidSchema.safeParse(assetId).success) {
+        return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      }
+      const assetProxy = deps.assetProxy;
+      if (assetProxy === undefined) {
+        return json(503, 'not_ready', 'Asset delivery is not mounted (no object store bound)');
+      }
+      const variant = assetMatch[2] as AssetVariant;
+      if (!ASSET_VARIANTS.includes(variant)) {
+        return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      }
+      let file;
+      try {
+        file = await assetProxy.get(assetId, variant);
+      } catch {
+        return json(503, 'not_ready', 'The asset could not be read from storage');
+      }
+      if (file === null) return html(renderNotFoundPage({ variant: 'not_found' }), 404);
+      return {
+        status: 200,
+        headers: {
+          'content-type': file.mimeType,
+          'content-length': String(file.bytes.byteLength),
+          'cache-control': 'private, max-age=3600',
+          etag: file.etag,
+          'x-content-type-options': 'nosniff',
+        },
+        body: '',
+        bodyBytes: file.bytes,
+      };
     }
 
     if (pathname === LOGIN_PATH) {
