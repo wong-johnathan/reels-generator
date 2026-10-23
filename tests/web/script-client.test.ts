@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   HealthReportSchema,
@@ -21,6 +21,7 @@ import {
 import { renderScriptReview } from '../../src/web/render/scriptReview.js';
 import { renderShell, buildShellModel } from '../../src/web/render/shell.js';
 import { renderWorkspace } from '../../src/web/render/workspace.js';
+import { C07_FAILED, COMPUTING, NO_ASSETS, NO_CHANGES } from '../../src/web/script/impact.js';
 import type { VideoDetail } from '../../src/web/workspace/model.js';
 import { FakeDocument } from './helpers/fake-dom.js';
 
@@ -160,6 +161,7 @@ interface Setup {
   readonly api: FakeApi;
   readonly enhancer: NonNullable<ReturnType<typeof initScriptReview>>;
   readonly scheduled: Array<() => void>;
+  readonly input: () => void;
 }
 
 function setup(detail: VideoDetail = BLOCKED_GATE, script = DRAFT): Setup {
@@ -167,6 +169,14 @@ function setup(detail: VideoDetail = BLOCKED_GATE, script = DRAFT): Setup {
   doc.addRoot(page(detail, script));
   const api = new FakeApi();
   const scheduled: Array<() => void> = [];
+  const listeners: Record<string, Array<() => void>> = {};
+  const form = doc.querySelector('[data-script-form]');
+  if (form === null) throw new Error('no script form');
+  Object.assign(form, {
+    addEventListener: (event: string, handler: () => void) => {
+      (listeners[event] ??= []).push(handler);
+    },
+  });
   const enhancer = initScriptReview(doc, {
     api,
     schedule: (run) => scheduled.push(run),
@@ -175,7 +185,13 @@ function setup(detail: VideoDetail = BLOCKED_GATE, script = DRAFT): Setup {
     },
   });
   if (enhancer === null) throw new Error('enhancer did not initialise');
-  return { doc, api, enhancer, scheduled };
+  return {
+    doc,
+    api,
+    enhancer,
+    scheduled,
+    input: () => listeners['input']?.forEach((run) => run()),
+  };
 }
 
 function type(doc: FakeDocument, field: string, value: string): void {
@@ -194,6 +210,94 @@ function attr(doc: FakeDocument, selector: string, name: string): string | undef
 }
 
 describe('IP-01 preview — the server computes, the panel states', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const summary = '[data-monitor-text-for="script-impact-message"]';
+  const emptyPreview = InvalidationPreviewSchema.parse({
+    ...PREVIEW,
+    invalidated: [],
+    survives: [],
+    calls: { image: 0, tts: 0, text: 0, render_passes: 0 },
+  });
+
+  it.each([
+    {
+      name: 'ready changes',
+      result: { kind: 'ok', preview: PREVIEW },
+      expected: 'Script rev 5 → rev 6 · wording only',
+    },
+    {
+      name: 'ready without assets',
+      result: { kind: 'ok', preview: emptyPreview },
+      expected: NO_ASSETS,
+    },
+    {
+      name: 'ready without edits',
+      result: { kind: 'ok', preview: { ...PREVIEW, edits: [] } },
+      expected: '4 stale',
+    },
+    { name: 'failed', result: { kind: 'failed' }, expected: C07_FAILED },
+    {
+      name: 'conflict',
+      result: { kind: 'conflict', conflict: { current_revision: 6, your_revision: 5 } },
+      expected: C07_FAILED,
+    },
+  ] satisfies Array<{ name: string; result: PreviewResult; expected: string }>)(
+    'synchronizes monitoring after a delayed $name preview without another DOM event',
+    async ({ result, expected }) => {
+      let resize!: () => void;
+      vi.stubGlobal('addEventListener', (event: string, handler: () => void) => {
+        if (event === 'resize') resize = handler;
+      });
+      const { doc, api, scheduled, input, enhancer } = setup();
+      let resolve!: (result: PreviewResult) => void;
+      api.preview = () =>
+        new Promise<PreviewResult>((done) => {
+          resolve = done;
+        });
+      expect(text(doc, summary)).toBe(NO_CHANGES);
+      type(doc, 'script', 'An unsaved opening.');
+      input();
+      // Desktop -> monitoring resize while the debounced preview is pending.
+      resize();
+      expect(text(doc, summary)).toBe(COMPUTING);
+      expect(scheduled).toHaveLength(1);
+      scheduled[0]!();
+      expect(text(doc, summary)).toBe(COMPUTING);
+      resolve(result);
+      await Promise.resolve();
+      expect(text(doc, summary)).toBe(expected);
+      expect(attr(doc, '[data-impact-message]', 'hidden')).toBe(
+        result.kind === 'ok' && result.preview !== emptyPreview ? '' : undefined,
+      );
+      if (result.kind === 'conflict') expect(enhancer.state().conflict).toEqual(result.conflict);
+    },
+  );
+
+  it('resynchronizes programmatic conflict loads, including readonly field copies', async () => {
+    const { doc, api, enhancer, input } = setup();
+    api.previewResults = [
+      { kind: 'conflict', conflict: { current_revision: 6, your_revision: 5 } },
+    ];
+    type(doc, 'script', 'Unsaved conflict text.');
+    input();
+    await enhancer.preview();
+    expect(text(doc, summary)).toBe(C07_FAILED);
+    await enhancer.conflictLoad();
+    expect(text(doc, summary)).toBe(NO_CHANGES);
+    expect(doc.querySelector('[data-monitor-for="script-body"]')?.value).toBe(DRAFT.content.script);
+  });
+
+  it('clears the summary before the save reload callback', async () => {
+    const { doc, enhancer, api, input } = setup();
+    type(doc, 'script', 'An edit to save.');
+    input();
+    await enhancer.preview();
+    expect(text(doc, summary)).toBe('Script rev 5 → rev 6 · wording only');
+    await enhancer.apply('edit');
+    expect(api.reloads).toBe(1);
+    expect(text(doc, summary)).toBe(NO_CHANGES);
+  });
+
   it('marks the revision unsaved and disables both commits while computing', async () => {
     const { doc, enhancer, scheduled, api } = setup();
     expect(attr(doc, '[data-script-dirty]', 'hidden')).toBeDefined();

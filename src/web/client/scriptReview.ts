@@ -234,7 +234,7 @@ export function initScriptReview(
   if (root === null) return null;
   const form = doc.querySelector(ELEMENT_IDS.form);
   if (form === null) return null;
-  initMonitoring(doc, form, 'script');
+  const syncMonitoring = initMonitoring(doc, form, 'script');
 
   const videoId =
     root.getAttribute?.('data-video-id') ?? form.getAttribute?.('data-video-id') ?? '';
@@ -288,7 +288,9 @@ export function initScriptReview(
 
     const message = node(ELEMENT_IDS.message);
     if (message !== null) {
-      message.textContent = view.message ?? '';
+      // Keep a truthful source for the collapsed monitoring summary even when
+      // the desktop panel displays the detailed changes instead of this node.
+      message.textContent = view.message ?? view.changes ?? view.chip;
       setHidden(message, view.message === null);
     }
 
@@ -357,6 +359,8 @@ export function initScriptReview(
     const regenerate = node(ELEMENT_IDS.regenerate);
     setDisabled(regenerate, !view.canRegenerate || busy);
     setHidden(regenerate, view.regenerateHidden);
+    // Also covers save and conflict-load renders without relying on DOM events.
+    syncMonitoring();
   }
 
   function renderConflict(next: Conflict | null): void {

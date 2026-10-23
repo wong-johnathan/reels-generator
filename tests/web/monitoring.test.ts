@@ -13,6 +13,23 @@ function node(attrs: Record<string, string> = {}, value?: string) {
 }
 
 describe('progressive monitoring synchronization', () => {
+  it('returns a sync hook for async source updates without input or resize', async () => {
+    const message = node();
+    message.textContent = 'computing impact';
+    const summary = node({ 'data-monitor-text-for': 'script-impact-message' });
+    const doc = {
+      querySelector: () => message,
+      querySelectorAll: (selector: string) =>
+        selector === '[data-monitor-text-for]' ? [summary] : [],
+    };
+    const sync = initMonitoring(doc, {}, 'script', {});
+    expect(summary.textContent).toBe('computing impact');
+    await Promise.resolve();
+    message.textContent = 'Script rev 5 → rev 6 · wording only';
+    sync();
+    expect(summary.textContent).toBe(message.textContent);
+  });
+
   it('reflects unsaved edits on resize and input without adding mutation hooks', () => {
     const source = node({}, 'server');
     const copy = node({ 'data-monitor-for': 'script-body' }, 'server');
