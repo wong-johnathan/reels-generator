@@ -22,15 +22,10 @@ npm-debug.log*
 backups/
 data/
 
-# ── Authoring artifacts of the design phase ──
-# The approved specs (PRD, TECH_DESIGN, LEAD_PLAN, …) live in the project
-# workspace that surrounds this repository; they are not application code and are
-# deliberately kept out of the app repo (see evidence/t_401214c5.md §repo scope).
-/PRD.md
+# ── Design-phase artifacts not published with the app ──
+# The core product and design specifications are tracked in this repository.
+# Supplemental gate, review, hash, mockup and tooling artifacts remain local.
 /BACKLOG.md
-/UX_SPEC.md
-/UI_SPEC.md
-/TECH_DESIGN.md
 /LEAD_PLAN.md
 /RULINGS.md
 /QUALIFICATION_RESULTS.md
