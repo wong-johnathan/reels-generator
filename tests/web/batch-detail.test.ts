@@ -85,6 +85,9 @@ describe('batch detail page', () => {
           failure: {
             stage: 'T',
             attemptNo: 1,
+            attemptStatus: 'failed',
+            chargeStatus: 'unbilled',
+            runStatus: 'failed',
             errorClass: 'non_retryable',
             message: 'deepseek answered HTTP 401: Authentication Fails',
             at: '2026-10-21T19:30:00.000Z',
@@ -122,6 +125,9 @@ describe('batch detail page', () => {
           failure: {
             stage: 'T',
             attemptNo: 1,
+            attemptStatus: 'failed',
+            chargeStatus: null,
+            runStatus: null,
             errorClass: 'transient',
             message: '<img src=x onerror=alert(1)>',
             at: '2026-10-21T19:30:00.000Z',

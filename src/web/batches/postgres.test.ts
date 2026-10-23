@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   createTestDatabase,
@@ -8,10 +8,12 @@ import {
 } from '../../../tests/helpers/pg.js';
 import { sha256For, insertAsset } from '../../../tests/helpers/web-gateway-seed.js';
 import { runMigrations } from '../../db/runner.js';
+import type { Queryable } from '../../db/client.js';
 import { createBatch } from '../../domain/batch.js';
 import { createSeriesGateway } from '../series/postgres.js';
 import {
   compareSeriesIndexEntries,
+  loadBatchDetail,
   loadBatchesForSeries,
   loadSeriesBatchIndex,
 } from './postgres.js';
@@ -27,6 +29,51 @@ const hasDatabase = testDatabaseUrl() !== null;
 if (!hasDatabase) console.warn(`[batch read-model postgres tests skipped] ${SKIP_REASON}`);
 
 const DB_TEST_TIMEOUT_MS = 120_000;
+
+describe('batch failure row mapping (not SQL execution)', () => {
+  it.each([
+    ['timed_out', 'unknown'],
+    ['unknown_charge', 'unknown'],
+    ['failed', 'billed'],
+    ['failed', 'unbilled'],
+    ['failed', 'pending'],
+    ['failed', null],
+  ])('preserves %s / %s without inferring billing', async (attemptStatus, chargeStatus) => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'batch', created_at: '2026-01-01' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'project' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            project_id: 'project',
+            stage: 'IM',
+            attempt_no: 2,
+            attempt_status: attemptStatus,
+            charge_status: chargeStatus,
+            run_status: chargeStatus === 'unknown' ? 'timed_out' : null,
+            error_class: 'transient',
+            error_message: 'provider failed',
+            finished_at: '2026-01-02',
+          },
+        ],
+      });
+    const detail = await loadBatchDetail({ query } as Queryable, 'batch');
+    expect(detail?.videos[0]?.failure).toEqual({
+      stage: 'IM',
+      attemptNo: 2,
+      attemptStatus,
+      chargeStatus,
+      runStatus: chargeStatus === 'unknown' ? 'timed_out' : null,
+      errorClass: 'transient',
+      message: 'provider failed',
+      at: '2026-01-02T00:00:00.000Z',
+    });
+  });
+});
 
 function profile(): Record<string, unknown> {
   return {
@@ -169,6 +216,66 @@ describe.skipIf(!hasDatabase)(
       expect(cherryEntry?.batchCount).toBe(0);
       expect(cherryEntry?.videoCount).toBe(0);
     });
+
+    it.each([
+      { attemptStatus: 'timed_out', runStatus: 'timed_out', chargeStatus: 'unknown' },
+      { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: 'unbilled' },
+      { attemptStatus: 'failed', runStatus: 'failed', chargeStatus: 'billed' },
+      { attemptStatus: 'unknown_charge', runStatus: 'unknown', chargeStatus: 'unknown' },
+      { attemptStatus: 'failed', runStatus: 'pending', chargeStatus: 'pending' },
+      { attemptStatus: 'failed', runStatus: null, chargeStatus: null },
+    ])(
+      'exposes failed-attempt facts without inventing billing: $attemptStatus/$chargeStatus',
+      async ({ attemptStatus, runStatus, chargeStatus }) => {
+        const series = await mkSeries('Failure facts');
+        const batch = await createBatch(db.pool, { seriesId: series.id });
+        const projectId = batch.projectIds[0]!;
+        const job = await db.pool.query<{ id: string }>(
+          `INSERT INTO job (project_id, stage, status) VALUES ($1, 'IM', 'failed') RETURNING id`,
+          [projectId],
+        );
+        const attempts = await db.pool.query<{ id: string; attempt_no: number }>(
+          `INSERT INTO job_attempt (job_id, attempt_no, status, error_class, error_message, finished_at)
+         VALUES ($1, 1, 'failed', 'transient', 'old error', '2026-01-01'),
+                ($1, 2, $2, 'transient', 'latest error', '2026-01-02')
+         RETURNING id, attempt_no`,
+          [job.rows[0]!.id, attemptStatus],
+        );
+        const oldAttempt = attempts.rows.find((row) => row.attempt_no === 1)!;
+        const failedAttempt = attempts.rows.find((row) => row.attempt_no === 2)!;
+        // Another attempt's charge must never be attached to the selected failure.
+        await db.pool.query(
+          `INSERT INTO generation_run (job_attempt_id, project_id, stage, prompt_hash, status, charge_status)
+         VALUES ($1, $2, 'IM', 'old', 'failed', 'billed')`,
+          [oldAttempt.id, projectId],
+        );
+        if (runStatus !== null) {
+          // IM can retain successful calls before the call that stops the attempt.
+          await db.pool.query(
+            `INSERT INTO generation_run (job_attempt_id, project_id, stage, prompt_hash, status, charge_status, created_at)
+           VALUES ($1, $2, 'IM', 'survived', 'succeeded', 'billed', '2026-01-01')`,
+            [failedAttempt.id, projectId],
+          );
+          await db.pool.query(
+            `INSERT INTO generation_run (job_attempt_id, project_id, stage, prompt_hash, status, charge_status, created_at)
+           VALUES ($1, $2, 'IM', 'failed-call', $3, $4, '2026-01-02')`,
+            [failedAttempt.id, projectId, runStatus, chargeStatus],
+          );
+        }
+        const detail = await loadBatchDetail(db.pool, batch.batchId);
+        expect(detail?.videos[0]?.failure).toEqual({
+          stage: 'IM',
+          attemptNo: 2,
+          attemptStatus,
+          chargeStatus,
+          runStatus,
+          errorClass: 'transient',
+          message: 'latest error',
+          at: '2026-01-02T00:00:00.000Z',
+        });
+        expect(detail?.videos[0]).toMatchObject({ topic: null, script: null, sceneCount: 0 });
+      },
+    );
 
     it('returns an empty index on an empty database', async () => {
       const fresh = await createTestDatabase();
