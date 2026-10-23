@@ -8,7 +8,14 @@
  * `series/commit.ts`, the same modules the server renderer uses.
  */
 import { commitState } from '../series/commit.js';
-import { changedFields, createReady, createSummary, type ChangedField } from '../series/fields.js';
+import {
+  changedFields,
+  createReady,
+  createSummary,
+  FIELDS,
+  type ChangedField,
+} from '../series/fields.js';
+import { initMonitoring } from './behaviours.js';
 
 export interface EditorEventLike {
   preventDefault(): void;
@@ -82,6 +89,7 @@ function setHidden(node: EditorElementLike | null, hidden: boolean): void {
 export function initSeriesEditor(doc: EditorDocumentLike): boolean {
   const form = doc.querySelector('[data-series-form]');
   if (form === null) return false;
+  initMonitoring(doc, form, 'series', undefined, FIELDS);
 
   const mode = form.getAttribute?.('data-mode') === 'create' ? 'create' : 'edit';
   const currentVersion = Number(form.getAttribute?.('data-current-version') ?? '0') || 0;

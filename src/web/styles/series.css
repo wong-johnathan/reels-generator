@@ -83,6 +83,31 @@
   font-size: var(--t-20);
 }
 
+.series-table-wrap {
+  /* Contain absolutely positioned sr-only labels inside the scrollport too. */
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.series-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.series-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
 .series-table {
   width: 100%;
   border-collapse: collapse;
@@ -228,6 +253,11 @@
 }
 
 /* ── S-04 editor ─────────────────────────────────────────────────────────── */
+
+.series-monitor,
+.series-width-note {
+  display: none;
+}
 
 .series-editor {
   display: block;
@@ -688,6 +718,17 @@ textarea.series-control {
 }
 
 @media (max-width: 767px) {
+  .series-form,
+  .series-commit .series-save,
+  .series-batch form {
+    display: none;
+  }
+
+  .series-monitor,
+  .series-width-note {
+    display: block;
+  }
+
   .batch-video-table {
     display: none;
   }

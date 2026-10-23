@@ -114,13 +114,14 @@ function renderTable(model: SeriesListModel, loading: boolean): string {
     : '<tbody>' + model.rows.map((row) => renderRow(row, model.now)).join('') + '</tbody>';
 
   return (
+    '<div class="series-table-wrap" role="region" aria-label="Series list" tabindex="0">' +
     '<table class="tbl series-table"' +
     (loading ? ' aria-busy="true"' : '') +
     '>' +
     caption +
     head +
     body +
-    '</table>'
+    '</table></div>'
   );
 }
 

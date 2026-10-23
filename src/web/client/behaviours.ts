@@ -150,3 +150,65 @@ export const FOCUSABLE_SELECTOR = [
   'textarea:not([disabled])',
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
+
+interface MonitorElement {
+  value?: string;
+  checked?: boolean;
+  textContent: string;
+  getAttribute?(name: string): string | null;
+}
+interface MonitorDocument {
+  querySelector(selector: string): MonitorElement | null;
+  querySelectorAll(selector: string): ArrayLike<MonitorElement>;
+}
+interface EventTargetLike {
+  addEventListener?(type: string, handler: () => void): void;
+}
+interface MonitorField {
+  readonly path: string;
+  readonly kind: string;
+  readonly options?: readonly { readonly value: string; readonly label: string }[];
+}
+
+/** Presentation only: CSS and server copies enforce the no-JS boundary.
+ * Resize also captures autofill/programmatic desktop changes before monitoring.
+ */
+export function initMonitoring(
+  doc: MonitorDocument,
+  form: EventTargetLike,
+  kind: 'script' | 'series',
+  viewport: EventTargetLike = globalThis as EventTargetLike,
+  specs: readonly MonitorField[] = [],
+): void {
+  const sync = (): void => {
+    const fields = Array.from(doc.querySelectorAll('[data-field]'));
+    for (const copy of Array.from(doc.querySelectorAll('[data-monitor-for]'))) {
+      const key = copy.getAttribute?.('data-monitor-for') ?? '';
+      if (kind === 'script') {
+        const source = doc.querySelector('#' + key);
+        if (source !== null) copy.value = source.value ?? '';
+        continue;
+      }
+      const field = specs.find((candidate) => candidate.path === key);
+      const source = fields.find(
+        (candidate) =>
+          candidate.getAttribute?.('data-field') === key &&
+          (field?.kind !== 'radio' || candidate.checked === true),
+      );
+      if (field === undefined || source === undefined) continue;
+      const value = source.value ?? '';
+      if (field.kind === 'checkbox') copy.textContent = source.checked === true ? 'Yes' : 'No';
+      else if (field.kind === 'select' || field.kind === 'radio')
+        copy.textContent = field.options?.find((option) => option.value === value)?.label ?? value;
+      else copy.value = value;
+    }
+    for (const copy of Array.from(doc.querySelectorAll('[data-monitor-text-for]'))) {
+      const source = doc.querySelector('#' + (copy.getAttribute?.('data-monitor-text-for') ?? ''));
+      if (source !== null) copy.textContent = source.textContent;
+    }
+  };
+  form.addEventListener?.('input', sync);
+  form.addEventListener?.('change', sync);
+  viewport.addEventListener?.('resize', sync);
+  sync();
+}

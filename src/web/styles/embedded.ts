@@ -659,6 +659,10 @@ export const shellCss = String.raw`/*
 }
 
 .degraded-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   font-size: var(--t-30);
   line-height: var(--lh-30);
 }
@@ -1241,6 +1245,31 @@ export const seriesCss = String.raw`/*
   font-size: var(--t-20);
 }
 
+.series-table-wrap {
+  /* Contain absolutely positioned sr-only labels inside the scrollport too. */
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.series-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.series-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
 .series-table {
   width: 100%;
   border-collapse: collapse;
@@ -1386,6 +1415,11 @@ export const seriesCss = String.raw`/*
 }
 
 /* ── S-04 editor ─────────────────────────────────────────────────────────── */
+
+.series-monitor,
+.series-width-note {
+  display: none;
+}
 
 .series-editor {
   display: block;
@@ -1846,6 +1880,17 @@ textarea.series-control {
 }
 
 @media (max-width: 767px) {
+  .series-form,
+  .series-commit .series-save,
+  .series-batch form {
+    display: none;
+  }
+
+  .series-monitor,
+  .series-width-note {
+    display: block;
+  }
+
   .batch-video-table {
     display: none;
   }
@@ -3231,6 +3276,12 @@ export const workspaceCss = String.raw`/*
   }
 }
 
+.script-monitor,
+.script-width-note,
+.script-impact-summary {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .script-budget-line {
     flex-direction: column;
@@ -3243,8 +3294,19 @@ export const workspaceCss = String.raw`/*
     padding: var(--s-3) var(--s-4);
   }
 
-  .script-approve {
-    margin-left: 0;
+  .script-field > textarea:not([readonly]),
+  .script-field > input,
+  #script-approve,
+  .script-conflict-actions,
+  .script-impact > .impact-body,
+  .script-impact > .impact-actions {
+    display: none;
+  }
+
+  .script-monitor,
+  .script-width-note,
+  .script-impact-summary {
+    display: block;
   }
 
   .claims-table td {

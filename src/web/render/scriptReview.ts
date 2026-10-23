@@ -86,6 +86,23 @@ function renderSchemaFailure(detail: VideoDetail): string {
   );
 }
 
+/** Unnamed copies cannot submit or participate in editable field hooks. */
+function monitoringField(id: string, label: string, value: string, rows = 3): string {
+  return (
+    '<textarea class="script-monitor" id="' +
+    id +
+    '-monitor" aria-label="' +
+    escapeAttr(label) +
+    '" data-monitor-for="' +
+    id +
+    '" rows="' +
+    rows +
+    '" readonly>' +
+    escapeHtml(value) +
+    '</textarea>'
+  );
+}
+
 function field(input: {
   readonly id: string;
   readonly name: string;
@@ -123,6 +140,7 @@ function field(input: {
     '>' +
     escapeHtml(input.value) +
     '</textarea>' +
+    monitoringField(input.id, input.label, input.value, input.rows) +
     hint +
     '</div>'
   );
@@ -150,6 +168,7 @@ function textField(input: {
     '" value="' +
     escapeAttr(input.value) +
     '">' +
+    monitoringField(input.id, input.label, input.value, 1) +
     '</div>'
   );
 }
@@ -304,6 +323,7 @@ function renderImpact(): string {
     '<h3 id="script-impact-heading">Change impact</h3>' +
     '<span class="impact-chip mono" data-impact-chip id="script-impact-chip">no changes</span>' +
     '</header>' +
+    '<p class="script-impact-summary"><a href="#script-status">Change impact summary</a>: <span data-monitor-text-for="script-impact-message">No unsaved changes</span></p>' +
     '<div class="impact-body">' +
     '<p class="impact-message" id="script-impact-message" data-impact-message>No unsaved changes</p>' +
     '<div class="impact-detail" data-impact-detail hidden>' +
@@ -351,6 +371,7 @@ export function renderScriptReview(input: ScriptReviewInput): string {
     '<div class="script-main">' +
     renderStatusBar(script) +
     renderBudget(script) +
+    '<p class="script-width-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>' +
     '<form class="script-form" id="script-editor" data-script-form data-video-id="' +
     escapeAttr(detail.id) +
     '" data-revision="' +

@@ -324,6 +324,10 @@
 }
 
 .degraded-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   font-size: var(--t-30);
   line-height: var(--lh-30);
 }

@@ -1,0 +1,2244 @@
+{
+  "browser": "153.0.8010.12",
+  "results": [
+    {
+      "javaScriptEnabled": false,
+      "surface": "shell",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "list",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 1176,
+        "scroll": 3252
+      }
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "script",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": ["script-body", "script-title", "script-description", "script-hashtags"],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "editor",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": true,
+          "disabled": false
+        }
+      ],
+      "editable": [
+        "field-name",
+        "field-niche-subject",
+        "field-script-style-example-script",
+        "field-target-duration-s",
+        "field-videos-per-batch",
+        "field-narration-language",
+        "field-voice-config-voice-id",
+        "field-art-style-preset",
+        "field-mode",
+        "field-mode-creative",
+        "field-niche-audience",
+        "field-niche-boundaries",
+        "field-niche-language",
+        "field-niche-location",
+        "field-niche-prohibited-topics",
+        "field-niche-preferred-sources",
+        "field-script-style-tone",
+        "field-script-style-structure",
+        "field-voice-config-speed",
+        "field-voice-config-style",
+        "field-art-style-palette",
+        "field-art-style-recurring-protagonist",
+        "field-default-aspect-ratio",
+        "field-image-resolution"
+      ],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "shell",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "list",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 920,
+        "scroll": 3252
+      }
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "script",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": ["script-body", "script-title", "script-description", "script-hashtags"],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "editor",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": true,
+          "disabled": false
+        }
+      ],
+      "editable": [
+        "field-name",
+        "field-niche-subject",
+        "field-script-style-example-script",
+        "field-target-duration-s",
+        "field-videos-per-batch",
+        "field-narration-language",
+        "field-voice-config-voice-id",
+        "field-art-style-preset",
+        "field-mode",
+        "field-mode-creative",
+        "field-niche-audience",
+        "field-niche-boundaries",
+        "field-niche-language",
+        "field-niche-location",
+        "field-niche-prohibited-topics",
+        "field-niche-preferred-sources",
+        "field-script-style-tone",
+        "field-script-style-structure",
+        "field-voice-config-speed",
+        "field-voice-config-style",
+        "field-art-style-palette",
+        "field-art-style-recurring-protagonist",
+        "field-default-aspect-ratio",
+        "field-image-resolution"
+      ],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "shell",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "list",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 744,
+        "scroll": 3252
+      }
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "script",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": ["script-body", "script-title", "script-description", "script-hashtags"],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "editor",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": true,
+          "disabled": false
+        }
+      ],
+      "editable": [
+        "field-name",
+        "field-niche-subject",
+        "field-script-style-example-script",
+        "field-target-duration-s",
+        "field-videos-per-batch",
+        "field-narration-language",
+        "field-voice-config-voice-id",
+        "field-art-style-preset",
+        "field-mode",
+        "field-mode-creative",
+        "field-niche-audience",
+        "field-niche-boundaries",
+        "field-niche-language",
+        "field-niche-location",
+        "field-niche-prohibited-topics",
+        "field-niche-preferred-sources",
+        "field-script-style-tone",
+        "field-script-style-structure",
+        "field-voice-config-speed",
+        "field-voice-config-style",
+        "field-art-style-palette",
+        "field-art-style-recurring-protagonist",
+        "field-default-aspect-ratio",
+        "field-image-resolution"
+      ],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "shell",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "list",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 448,
+        "scroll": 448
+      }
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "script",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": true,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "editor",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": false
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "shell",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "list",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 358,
+        "scroll": 358
+      }
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "script",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": true,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "editor",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": false
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "shell",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "list",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 288,
+        "scroll": 288
+      }
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "script",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": true,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": false,
+      "surface": "editor",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": false
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "shell",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "list",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 1176,
+        "scroll": 3252
+      }
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "script",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": ["script-body", "script-title", "script-description", "script-hashtags"],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "editor",
+      "width": 1440,
+      "pageWidth": 1440,
+      "viewport": 1440,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": true,
+          "disabled": false
+        }
+      ],
+      "editable": [
+        "field-name",
+        "field-niche-subject",
+        "field-script-style-example-script",
+        "field-target-duration-s",
+        "field-videos-per-batch",
+        "field-narration-language",
+        "field-voice-config-voice-id",
+        "field-art-style-preset",
+        "field-mode",
+        "field-mode-creative",
+        "field-niche-audience",
+        "field-niche-boundaries",
+        "field-niche-language",
+        "field-niche-location",
+        "field-niche-prohibited-topics",
+        "field-niche-preferred-sources",
+        "field-script-style-tone",
+        "field-script-style-structure",
+        "field-voice-config-speed",
+        "field-voice-config-style",
+        "field-art-style-palette",
+        "field-art-style-recurring-protagonist",
+        "field-default-aspect-ratio",
+        "field-image-resolution"
+      ],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "shell",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "list",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 920,
+        "scroll": 3252
+      }
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "script",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": ["script-body", "script-title", "script-description", "script-hashtags"],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "editor",
+      "width": 1024,
+      "pageWidth": 1024,
+      "viewport": 1024,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": true,
+          "disabled": false
+        }
+      ],
+      "editable": [
+        "field-name",
+        "field-niche-subject",
+        "field-script-style-example-script",
+        "field-target-duration-s",
+        "field-videos-per-batch",
+        "field-narration-language",
+        "field-voice-config-voice-id",
+        "field-art-style-preset",
+        "field-mode",
+        "field-mode-creative",
+        "field-niche-audience",
+        "field-niche-boundaries",
+        "field-niche-language",
+        "field-niche-location",
+        "field-niche-prohibited-topics",
+        "field-niche-preferred-sources",
+        "field-script-style-tone",
+        "field-script-style-structure",
+        "field-voice-config-speed",
+        "field-voice-config-style",
+        "field-art-style-palette",
+        "field-art-style-recurring-protagonist",
+        "field-default-aspect-ratio",
+        "field-image-resolution"
+      ],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "shell",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "list",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 744,
+        "scroll": 3252
+      }
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "script",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": ["script-body", "script-title", "script-description", "script-hashtags"],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "editor",
+      "width": 768,
+      "pageWidth": 768,
+      "viewport": 768,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": true,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": true,
+          "disabled": false
+        }
+      ],
+      "editable": [
+        "field-name",
+        "field-niche-subject",
+        "field-script-style-example-script",
+        "field-target-duration-s",
+        "field-videos-per-batch",
+        "field-narration-language",
+        "field-voice-config-voice-id",
+        "field-art-style-preset",
+        "field-mode",
+        "field-mode-creative",
+        "field-niche-audience",
+        "field-niche-boundaries",
+        "field-niche-language",
+        "field-niche-location",
+        "field-niche-prohibited-topics",
+        "field-niche-preferred-sources",
+        "field-script-style-tone",
+        "field-script-style-structure",
+        "field-voice-config-speed",
+        "field-voice-config-style",
+        "field-art-style-palette",
+        "field-art-style-recurring-protagonist",
+        "field-default-aspect-ratio",
+        "field-image-resolution"
+      ],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "shell",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "list",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 448,
+        "scroll": 448
+      }
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "script",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": true,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "editor",
+      "width": 480,
+      "pageWidth": 480,
+      "viewport": 480,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": false
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "shell",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "list",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 358,
+        "scroll": 358
+      }
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "script",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": true,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "editor",
+      "width": 390,
+      "pageWidth": 390,
+      "viewport": 390,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": false
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "shell",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "list",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": false,
+      "summary": false,
+      "region": {
+        "role": "region",
+        "label": "Series list",
+        "tabIndex": 0,
+        "width": 288,
+        "scroll": 288
+      }
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "script",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": true
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": null
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": true,
+      "region": null
+    },
+    {
+      "javaScriptEnabled": true,
+      "surface": "editor",
+      "width": 320,
+      "pageWidth": 320,
+      "viewport": 320,
+      "healthTarget": {
+        "width": 73,
+        "height": 24
+      },
+      "gates": [
+        {
+          "selector": "#script-approve",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-apply",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": "#script-regenerate",
+          "visible": false,
+          "disabled": null
+        },
+        {
+          "selector": ".series-save",
+          "visible": false,
+          "disabled": false
+        },
+        {
+          "selector": ".series-batch button",
+          "visible": false,
+          "disabled": false
+        }
+      ],
+      "editable": [],
+      "note": true,
+      "summary": false,
+      "region": null
+    }
+  ],
+  "resizeSync": "script and series passed"
+}

@@ -1,0 +1,340 @@
+
+> reels-generator@1.0.0 verify
+> npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build
+
+
+> reels-generator@1.0.0 lint
+> eslint .
+
+
+> reels-generator@1.0.0 format:check
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+
+> reels-generator@1.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> reels-generator@1.0.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/f-surfaces-followup
+
+stderr | src/adapters/image-qualification.test.ts
+[qualification DB tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/adapters/image-qualification.test.ts (10 tests | 1 skipped) 6068ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > records a pass for three scenes that preserve the same reference  702ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > is reproducible: two qualification runs produce the same per-scene image hashes  2161ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > records a failure when the reference drifts, and the gate refuses the adapter  1133ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > does not invent a visual pass for a provider with no automatic verifier  1166ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > records an operator verdict when one is supplied  857ms
+ ✓ src/adapters/fake-image.test.ts (10 tests) 6032ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > is byte-for-byte deterministic for the same request across instances  1044ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > honours the 2K size  1975ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > changes the image when the prompt changes but keeps the same reference marker  537ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > changes the reference marker when the reference set changes  461ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > stamps the canonical reference-set digest the qualifier verifies  386ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > reports drift when simulateReferenceDrift is on (so the qualifier can fail)  567ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > records each call in memory for assertions and debugging  593ms
+ ✓ src/auth/password.test.ts (5 tests) 490ms
+ ✓ src/render/render-half-proof.test.ts (1 test) 15540ms
+   ✓ fake-provider render half-proof > renders fake image + fake narration to a real 1080x1920 30fps H.264/AAC MP4  15533ms
+ ✓ tests/web/scene-grid-client.test.ts (13 tests) 579ms
+ ✓ tests/web/preview.test.ts (12 tests) 610ms
+   ✓ preview routes > serves the editor client module as browser ESM  343ms
+ ✓ tests/web/script-client.test.ts (10 tests) 1258ms
+ ✓ tests/web/workspace-client.test.ts (17 tests) 703ms
+ ✓ src/storage/s3-store.test.ts (9 tests) 321ms
+ ✓ tests/web/auth-preview.test.ts (9 tests) 564ms
+ ✓ tests/web/app-narration.test.ts (15 tests) 443ms
+ ✓ tests/web/app-scenes.test.ts (16 tests) 125ms
+ ✓ tests/web/series-editor.test.ts (26 tests) 247ms
+ ✓ src/adapters/image-bytes.test.ts (6 tests) 319ms
+   ✓ encodePng > writes a PNG signature and an IHDR the geometry parser reads back  304ms
+ ✓ tests/web/scene-grid-page.test.ts (20 tests) 416ms
+ ✓ contract/api.test.ts (5 tests) 95ms
+ ✓ tests/web/app-quality.test.ts (19 tests) 184ms
+ ✓ tests/web/workspace-page.test.ts (10 tests) 77ms
+ ✓ contract/mock/server.test.ts (8 tests) 81ms
+ ✓ src/worker/auto-approval-rail.test.ts (8 tests) 19ms
+ ✓ src/render/render.integration.test.ts (2 tests) 30531ms
+   ✓ render pipeline with real ffmpeg > renders a two-scene video and passes every R-010 assertion  30517ms
+ ✓ src/adapters/tts.test.ts (31 tests) 162ms
+ ✓ tests/web/scene-styles.test.ts (16 tests) 56ms
+ ✓ tests/web/workspace-styles.test.ts (17 tests) 41ms
+ ✓ tests/web/narration-page.test.ts (17 tests) 55ms
+ ✓ tests/web/stage-rail.test.ts (19 tests) 108ms
+ ✓ tests/web/app-series.test.ts (19 tests) 219ms
+ ✓ tests/web/app-ops.test.ts (21 tests) 352ms
+ ✓ tests/web/health-page.test.ts (14 tests) 75ms
+ ✓ tests/web/script-page.test.ts (10 tests) 127ms
+ ✓ tests/web/login-page.test.ts (20 tests) 61ms
+ ✓ tests/web/export-model.test.ts (20 tests) 23ms
+ ✓ src/adapters/research-deepseek.test.ts (17 tests) 72ms
+ ✓ src/domain/authoring.test.ts (36 tests) 117ms
+ ✓ tests/web/operations-a11y.test.ts (12 tests) 103ms
+ ✓ tests/web/shell.test.ts (36 tests) 72ms
+ ✓ tests/web/quality-model.test.ts (25 tests) 57ms
+ ✓ tests/web/narration-client.test.ts (6 tests) 55ms
+ ✓ tests/web/styles.test.ts (16 tests) 58ms
+ ✓ src/adapters/text.test.ts (19 tests) 80ms
+ ✓ tests/web/export-page.test.ts (23 tests) 98ms
+ ✓ tests/web/quality-page.test.ts (18 tests) 125ms
+ ✓ src/web/gateways/asset-view.test.ts (7 tests) 27ms
+ ✓ tests/web/script-model.test.ts (17 tests) 29ms
+ ✓ tests/compose.test.ts (20 tests) 49ms
+ ✓ tests/web/surface-followup.test.ts (6 tests) 123ms
+ ✓ tests/web/series-list.test.ts (13 tests) 81ms
+ ✓ tests/web/storyboard-page.test.ts (10 tests) 89ms
+ ✓ src/adapters/image.test.ts (22 tests) 110ms
+ ✓ tests/web/tokens.test.ts (85 tests) 57ms
+ ✓ tests/web/overview-page.test.ts (8 tests) 46ms
+ ✓ src/domain/script-generation.test.ts (26 tests) 31ms
+ ✓ src/adapters/fake-text.test.ts (11 tests) 48ms
+ ✓ tests/web/app-auth.test.ts (24 tests) 66ms
+ ✓ tests/web/workspace-events.test.ts (19 tests) 31ms
+ ✓ tests/web/series-commit.test.ts (14 tests) 42ms
+ ✓ src/workers/failure-classification.test.ts (12 tests) 47ms
+ ✓ src/web/middleware/auth.test.ts (16 tests) 69ms
+ ✓ src/storage/object-store.test.ts (7 tests) 17ms
+ ✓ tests/web/quality-styles.test.ts (9 tests) 76ms
+ ✓ tests/web/scene-detail-page.test.ts (14 tests) 58ms
+ ✓ src/web/quality/approval-safety.test.ts (6 tests) 44ms
+ ✓ src/domain/eight-gram.test.ts (15 tests) 35ms
+ ✓ src/render/captions.test.ts (24 tests) 47ms
+ ✓ tests/web/series-fields.test.ts (42 tests) 52ms
+ ✓ tests/web/operations-styles.test.ts (13 tests) 66ms
+ ✓ src/adapters/research.test.ts (20 tests) 90ms
+ ✓ src/adapters/text-schemas.test.ts (9 tests) 88ms
+ ✓ tests/web/client.test.ts (23 tests) 20ms
+ ✓ src/auth/tokens.test.ts (5 tests) 23ms
+ ✓ src/domain/validation.test.ts (15 tests) 90ms
+ ✓ src/auth/backoff.test.ts (4 tests) 13ms
+ ✓ src/domain/state-machine.test.ts (12 tests) 41ms
+ ✓ tests/web/batches-navigation.test.ts (8 tests) 58ms
+ ✓ tests/web/series-editor-client.test.ts (11 tests) 43ms
+ ✓ tests/shared.test.ts (8 tests) 14ms
+ ✓ src/security/log.test.ts (5 tests) 38ms
+ ✓ tests/web/settings-page.test.ts (8 tests) 39ms
+ ✓ src/render/qc.test.ts (17 tests) 52ms
+ ✓ src/domain/invalidation.test.ts (21 tests) 35ms
+ ✓ tests/web/script-styles.test.ts (7 tests) 32ms
+ ✓ tests/web/series-styles.test.ts (16 tests) 60ms
+ ✓ contract/openapi.test.ts (4 tests) 55ms
+ ✓ src/adapters/research-gemini.test.ts (7 tests) 40ms
+ ✓ src/render/ffmpeg.test.ts (9 tests) 23ms
+ ✓ src/worker/auto-approval.test.ts (11 tests) 34ms
+ ✓ src/adapters/rate-limit.test.ts (7 tests) 27ms
+ ✓ tests/web/health-model.test.ts (23 tests) 33ms
+ ✓ tests/web/batch-series-index.test.ts (5 tests) 9ms
+ ✓ tests/web/script-impact.test.ts (9 tests) 22ms
+ ✓ tests/web/embedded.test.ts (11 tests) 27ms
+ ✓ src/domain/word-timing.test.ts (14 tests) 24ms
+ ✓ tests/web/not-found-page.test.ts (6 tests) 17ms
+ ✓ src/export/package.test.ts (8 tests) 23ms
+ ✓ tests/web/app-download.test.ts (5 tests) 23ms
+ ✓ src/adapters/errors.test.ts (6 tests) 14ms
+ ✓ src/security/redact.test.ts (11 tests) 41ms
+ ✓ tests/web/narration-styles.test.ts (9 tests) 33ms
+ ✓ src/api/server.test.ts (7 tests) 18ms
+ ✓ tests/web/scenes-model.test.ts (24 tests) 34ms
+ ✓ src/render/plan.test.ts (11 tests) 23ms
+ ✓ src/config/env.test.ts (10 tests) 44ms
+ ✓ src/web/assets/route.test.ts (2 tests) 14ms
+ ✓ src/web/scenes/public-url.test.ts (2 tests) 31ms
+ ✓ src/domain/retry-scope.test.ts (8 tests) 12ms
+stderr | src/db/client.test.ts
+[transaction tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/db/client.test.ts (7 tests | 2 skipped) 29ms
+ ✓ tests/web/narration-model.test.ts (23 tests) 63ms
+ ✓ tests/web/auth-session.test.ts (14 tests) 30ms
+ ✓ src/boot/migrate-on-start.test.ts (4 tests) 18ms
+ ✓ src/api/web-mount.test.ts (10 tests) 34ms
+ ✓ src/render/graph.test.ts (16 tests) 16ms
+ ✓ tests/web/shell-client.test.ts (6 tests) 22ms
+ ✓ tests/web/batches-page.test.ts (5 tests) 16ms
+ ✓ tests/web/auth-styles.test.ts (9 tests) 42ms
+ ✓ src/worker/providers.test.ts (11 tests) 22ms
+ ✓ tests/web/auth-guard.test.ts (12 tests) 13ms
+ ✓ src/domain/drift-record.test.ts (5 tests) 11ms
+ ✓ src/cli/qualify-image.test.ts (3 tests) 6ms
+ ✓ src/adapters/research-fake.test.ts (7 tests) 46ms
+stderr | src/workers/text-stage.test.ts
+[SC wiring/ordering BLOCKED] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/workers/text-stage.test.ts (24 tests | 10 skipped) 14ms
+ ✓ src/workers/duration-repair.test.ts (11 tests) 25ms
+ ✓ src/web/scenes/approval-safety.test.ts (4 tests) 12ms
+stderr | src/workers/image-stage.test.ts
+[B-10 image stage tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/workers/image-stage.test.ts (18 tests | 10 skipped) 11ms
+ ✓ tests/web/batch-detail.test.ts (6 tests) 37ms
+ ✓ src/workers/queues.test.ts (11 tests) 32ms
+stderr | src/web/batches/postgres.test.ts
+[batch read-model postgres tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/web/batches/postgres.test.ts (7 tests | 4 skipped) 13ms
+ ✓ tests/env-template.test.ts (5 tests) 14ms
+ ✓ src/boot/validate-env.test.ts (6 tests) 21ms
+ ✓ tests/web/monitoring.test.ts (2 tests) 9ms
+ ✓ tests/web/login-client.test.ts (9 tests) 18ms
+ ✓ src/auth/cookies.test.ts (6 tests) 17ms
+ ✓ src/web/health/keys.test.ts (4 tests) 7ms
+stderr | src/workers/timing-stage.test.ts
+[B-11 timing stage tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/workers/timing-stage.test.ts (10 tests | 5 skipped) 17ms
+ ✓ src/web/assets/proxy.test.ts (2 tests) 10ms
+ ✓ tests/web/format.test.ts (3 tests) 8ms
+stderr | src/domain/scene-replace.test.ts
+[B-15 scene replace tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/domain/scene-replace.test.ts (9 tests | 6 skipped) 15ms
+stderr | src/workers/narration-stage.test.ts
+[B-11 narration stage tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/storage/object-key.test.ts (6 tests) 12ms
+ ✓ src/workers/narration-stage.test.ts (9 tests | 6 skipped) 7ms
+stderr | src/web/download/postgres.test.ts
+[download gateway tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+stderr | src/adapters/qualification.test.ts
+[qualification tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/adapters/qualification.test.ts (4 tests | 4 skipped)
+ ✓ src/web/download/postgres.test.ts (6 tests | 4 skipped) 23ms
+stderr | src/adapters/text-qualify.test.ts
+[text qualification tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/adapters/text-qualify.test.ts (6 tests | 6 skipped)
+stderr | src/adapters/tts-qualify.test.ts
+[tts qualification tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/adapters/tts-qualify.test.ts (2 tests | 2 skipped)
+stderr | src/auth/operator.test.ts
+[operator seeder tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/auth/operator.test.ts (6 tests | 6 skipped)
+stderr | src/api/auth-routes.test.ts
+[auth route tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/api/auth-routes.test.ts (11 tests | 11 skipped)
+stderr | src/api/series-routes.test.ts
+[series route tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/api/series-routes.test.ts (10 tests | 10 skipped)
+stderr | src/auth/service.test.ts
+[auth service tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/auth/service.test.ts (6 tests | 6 skipped)
+stderr | src/auth/sessions.test.ts
+[session store tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/auth/sessions.test.ts (5 tests | 5 skipped)
+stderr | src/db/runner.test.ts
+[schema tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/db/runner.test.ts (14 tests | 14 skipped)
+stderr | src/domain/batch.test.ts
+[batch tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/domain/batch.test.ts (7 tests | 7 skipped)
+stderr | src/domain/generation-run.test.ts
+[attempt-guard tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/domain/generation-run.test.ts (7 tests | 7 skipped)
+stderr | src/domain/regenerate.test.ts
+[regenerate tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/domain/regenerate.test.ts (5 tests | 5 skipped)
+stderr | src/domain/series.test.ts
+[series tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/domain/series.test.ts (14 tests | 14 skipped)
+stderr | src/export/stage.test.ts
+[B-12 export stage tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/export/stage.test.ts (6 tests | 6 skipped)
+stderr | src/render/qc-stage.test.ts
+[B-12 QC stage tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/render/qc-stage.test.ts (5 tests | 5 skipped)
+stderr | src/render/stage.test.ts
+[B-12 render stage tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/render/stage.test.ts (5 tests | 5 skipped)
+stderr | src/worker/loop.test.ts
+[worker loop tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/worker/loop.test.ts (5 tests | 5 skipped)
+stderr | src/worker/orchestrator-tc.test.ts
+[TC attempt-row regression skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/worker/orchestrator-tc.test.ts (1 test | 1 skipped)
+stderr | src/worker/pipeline.e2e.test.ts
+[pipeline e2e skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/worker/pipeline.e2e.test.ts (2 tests | 2 skipped)
+stderr | src/workers/attempt.test.ts
+[B-08 attempt tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/workers/attempt.test.ts (8 tests | 8 skipped)
+stderr | src/workers/reconciler.test.ts
+[B-08 reconciler tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/workers/reconciler.test.ts (7 tests | 7 skipped)
+stderr | tests/e2e/forced-kill.e2e.test.ts
+[QA e2e forced-kill skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ tests/e2e/forced-kill.e2e.test.ts (1 test | 1 skipped)
+stderr | src/db/repositories/provider-qualifications.test.ts
+[provider-qualification tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/db/repositories/provider-qualifications.test.ts (5 tests | 5 skipped)
+stderr | src/web/health/postgres.test.ts
+[ops gateway tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/health/postgres.test.ts (4 tests | 4 skipped)
+stderr | src/web/narration/postgres.test.ts
+[narration gateway tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/narration/postgres.test.ts (4 tests | 4 skipped)
+stderr | src/web/provenance/postgres.test.ts
+[export gateway tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/provenance/postgres.test.ts (4 tests | 4 skipped)
+stderr | src/web/quality/postgres.test.ts
+[render gateway tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/quality/postgres.test.ts (10 tests | 10 skipped)
+stderr | src/web/series/postgres.test.ts
+[series postgres tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/series/postgres.test.ts (6 tests | 6 skipped)
+stderr | src/web/scenes/postgres.test.ts
+[scene postgres adapter tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/scenes/postgres.test.ts (9 tests | 9 skipped)
+stderr | src/web/script/postgres.test.ts
+[script postgres adapter tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/script/postgres.test.ts (2 tests | 2 skipped)
+stderr | src/web/workspace/postgres.test.ts
+[workspace postgres tests skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ↓ src/web/workspace/postgres.test.ts (3 tests | 3 skipped)
+
+ Test Files  139 passed | 31 skipped (170)
+      Tests  1723 passed | 232 skipped (1955)
+   Start at  10:11:28
+   Duration  73.56s (transform 6.91s, setup 0ms, collect 61.32s, tests 70.21s, environment 67ms, prepare 31.00s)
+
+
+> reels-generator@1.0.0 build
+> tsc -p tsconfig.build.json

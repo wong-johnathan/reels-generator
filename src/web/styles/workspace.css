@@ -1316,6 +1316,12 @@
   }
 }
 
+.script-monitor,
+.script-width-note,
+.script-impact-summary {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .script-budget-line {
     flex-direction: column;
@@ -1328,8 +1334,19 @@
     padding: var(--s-3) var(--s-4);
   }
 
-  .script-approve {
-    margin-left: 0;
+  .script-field > textarea:not([readonly]),
+  .script-field > input,
+  #script-approve,
+  .script-conflict-actions,
+  .script-impact > .impact-body,
+  .script-impact > .impact-actions {
+    display: none;
+  }
+
+  .script-monitor,
+  .script-width-note,
+  .script-impact-summary {
+    display: block;
   }
 
   .claims-table td {
