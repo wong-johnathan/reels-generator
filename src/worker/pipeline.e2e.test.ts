@@ -1,7 +1,7 @@
 /**
  * End-to-end orchestration proof against a real Postgres (CI) and the fake
  * providers. No vendor credential is touched: text, image and TTS are the
- * deterministic fakes; only FFmpeg is real (when present on PATH).
+ * deterministic fakes; the FFmpeg boundary uses a deterministic stub by default.
  *
  * This is the "real database rows" half of the acceptance. The "real MP4" half
  * is `src/render/render-half-proof.test.ts` (local, no Postgres). Here the loop
@@ -10,15 +10,14 @@
  * project, jobs, the approved topic/script, 17 scenes, the narration/timing
  * assets, and the final video asset + its `asset_ref` link.
  *
- * When FFmpeg is absent (e.g. a bare pgvector CI image), the RE stage still
- * completes against a stub runner so the DB assertions hold; the real encode is
- * then exercised only by the local render-half proof.
+ * Set REELS_E2E_REAL_RENDER=1 to opt into a full real encode explicitly. Host PATH
+ * never selects the runner: real-media coverage belongs to the render-half proof,
+ * independently of this database/orchestration gate.
  */
-import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   createTestDatabase,
@@ -50,8 +49,6 @@ import {
 const hasDatabase = testDatabaseUrl() !== null;
 if (!hasDatabase) console.warn(`[pipeline e2e skipped] ${SKIP_REASON}`);
 
-const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
-
 /** Writes a non-trivial output file so the RE stage can store a video asset. */
 const stubRunner: FfmpegRunner = {
   run: async (_args, options) => {
@@ -68,6 +65,25 @@ const stubRunner: FfmpegRunner = {
 
 const CONTENT_JOB_COUNT = 7; // T, RS, SC, SB, IM, NA, TC
 const RENDER_JOB_COUNT = 1; // RE
+
+function selectRunner(): FfmpegRunner {
+  return process.env['REELS_E2E_REAL_RENDER'] === '1' ? new ProcessFfmpegRunner() : stubRunner;
+}
+
+it('selects the stub unless real rendering is explicitly enabled, independent of PATH', () => {
+  try {
+    for (const path of [process.env['PATH'], '']) {
+      vi.stubEnv('PATH', path);
+      for (const value of [undefined, '0', 'true', '1']) {
+        vi.stubEnv('REELS_E2E_REAL_RENDER', value);
+        if (value === '1') expect(selectRunner()).toBeInstanceOf(ProcessFfmpegRunner);
+        else expect(selectRunner()).toBe(stubRunner);
+      }
+    }
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 
 describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 300_000 }, () => {
   let db: TestDatabase;
@@ -117,7 +133,7 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       qualification,
       contentBlobs: blobs.asset,
       renderBlobs: blobs.content,
-      runner: hasFfmpeg ? new ProcessFfmpegRunner() : stubRunner,
+      runner: selectRunner(),
       workerId: 'e2e-worker',
     };
 

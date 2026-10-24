@@ -1,0 +1,298 @@
+
+> reels-generator@1.0.0 verify
+> npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build
+
+
+> reels-generator@1.0.0 lint
+> eslint .
+
+
+> reels-generator@1.0.0 format:check
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+
+> reels-generator@1.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> reels-generator@1.0.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/f-up-db-seam
+
+ ✓ src/domain/authoring.test.ts (36 tests) 128ms
+(node:2259) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/workers/text-stage.test.ts (24 tests) 5056ms
+   ✓ SC worker wiring on disposable Postgres > frame → short middle → in-band repair persists exact endpoints/metadata and forwards every token ceiling  425ms
+   ✓ SC worker wiring on disposable Postgres > exhausts MAX_SCRIPT_QUERIES with 20-word middles without persisting, uploading or queuing SB  745ms
+   ✓ SC worker wiring on disposable Postgres > exhausts MAX_SCRIPT_QUERIES with 300-word middles without persisting, uploading or queuing SB  504ms
+   ✓ SC worker wiring on disposable Postgres > malformed narration never persists or advances and closes every opened run  352ms
+   ✓ SC worker wiring on disposable Postgres > repairs duplicate hooks even when in band, sanitizes dashes and preserves endpoint identity  378ms
+   ✓ SC worker wiring on disposable Postgres > orders SC repair/persistence → SB → storyboard approval before media work is queued  734ms
+ ✓ src/domain/scene-replace.test.ts (9 tests) 5155ms
+   ✓ scene replace (US-020, RULINGS L-2) > replacing scene 7 of 17 fires 1 image call, 0 TTS calls, and marks only the render stale  1533ms
+   ✓ scene replace (US-020, RULINGS L-2) > refuses a stale revision with a conflict and enqueues nothing (R-024)  416ms
+   ✓ scene replace (US-020, RULINGS L-2) > reopens a COMPLETE video when a replace makes the render stale (4.5)  1422ms
+ ✓ tests/web/app-series.test.ts (19 tests) 408ms
+ ✓ tests/web/series-fields.test.ts (42 tests) 140ms
+ ✓ tests/web/script-client.test.ts (17 tests) 5382ms
+   ✓ IP-01 preview — the server computes, the panel states > synchronizes monitoring after a delayed 'ready changes' preview without another DOM event  597ms
+   ✓ IP-01 preview — the server computes, the panel states > synchronizes monitoring after a delayed 'ready without assets' preview without another DOM event  339ms
+   ✓ IP-01 preview — the server computes, the panel states > synchronizes monitoring after a delayed 'ready without edits' preview without another DOM event  370ms
+   ✓ IP-01 preview — the server computes, the panel states > synchronizes monitoring after a delayed 'failed' preview without another DOM event  310ms
+   ✓ IP-01 preview — the server computes, the panel states > resynchronizes programmatic conflict loads, including readonly field copies  358ms
+   ✓ IP-01 preview — the server computes, the panel states > clears the summary before the save reload callback  457ms
+   ✓ IP-01 preview — the server computes, the panel states > sends the edited content and renders the invalidated stages and call counts  355ms
+   ✓ IP-01 preview — the server computes, the panel states > collapses to the empty line again when the text returns to the saved revision  390ms
+   ✓ the two commits (IP-01, AX-04) > applies the edit without regeneration, then paints the stale rail and ribbon  363ms
+   ✓ the two commits (IP-01, AX-04) > applies and regenerates at the first invalidated stage only  544ms
+ ✓ src/adapters/image.test.ts (22 tests) 252ms
+ ✓ tests/web/series-editor.test.ts (26 tests) 803ms
+ ✓ src/adapters/tts.test.ts (31 tests) 208ms
+ ✓ tests/web/shell.test.ts (36 tests) 259ms
+ ✓ src/domain/series.test.ts (14 tests) 2816ms
+ ✓ src/workers/attempt.test.ts (8 tests) 4481ms
+   ✓ concurrent attempt claims (R-012-1, R-012-3) > a duplicate claim never reaches the provider and leaves the winner rows intact  1175ms
+ ✓ src/workers/image-stage.test.ts (18 tests) 29608ms
+   ✓ image stage (US-019) > generates scenes 1-3 only, with full provenance, and parks at the checkpoint  2382ms
+   ✓ image stage (US-019) > releases the remaining 14 scenes once the checkpoint is approved  9391ms
+   ✓ image stage (US-019) > does not honour an approval recorded before the images it claims to review  1679ms
+   ✓ image stage (US-019) > stores one asset per scene even when two prompts are identical (D-F)  2857ms
+   ✓ image stage (US-019) > retries a transient failure and never regenerates a persisted scene  1927ms
+   ✓ image stage (US-019) > generates all 17 scenes in one pass without a recurring protagonist  8509ms
+ ✓ tests/web/quality-model.test.ts (25 tests) 76ms
+(node:3167) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/workers/timing-stage.test.ts (10 tests) 3037ms
+   ✓ timing stage (US-022) > recalculates scene durations from the actual narration (R-009-3)  602ms
+   ✓ timing stage (US-022) > a duration miss returns the video to script/voice review and never time-stretches (R-009-4)  314ms
+ ✓ tests/web/workspace-client.test.ts (17 tests) 1147ms
+ ✓ src/api/series-routes.test.ts (10 tests) 3745ms
+ ✓ tests/web/quality-page.test.ts (18 tests) 269ms
+ ✓ src/db/runner.test.ts (14 tests) 2485ms
+   ✓ migration baseline M-001…M-006 (B-02 Signal + B-14 guards) > applies M-001…M-006 in order and creates exactly the 22 designed tables  849ms
+ ✓ tests/web/app-auth.test.ts (24 tests) 163ms
+ ✓ src/worker/pipeline.e2e.test.ts (3 tests) 15331ms
+   ✓ fake-provider pipeline end to end > takes a project from topic to a stored video asset through the loop  14152ms
+ ✓ tests/web/narration-page.test.ts (17 tests) 157ms
+ ✓ src/adapters/research-deepseek.test.ts (17 tests) 219ms
+ ✓ src/adapters/text.test.ts (19 tests) 494ms
+ ✓ tests/web/app-quality.test.ts (19 tests) 323ms
+ ✓ src/adapters/research.test.ts (20 tests) 51ms
+ ✓ src/workers/narration-stage.test.ts (9 tests) 1951ms
+ ✓ tests/compose.test.ts (20 tests) 195ms
+ ✓ tests/web/app-ops.test.ts (21 tests) 494ms
+ ✓ tests/web/scene-grid-page.test.ts (20 tests) 695ms
+ ✓ tests/web/narration-model.test.ts (23 tests) 63ms
+ ✓ src/export/stage.test.ts (6 tests) 3998ms
+   ✓ EX stage > builds the five-file package after final approval  904ms
+   ✓ EX stage > refuses to export without an FA approval (R-005-3)  372ms
+   ✓ EX stage > refuses a rejected final approval, not just a missing one  487ms
+   ✓ EX stage > refuses to export a render whose QC did not pass  305ms
+   ✓ EX stage > records no citation rows for a creative series (R-027-4)  376ms
+ ✓ tests/web/scenes-model.test.ts (24 tests) 126ms
+ ✓ tests/web/series-editor-client.test.ts (11 tests) 80ms
+ ✓ tests/web/script-page.test.ts (10 tests) 377ms
+ ✓ src/domain/generation-run.test.ts (7 tests) 5175ms
+ ✓ src/api/auth-routes.test.ts (11 tests) 4190ms
+   ✓ auth routes (R-015-2, R-015-3, R-015-4) > rejects a wrong password with a generic 401 and sets no cookie  497ms
+   ✓ auth routes (R-015-2, R-015-3, R-015-4) > passes an authenticated request through to the (not yet implemented) route  304ms
+   ✓ auth routes (R-015-2, R-015-3, R-015-4) > rejects a tampered or unknown session cookie  369ms
+   ✓ auth routes (R-015-2, R-015-3, R-015-4) > requires the CSRF token to log out, then destroys the session and clears the cookies  342ms
+(node:4619) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/web/scenes/postgres.test.ts (9 tests) 1782ms
+ ✓ tests/web/export-page.test.ts (23 tests) 138ms
+ ✓ tests/web/stage-rail.test.ts (19 tests) 336ms
+ ✓ tests/web/app-scenes.test.ts (16 tests) 280ms
+ ✓ src/render/qc.test.ts (17 tests) 176ms
+ ✓ tests/web/health-page.test.ts (14 tests) 130ms
+ ✓ tests/web/app-narration.test.ts (15 tests) 226ms
+ ✓ src/storage/s3-store.test.ts (9 tests) 618ms
+stdout | src/adapters/image-qualification.test.ts > PgImageQualificationStore (R-008-3 record) > writes the fake three-scene qualification row and closes the gate on drift
+[provider_qualification row] {"provider":"fake","adapter":"FakeImageAdapter","passed":true,"run_at":"2026-10-21T00:00:00.000Z","scene_count":3,"reference_sha256":"4f0b0f162af18a45f4e7e5711f20ed0ee8243dcd2eb8fc77c5ec38ba3abccbf4"}
+
+ ✓ tests/web/login-page.test.ts (20 tests) 291ms
+ ✓ src/adapters/image-qualification.test.ts (10 tests) 18234ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > records a pass for three scenes that preserve the same reference  1691ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > is reproducible: two qualification runs produce the same per-scene image hashes  4032ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > records a failure when the reference drifts, and the gate refuses the adapter  2757ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > does not invent a visual pass for a provider with no automatic verifier  2333ms
+   ✓ runImageQualification with the deterministic fake (B-06 Signal) > records an operator verdict when one is supplied  1903ms
+   ✓ PgImageQualificationStore (R-008-3 record) > writes the fake three-scene qualification row and closes the gate on drift  3834ms
+ ✓ tests/web/health-model.test.ts (23 tests) 62ms
+ ✓ src/render/captions.test.ts (24 tests) 89ms
+ ✓ tests/e2e/forced-kill.e2e.test.ts (1 test) 6292ms
+   ✓ QA e2e #1 — forced kill mid-call (US-013, R-012-3) > resumes with exactly 1 billable request and records unknown charge  5220ms
+ ✓ tests/web/tokens.test.ts (85 tests) 181ms
+ ✓ tests/web/workspace-page.test.ts (10 tests) 254ms
+ ✓ tests/web/script-model.test.ts (17 tests) 81ms
+ ✓ src/api/web-mount.test.ts (10 tests) 56ms
+ ✓ src/domain/validation.test.ts (15 tests) 91ms
+ ✓ src/workers/reconciler.test.ts (7 tests) 1876ms
+ ✓ src/domain/script-generation.test.ts (26 tests) 117ms
+ ✓ tests/web/export-model.test.ts (20 tests) 55ms
+ ✓ tests/web/workspace-styles.test.ts (17 tests) 148ms
+ ✓ src/domain/invalidation.test.ts (21 tests) 82ms
+ ✓ src/adapters/text-qualify.test.ts (6 tests) 1842ms
+ ✓ tests/web/scene-grid-client.test.ts (13 tests) 1708ms
+   ✓ selection (UC-07, AX-02) > pages forward/back with one visible scene, exact readout, and focus retained  592ms
+ ✓ src/security/redact.test.ts (11 tests) 664ms
+   ✓ export/log tree scan (TECH_DESIGN §8.4) > scans every file under a directory and reports the offending path  481ms
+ ✓ tests/web/batches-navigation.test.ts (8 tests) 38ms
+ ✓ src/workers/duration-repair.test.ts (11 tests) 60ms
+ ✓ src/web/quality/postgres.test.ts (10 tests) 2827ms
+ ✓ tests/web/operations-a11y.test.ts (12 tests) 342ms
+ ✓ src/render/qc-stage.test.ts (5 tests) 4062ms
+   ✓ QC stage > with automatic approval ON records FA only after a real QC pass and queues EX  726ms
+   ✓ QC stage > passes a conforming render, stores the report and opens the FA gate  304ms
+   ✓ QC stage > fails QC on a blank frame, parks the project and does not open the gate  800ms
+   ✓ QC stage > fails QC when caption ink leaves the safe area  313ms
+ ✓ tests/web/workspace-events.test.ts (19 tests) 70ms
+ ✓ tests/web/styles.test.ts (16 tests) 67ms
+ ✓ src/web/middleware/auth.test.ts (16 tests) 57ms
+ ✓ tests/web/overview-page.test.ts (8 tests) 108ms
+ ✓ tests/web/series-list.test.ts (13 tests) 88ms
+ ✓ src/web/workspace/postgres.test.ts (3 tests) 1624ms
+   ✓ Postgres VideoGateway (video.get workspace shell) > round-trips a seeded project into a schema-valid VideoDetail  671ms
+ ✓ src/render/stage.test.ts (5 tests) 2769ms
+   ✓ RE stage > renders, persists the deliverables and advances the project to QC  374ms
+   ✓ RE stage > re-running the stage reuses the content-addressed assets (R-026)  813ms
+ ✓ src/render/graph.test.ts (16 tests) 22ms
+ ✓ src/domain/word-timing.test.ts (14 tests) 86ms
+ ✓ src/domain/state-machine.test.ts (12 tests) 161ms
+ ✓ tests/web/client.test.ts (23 tests) 50ms
+ ✓ tests/web/narration-client.test.ts (6 tests) 114ms
+ ✓ src/adapters/fake-text.test.ts (11 tests) 86ms
+ ✓ src/web/health/postgres.test.ts (4 tests) 749ms
+ ✓ tests/web/scene-styles.test.ts (16 tests) 281ms
+ ✓ src/web/batches/postgres.test.ts (7 tests) 2374ms
+   ✓ Postgres batch read models (S-05) > returns an empty index on an empty database  804ms
+ ✓ src/domain/eight-gram.test.ts (15 tests) 121ms
+(node:6612) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ tests/web/series-commit.test.ts (14 tests) 100ms
+ ✓ src/adapters/fake-image.test.ts (10 tests) 7192ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > is byte-for-byte deterministic for the same request across instances  606ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > honours the 2K size  1611ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > changes the image when the prompt changes but keeps the same reference marker  1355ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > changes the reference marker when the reference set changes  1640ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > stamps the canonical reference-set digest the qualifier verifies  680ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > reports drift when simulateReferenceDrift is on (so the qualifier can fail)  563ms
+   ✓ FakeImageAdapter determinism (B-06 Signal) > never touches the network  380ms
+ ✓ tests/web/auth-preview.test.ts (9 tests) 1250ms
+   ✓ auth preview > serves the transpiled login module as browser ESM  324ms
+   ✓ S-14 narration preview (US-021, US-022) > serves the enhancer and its shared model  862ms
+ ✓ tests/web/series-styles.test.ts (16 tests) 256ms
+ ✓ src/worker/orchestrator-tc.test.ts (1 test) 14941ms
+   ✓ TC opens its attempt before the overshoot repair > repairs an over-band take when no job_attempt row pre-exists  14196ms
+ ✓ tests/web/scene-detail-page.test.ts (14 tests) 252ms
+ ✓ src/adapters/research-gemini.test.ts (7 tests) 319ms
+ ✓ src/web/series/postgres.test.ts (6 tests) 2433ms
+ ✓ src/web/provenance/postgres.test.ts (4 tests) 460ms
+ ✓ src/config/env.test.ts (10 tests) 24ms
+ ✓ src/auth/service.test.ts (6 tests) 1763ms
+ ✓ tests/web/script-impact.test.ts (9 tests) 10ms
+ ✓ tests/web/surface-followup.test.ts (6 tests) 456ms
+   ✓ AX-17 shell target > gives Open Health the 24px token floor in both dimensions  337ms
+ ✓ src/workers/queues.test.ts (11 tests) 20ms
+ ✓ src/render/plan.test.ts (11 tests) 49ms
+ ✓ tests/web/storyboard-page.test.ts (10 tests) 56ms
+ ✓ tests/web/login-client.test.ts (9 tests) 14ms
+ ✓ src/adapters/qualification.test.ts (4 tests) 458ms
+ ✓ tests/web/operations-styles.test.ts (13 tests) 350ms
+ ✓ src/domain/regenerate.test.ts (5 tests) 842ms
+ ✓ src/workers/failure-classification.test.ts (12 tests) 31ms
+ ✓ tests/web/preview.test.ts (12 tests) 976ms
+   ✓ preview routes > serves the editor client module as browser ESM  548ms
+   ✓ preview routes > serves the scene grid enhancer as browser ESM beside its behaviours import  312ms
+ ✓ src/web/script/postgres.test.ts (2 tests) 1333ms
+ ✓ src/domain/retry-scope.test.ts (8 tests) 24ms
+ ✓ src/export/package.test.ts (8 tests) 219ms
+ ✓ tests/web/settings-page.test.ts (8 tests) 34ms
+ ✓ src/web/download/postgres.test.ts (6 tests) 9507ms
+   ✓ Postgres VideoDownloadGateway > returns null when the project has no rendered video asset  2098ms
+   ✓ Postgres VideoDownloadGateway > resolves the newest RE video and reads its bytes with a slug-derived filename  4383ms
+ ✓ src/render/render-half-proof.test.ts (1 test) 22395ms
+   ✓ fake-provider render half-proof > renders fake image + fake narration to a real 1080x1920 30fps H.264/AAC MP4  22378ms
+ ✓ src/worker/providers.test.ts (11 tests) 137ms
+ ✓ src/adapters/text-schemas.test.ts (9 tests) 40ms
+ ✓ src/domain/batch.test.ts (7 tests) 3691ms
+   ✓ createBatch (R-019) > mints one batch, one project, 11 stage rows and the first job, atomically  304ms
+ ✓ src/auth/operator.test.ts (6 tests) 4094ms
+   ✓ operator seeding (R-015-1, R-015-3) > stores exactly one operator with a verifiable argon2id hash  368ms
+   ✓ operator seeding (R-015-1, R-015-3) > is idempotent and never rewrites the hash (no reset path, R-015-3)  845ms
+ ✓ tests/web/shell-client.test.ts (6 tests) 58ms
+ ✓ src/worker/auto-approval-rail.test.ts (8 tests) 70ms
+ ✓ tests/web/quality-styles.test.ts (9 tests) 89ms
+ ✓ tests/web/app-download.test.ts (5 tests) 99ms
+ ✓ src/db/repositories/provider-qualifications.test.ts (5 tests) 1467ms
+ ✓ src/adapters/research-fake.test.ts (7 tests) 140ms
+ ✓ tests/web/batch-detail.test.ts (6 tests) 139ms
+ ✓ contract/mock/server.test.ts (8 tests) 204ms
+ ✓ src/adapters/tts-qualify.test.ts (2 tests) 2183ms
+ ✓ src/auth/sessions.test.ts (5 tests) 2829ms
+ ✓ contract/api.test.ts (5 tests) 542ms
+   ✓ API contract > serves a fixture that validates against the declared response schema for every route  477ms
+ ✓ src/web/narration/postgres.test.ts (4 tests) 1885ms
+ ✓ src/security/log.test.ts (5 tests) 41ms
+ ✓ src/db/client.test.ts (7 tests) 2646ms
+ ✓ tests/web/auth-session.test.ts (14 tests) 40ms
+ ✓ src/boot/validate-env.test.ts (6 tests) 33ms
+ ✓ src/render/render.integration.test.ts (2 tests) 65430ms
+   ✓ render pipeline with real ffmpeg > renders a two-scene video and passes every R-010 assertion  65318ms
+ ✓ tests/web/narration-styles.test.ts (9 tests) 49ms
+ ✓ tests/web/embedded.test.ts (11 tests) 265ms
+ ✓ tests/web/auth-guard.test.ts (12 tests) 31ms
+ ✓ src/worker/auto-approval.test.ts (11 tests) 122ms
+ ✓ tests/web/monitoring.test.ts (3 tests) 11ms
+ ✓ tests/web/auth-styles.test.ts (9 tests) 100ms
+ ✓ src/render/ffmpeg.test.ts (9 tests) 37ms
+ ✓ src/adapters/image-bytes.test.ts (6 tests) 265ms
+ ✓ tests/web/not-found-page.test.ts (6 tests) 28ms
+ ✓ src/web/quality/approval-safety.test.ts (6 tests) 22ms
+ ✓ src/worker/loop.test.ts (5 tests) 2082ms
+ ✓ tests/env-template.test.ts (5 tests) 32ms
+ ✓ src/adapters/rate-limit.test.ts (7 tests) 61ms
+ ✓ src/adapters/errors.test.ts (6 tests) 17ms
+ ✓ tests/web/batches-page.test.ts (5 tests) 24ms
+ ✓ tests/web/batch-series-index.test.ts (5 tests) 11ms
+ ✓ src/storage/object-store.test.ts (7 tests) 16ms
+ ✓ src/api/server.test.ts (7 tests) 87ms
+ ✓ tests/web/script-styles.test.ts (7 tests) 87ms
+ ✓ src/auth/backoff.test.ts (4 tests) 111ms
+ ✓ src/web/gateways/asset-view.test.ts (7 tests) 172ms
+ ✓ tests/shared.test.ts (8 tests) 62ms
+ ✓ contract/openapi.test.ts (4 tests) 100ms
+ ✓ src/auth/password.test.ts (5 tests) 1810ms
+   ✓ argon2id password storage (R-015-1) > stores an argon2id PHC string with m=19456, t=2, p=1  551ms
+   ✓ argon2id password storage (R-015-1) > salts every hash, so two hashes of one password differ and both verify  853ms
+   ✓ argon2id password storage (R-015-1) > verifies the wrong password as false  390ms
+ ✓ src/web/scenes/public-url.test.ts (2 tests) 53ms
+ ✓ src/domain/drift-record.test.ts (5 tests) 31ms
+ ✓ src/auth/cookies.test.ts (6 tests) 42ms
+ ✓ src/boot/migrate-on-start.test.ts (4 tests) 32ms
+ ✓ src/auth/tokens.test.ts (5 tests) 43ms
+ ✓ src/web/assets/proxy.test.ts (2 tests) 52ms
+ ✓ src/web/assets/route.test.ts (2 tests) 82ms
+ ✓ src/web/scenes/approval-safety.test.ts (4 tests) 51ms
+ ✓ src/storage/object-key.test.ts (6 tests) 24ms
+ ✓ src/web/health/keys.test.ts (4 tests) 19ms
+ ✓ src/cli/qualify-image.test.ts (3 tests) 29ms
+ ✓ tests/web/format.test.ts (3 tests) 9ms
+
+ Test Files  170 passed (170)
+      Tests  1964 passed (1964)
+   Start at  02:51:25
+   Duration  229.09s (transform 18.79s, setup 0ms, collect 173.17s, tests 309.19s, environment 120ms, prepare 68.53s)
+
+
+> reels-generator@1.0.0 build
+> tsc -p tsconfig.build.json
+
+
+VERIFY_EXIT_CODE=0

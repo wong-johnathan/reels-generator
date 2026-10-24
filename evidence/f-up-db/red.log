@@ -1,0 +1,49 @@
+
+> reels-generator@1.0.0 test
+> vitest run src/worker/pipeline.e2e.test.ts -t selects the stub
+
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/f-up-db-seam
+
+stderr | src/worker/pipeline.e2e.test.ts
+[pipeline e2e skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ❯ src/worker/pipeline.e2e.test.ts (3 tests | 1 failed | 2 skipped) 16ms
+   × selects the stub unless real rendering is explicitly enabled, independent of PATH 15ms
+     → expected ProcessFfmpegRunner{ …(2) } to be { run: [AsyncFunction run], …(2) } // Object.is equality
+   ↓ fake-provider pipeline end to end > takes a project from topic to a stored video asset through the loop
+   ↓ fake-provider pipeline end to end > does not advance a stage that was invalidated mid-attempt
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/worker/pipeline.e2e.test.ts > selects the stub unless real rendering is explicitly enabled, independent of PATH
+AssertionError: expected ProcessFfmpegRunner{ …(2) } to be { run: [AsyncFunction run], …(2) } // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- {[39m
+[32m-   "analyse": [Function analyse],[39m
+[32m-   "probe": [Function probe],[39m
+[32m-   "run": [Function run],[39m
+[31m+ ProcessFfmpegRunner {[39m
+[31m+   "binary": "ffmpeg",[39m
+[31m+   "probeBinary": "ffprobe",[39m
+[2m  }[22m
+
+ ❯ src/worker/pipeline.e2e.test.ts:83:37
+     81|         vi.stubEnv('REELS_E2E_REAL_RENDER', value);
+     82|         if (value === '1') expect(selectRunner()).toBeInstanceOf(Proce…
+     83|         else expect(selectRunner()).toBe(stubRunner);
+       |                                     ^
+     84|       }
+     85|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 skipped (3)
+   Start at  16:25:24
+   Duration  5.43s (transform 853ms, setup 0ms, collect 5.06s, tests 16ms, environment 0ms, prepare 122ms)
+
