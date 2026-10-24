@@ -185,6 +185,63 @@ async function clickPost(page, selector, path) {
   return { path, method: sent.method(), body: sent.postData(), status: response.status() };
 }
 
+async function phoneTabProof(page, surface, label) {
+  const prohibited = page.locator(
+    surface === 'script' ? '#script-approve, #script-apply, #script-regenerate' : '.series-save',
+  );
+  assert.equal(await prohibited.count(), surface === 'script' ? 3 : 1);
+  const gates = await prohibited.evaluateAll((elements) =>
+    elements.map((element) => ({
+      id: element.id,
+      disabled: element.disabled,
+      hiddenByDisplayNone: (() => {
+        for (let node = element; node; node = node.parentElement)
+          if (getComputedStyle(node).display === 'none') return true;
+        return false;
+      })(),
+    })),
+  );
+  // Select controls independently of readonly/tabindex so regressions cannot
+  // silently remove them from the expected set. Editor choice summaries are
+  // plain paragraphs, not sequential focus targets.
+  const expected = await page
+    .locator('textarea[data-monitor-for], input[data-monitor-for]')
+    .evaluateAll((elements) =>
+      elements
+        .filter(
+          (element) =>
+            element.getClientRects().length > 0 &&
+            getComputedStyle(element).visibility !== 'hidden',
+        )
+        .map((element) => ({ id: element.id, readOnly: element.readOnly })),
+    );
+  assert(expected.length > 0, `${label}: visible monitoring fields exist`);
+  assert(
+    expected.every((field) => field.id && field.readOnly),
+    `${label}: readonly field IDs`,
+  );
+  const expectedIds = expected.map((field) => field.id);
+  assert.equal(new Set(expectedIds).size, expectedIds.length, `${label}: unique monitoring IDs`);
+  const tabSequence = [];
+  for (let tab = 0; tab < 70; tab++) {
+    await page.keyboard.press('Tab');
+    assert(
+      !(await prohibited.evaluateAll((elements) =>
+        elements.some((element) => element === document.activeElement),
+      )),
+      `${label}: mutation control reached by Tab`,
+    );
+    tabSequence.push(await page.evaluate(() => document.activeElement.id));
+  }
+  const reachedIds = expectedIds.filter((id) => tabSequence.includes(id));
+  assert.deepEqual(
+    reachedIds,
+    expectedIds,
+    `${label}: every visible readonly monitor reached by Tab`,
+  );
+  return { expectedIds, reachedIds, presses: tabSequence.length, tabSequence, gates };
+}
+
 try {
   for (const javaScriptEnabled of [false, true]) {
     const context = await browser.newContext({ javaScriptEnabled });
@@ -292,23 +349,12 @@ try {
           assert((await page.locator('.series-table-wrap').evaluate((el) => el.scrollLeft)) > 0);
         }
         if (width < 768 && (surface === 'script' || surface === 'editor')) {
-          const prohibited = page.locator(
-            surface === 'script'
-              ? '#script-approve, #script-apply, #script-regenerate'
-              : '.series-save',
+          metrics.tabProof = await phoneTabProof(
+            page,
+            surface,
+            `${surface} ${width} JS=${javaScriptEnabled}`,
           );
-          assert.equal(await prohibited.count(), surface === 'script' ? 3 : 1);
-          metrics.tabSequence = [];
-          for (let tab = 0; tab < 70; tab++) {
-            await page.keyboard.press('Tab');
-            assert(
-              !(await prohibited.evaluateAll((elements) =>
-                elements.some((element) => element === document.activeElement),
-              )),
-              `${surface} ${width} JS=${javaScriptEnabled}: mutation control reached by Tab`,
-            );
-            metrics.tabSequence.push(await page.evaluate(() => document.activeElement.id));
-          }
+          metrics.tabSequence = metrics.tabProof.tabSequence;
           const ax = await page.locator('body').ariaSnapshot();
           assert(
             !/button "(?:Apply edit|Apply and regenerate|Approve script|Save changes)/.test(ax),
@@ -372,6 +418,10 @@ try {
             gates.every((gate) => gate.disabled === (outcome === 'failed')),
             'ready controls enabled but CSS-hidden',
           );
+          const tabProof =
+            width < 768
+              ? await phoneTabProof(page, 'script', `resolved ${outcome} ${width}`)
+              : null;
           const ax = await page.locator('body').ariaSnapshot();
           assert(
             !ax.includes(computing),
@@ -392,6 +442,7 @@ try {
               .locator('[data-monitor-text-for="script-impact-message"]')
               .textContent(),
             gates,
+            tabProof,
           });
           await page.screenshot({
             path: new URL(`async-${width}-${outcome}.png`, output).pathname,

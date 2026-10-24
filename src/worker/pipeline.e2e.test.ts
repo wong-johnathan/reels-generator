@@ -217,7 +217,7 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
       `SELECT count(*)::int AS n FROM scene WHERE project_id = $1`,
       [projectId],
     );
-    expect(scenes.rows[0]!.n).toBeGreaterThanOrEqual(1);
+    expect(scenes.rows[0]!.n).toBe(17);
 
     // Every stage is done up to and including RE; the video waits at QC.
     const stages = await db.pool.query<{ stage: string; state: string }>(
@@ -265,16 +265,45 @@ describe.skipIf(!hasDatabase)('fake-provider pipeline end to end', { timeout: 30
     expect(videoAsset.rows[0]!.object_key).toBe('e2e-series/batch-0001/video.mp4');
 
     // Scene images are named scenes/S01.png upward, never by array index.
-    const sceneAssets = await db.pool.query<{ object_key: string }>(
-      `SELECT object_key FROM asset WHERE project_id = $1 AND stage = 'IM' AND kind = 'image'
+    const sceneAssets = await db.pool.query<{
+      id: string;
+      scene_id: string | null;
+      object_key: string;
+    }>(
+      `SELECT id, scene_id, object_key FROM asset WHERE project_id = $1 AND stage = 'IM' AND kind = 'image'
         ORDER BY object_key ASC`,
       [projectId],
     );
-    expect(sceneAssets.rows.length).toBeGreaterThanOrEqual(1);
+    expect(sceneAssets.rows).toHaveLength(17);
     expect(sceneAssets.rows[0]!.object_key).toBe('e2e-series/batch-0001/scenes/S01.png');
     for (const row of sceneAssets.rows) {
       expect(row.object_key).toMatch(/^e2e-series\/batch-0001\/scenes\/S\d{2}\.png$/);
     }
+
+    // Read each collection independently: an inner join could hide a missing
+    // current image or an unlinked/orphan image while returning plausible rows.
+    const expectedSceneNos = Array.from(
+      { length: 17 },
+      (_, index) => `S${String(index + 1).padStart(2, '0')}`,
+    );
+    const sceneRows = await db.pool.query<{
+      id: string;
+      scene_no: string;
+      asset_id: string | null;
+    }>(`SELECT id, scene_no, asset_id FROM scene WHERE project_id = $1 ORDER BY scene_no`, [
+      projectId,
+    ]);
+    expect(sceneRows.rows.map((row) => row.scene_no)).toEqual(expectedSceneNos);
+    expect(new Set(sceneRows.rows.map((row) => row.asset_id)).size).toBe(17);
+    expect(sceneAssets.rows).toEqual(
+      sceneRows.rows.map((row) => ({
+        id: row.asset_id,
+        scene_id: row.id,
+        object_key: `e2e-series/batch-0001/scenes/${row.scene_no}.png`,
+      })),
+    );
+    // Images use direct scene ownership, not asset_ref (owner decision on
+    // t_477733ec). Complete equality above checks both directions without joins.
 
     const videoRef = await db.pool.query<{ role: string }>(
       `SELECT role FROM asset_ref WHERE asset_id = $1 AND project_id = $2`,
