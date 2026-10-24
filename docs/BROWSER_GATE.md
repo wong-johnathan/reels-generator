@@ -164,7 +164,9 @@ Archive the entire target AND the default `evidence/.browser-run/` separately.
 `.proof/result.json` records exact commit/tree/branch, runtime/executable, selected
 browser/module/version, actual child exits/signals and log paths. Sibling JSON
 manifests record relative filenames, byte lengths and SHA256 of tracked historical
-evidence before/after each stage and both output roots, proving default bytes do
+evidence before/after each stage and both output roots; `.proof/historical-bytes/`
+also preserves the initial tracked evidence bytes (never used for restoration).
+These prove default bytes do
 not change during external execution or final verify. Logs remain outside source;
 the driver itself is deliberately NOT named `*.browser.mjs` and is never run by
 the combined browser gate or normal verification.

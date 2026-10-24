@@ -3,6 +3,8 @@
 import assert from 'node:assert/strict';
 import {
   closeSync,
+  constants,
+  copyFileSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -194,6 +196,13 @@ async function main() {
   const baseline = historical();
   assert.ok(baseline.length > 0, 'No tracked historical evidence');
   save('historical-before.json', baseline);
+  // Preserve real baseline bytes as well as their fingerprints, never as a restore source.
+  for (const file of baseline) {
+    const snapshot = join(proof, 'historical-bytes', file.path);
+    mkdirSync(dirname(snapshot), { recursive: true });
+    copyFileSync(join(root, file.path), snapshot, constants.COPYFILE_EXCL);
+    assert.deepEqual(digest(snapshot), { bytes: file.bytes, sha256: file.sha256 });
+  }
   report.browser = await resolveBrowser(env); // Real launch/close; selected versions/paths recorded.
   save('result.json', report);
   function audit(label) {

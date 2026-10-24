@@ -271,6 +271,9 @@ describe('C-RET-3 retained proof driver fail-closed mechanics', () => {
       ]);
       const report = JSON.parse(readFileSync(join(f.output, '.proof/result.json'), 'utf8'));
       expect(report.passed).toBe(true);
+      expect(
+        readFileSync(join(f.output, '.proof/historical-bytes/evidence/historical.json'), 'utf8'),
+      ).toBe('{"historical":true}\n');
       expect(report.commands.map((command: { status: number }) => command.status)).toEqual([
         0, 0, 0, 0,
       ]);
