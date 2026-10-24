@@ -369,7 +369,7 @@ try {
         results.push({ javaScriptEnabled, surface, width, ...metrics });
         if (!javaScriptEnabled && [1440, 768, 390, 320].includes(width))
           await page.screenshot({
-            path: new URL(`${surface}-${width}.png`, output).pathname,
+            path: resolve(output, `${surface}-${width}.png`),
             fullPage: true,
           });
       }
