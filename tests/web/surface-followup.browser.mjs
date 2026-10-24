@@ -25,9 +25,7 @@ const canonicalNote = 'Approvals need a screen 1024 px or wider. This view is mo
 const computing = 'computing impact';
 const failed =
   'The impact of this change could not be computed, so regeneration is blocked. Editing and regeneration are both disabled until it can be computed — this prevents a change whose cost you could not see.';
-const output = process.env.BROWSER_OUTPUT_DIR
-  ? pathToFileURL(resolve(process.env.BROWSER_OUTPUT_DIR) + '/')
-  : new URL('../../evidence/.browser-run/', import.meta.url);
+const output = resolve(process.env.BROWSER_OUTPUT_DIR || 'evidence/.browser-run', 'surface');
 const widths = [1440, 1024, 768, 767, 480, 390, 320];
 mkdirSync(output, { recursive: true });
 const css = APP_CSS;
@@ -366,7 +364,7 @@ try {
             assert.equal(metrics.summaryText, 'No unsaved changes');
             assert(ax.includes(metrics.summaryText));
           }
-          writeFileSync(new URL(`ax-${surface}-${width}-${javaScriptEnabled}.txt`, output), ax);
+          writeFileSync(resolve(output, `ax-${surface}-${width}-${javaScriptEnabled}.txt`), ax);
         }
         results.push({ javaScriptEnabled, surface, width, ...metrics });
         if (!javaScriptEnabled && [1440, 768, 390, 320].includes(width))
@@ -408,7 +406,7 @@ try {
           await waitSummary(page, computing);
           await summaryGates(page, width);
           await page.screenshot({
-            path: new URL(`async-${width}-${outcome}-computing.png`, output).pathname,
+            path: resolve(output, `async-${width}-${outcome}-computing.png`),
             fullPage: true,
           });
           release();
@@ -432,7 +430,7 @@ try {
               ax.includes(outcome === 'ready' ? ready : failed),
               'resolved summary in a11y tree',
             );
-          writeFileSync(new URL(`async-ax-${width}-${outcome}.txt`, output), ax);
+          writeFileSync(resolve(output, `async-ax-${width}-${outcome}.txt`), ax);
           asyncSummary.push({
             width,
             outcome,
@@ -445,7 +443,7 @@ try {
             tabProof,
           });
           await page.screenshot({
-            path: new URL(`async-${width}-${outcome}.png`, output).pathname,
+            path: resolve(output, `async-${width}-${outcome}.png`),
             fullPage: true,
           });
           await page.unroute('**/api/videos/*/invalidation-preview', routeHandler);
@@ -479,7 +477,7 @@ try {
           if (rerun) assert.equal((await rerun).status(), 200);
           dispatch.push({ width, javaScriptEnabled, action, ...sent, rerun: rerun !== null });
           await page.screenshot({
-            path: new URL(`dispatch-${width}-${action}.png`, output).pathname,
+            path: resolve(output, `dispatch-${width}-${action}.png`),
             fullPage: true,
           });
         }
@@ -509,7 +507,7 @@ try {
     await context.close();
   }
   writeFileSync(
-    new URL('browser-results.json', output),
+    resolve(output, 'browser-results.json'),
     await format(
       JSON.stringify(
         {
@@ -524,11 +522,11 @@ try {
         null,
         2,
       ),
-      { ...(await resolveConfig(output.pathname)), parser: 'json' },
+      { ...(await resolveConfig(output)), parser: 'json' },
     ),
   );
   console.log(
-    `PASS: ${results.length} surface/viewport/JS combinations; ${dispatch.length} desktop dispatches; ${asyncSummary.length} delayed previews; phone Tab exclusion + a11y tree + no-JS default; Tab + ArrowRight; resize sync; screenshots in ${output.pathname}`,
+    `PASS: ${results.length} surface/viewport/JS combinations; ${dispatch.length} desktop dispatches; ${asyncSummary.length} delayed previews; phone Tab exclusion + a11y tree + no-JS default; Tab + ArrowRight; resize sync; screenshots in ${output}`,
   );
 } finally {
   await browser.close();
