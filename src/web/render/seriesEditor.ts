@@ -637,7 +637,7 @@ export function renderSeriesEditor(model: SeriesEditorModel): SeriesEditorParts 
     unchanged +
     saveError +
     meta +
-    '<p class="series-width-note">Editing needs a screen 1024 px or wider. This view is monitoring only.</p>' +
+    '<p class="series-width-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>' +
     renderForm(model) +
     renderMonitoring(model) +
     '</section>';

@@ -75,7 +75,7 @@ describe('AX-22 server-rendered monitoring copies', () => {
       expect(copy.attrs['data-field']).toBeUndefined();
     }
     expect(html).toContain(
-      'Approvals need a screen 1024 px or wider. This view is monitoring only.',
+      '<p class="script-width-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>',
     );
     expect(html).toContain('class="script-impact-summary"');
     expect(html).toContain('id="script-approve"');
@@ -105,7 +105,7 @@ describe('AX-22 server-rendered monitoring copies', () => {
       if (copy.tag === 'textarea') expect(copy.attrs['readonly']).toBeDefined();
     }
     expect(html.main).toContain(
-      'Editing needs a screen 1024 px or wider. This view is monitoring only.',
+      '<p class="series-width-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>',
     );
     expect(html.aside).toContain('Start batch');
   });

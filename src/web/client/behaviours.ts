@@ -172,6 +172,7 @@ interface MonitorField {
 
 /** Presentation only: CSS and server copies enforce the no-JS boundary.
  * Resize also captures autofill/programmatic desktop changes before monitoring.
+ * Return the same sync hook for enhancers that render asynchronous updates.
  */
 export function initMonitoring(
   doc: MonitorDocument,
@@ -179,7 +180,7 @@ export function initMonitoring(
   kind: 'script' | 'series',
   viewport: EventTargetLike = globalThis as EventTargetLike,
   specs: readonly MonitorField[] = [],
-): void {
+): () => void {
   const sync = (): void => {
     const fields = Array.from(doc.querySelectorAll('[data-field]'));
     for (const copy of Array.from(doc.querySelectorAll('[data-monitor-for]'))) {
@@ -211,4 +212,5 @@ export function initMonitoring(
   form.addEventListener?.('change', sync);
   viewport.addEventListener?.('resize', sync);
   sync();
+  return sync;
 }

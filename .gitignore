@@ -18,6 +18,7 @@ coverage/
 evidence/.browser-run/
 *.tsbuildinfo
 npm-debug.log*
+evidence/.browser-run/
 
 # ── Runtime data created by compose volumes / bind mounts ──
 backups/

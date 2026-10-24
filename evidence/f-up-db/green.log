@@ -1,0 +1,17 @@
+
+> reels-generator@1.0.0 test
+> vitest run src/worker/pipeline.e2e.test.ts -t selects the stub
+
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/f-up-db-seam
+
+stderr | src/worker/pipeline.e2e.test.ts
+[pipeline e2e skipped] TEST_DATABASE_URL is not set: the schema tests need a throwaway Postgres 16 with pgcrypto + pgvector available (evidence/B-02.md records the evidence run)
+
+ ✓ src/worker/pipeline.e2e.test.ts (3 tests | 2 skipped) 4ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 2 skipped (3)
+   Start at  16:26:17
+   Duration  1.81s (transform 891ms, setup 0ms, collect 1.45s, tests 4ms, environment 0ms, prepare 99ms)
+
