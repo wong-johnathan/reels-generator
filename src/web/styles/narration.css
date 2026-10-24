@@ -232,6 +232,8 @@
 
 .narration-table-wrap {
   max-height: 360px;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-3);
@@ -241,6 +243,18 @@
 .narration-table-wrap:focus-visible {
   outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.narration-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
 }
 
 .narration-words {
@@ -414,7 +428,7 @@
 .narration-rerun-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
 .narration-rerun-form label {

@@ -88,6 +88,7 @@ function renderGate(detail: VideoDetail, storyboard: StoryboardView): string {
     );
   }
   return (
+    '<p class="storyboard-monitoring-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>' +
     '<form class="storyboard-approve" method="post" action="' +
     escapeAttr('/videos/' + encodeURIComponent(detail.id) + '/storyboard/approve') +
     '">' +

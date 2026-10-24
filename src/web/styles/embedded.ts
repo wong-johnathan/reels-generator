@@ -400,6 +400,10 @@ export const shellCss = String.raw`/*
 }
 
 .status-cause {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   color: var(--text-secondary);
   text-decoration: none;
 }
@@ -514,6 +518,13 @@ export const shellCss = String.raw`/*
   font-weight: var(--fw-bold);
   line-height: 20px;
   text-align: center;
+}
+
+.rail-signout-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
 }
 
 /* ── main region, breadcrumb and page title ──────────────────────────────── */
@@ -659,6 +670,10 @@ export const shellCss = String.raw`/*
 }
 
 .degraded-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   font-size: var(--t-30);
   line-height: var(--lh-30);
 }
@@ -1241,6 +1256,31 @@ export const seriesCss = String.raw`/*
   font-size: var(--t-20);
 }
 
+.series-table-wrap {
+  /* Contain absolutely positioned sr-only labels inside the scrollport too. */
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.series-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.series-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
 .series-table {
   width: 100%;
   border-collapse: collapse;
@@ -1386,6 +1426,11 @@ export const seriesCss = String.raw`/*
 }
 
 /* ── S-04 editor ─────────────────────────────────────────────────────────── */
+
+.series-monitor,
+.series-width-note {
+  display: none;
+}
 
 .series-editor {
   display: block;
@@ -1757,6 +1802,87 @@ textarea.series-control {
 
 /* ── responsive (UI_SPEC §7) ─────────────────────────────────────────────── */
 
+.series-name,
+.series-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-download,
+.overview-error .btn,
+.series-error .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-videos {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--target-gap);
+  text-align: left;
+}
+
+.batch-videos th,
+.batch-videos td {
+  padding: var(--s-2) var(--s-4);
+}
+
+.batch-videos th {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.batch-card-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-video-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: var(--s-4);
+}
+
+.batch-video-cards li {
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+}
+
+.batch-video-cards h3 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-40);
+}
+
+.batch-video-cards dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-4);
+  margin: 0;
+}
+
+.batch-video-cards dt {
+  color: var(--text-secondary);
+}
+
+.batch-video-cards dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1023px) {
   .series-field {
     grid-template-columns: minmax(0, 1fr);
@@ -1765,6 +1891,25 @@ textarea.series-control {
 }
 
 @media (max-width: 767px) {
+  .series-form,
+  .series-commit .series-save,
+  .series-batch form {
+    display: none;
+  }
+
+  .series-monitor,
+  .series-width-note {
+    display: block;
+  }
+
+  .batch-video-table {
+    display: none;
+  }
+
+  .batch-video-cards {
+    display: grid;
+  }
+
   .series-table,
   .series-table tbody,
   .series-table td {
@@ -1819,6 +1964,86 @@ textarea.series-control {
 
   .series-commit {
     padding: var(--s-6);
+  }
+}
+
+/* ── S-06 batch detail ──────────────────────────────────────────────────── */
+
+.batch-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-subject a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-width-note {
+  display: none;
+}
+
+.batch-regenerate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--target-gap);
+  margin-bottom: var(--s-6);
+}
+
+.batch-regenerate p {
+  margin: 0;
+}
+
+.batch-regenerate .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+  white-space: normal;
+  line-height: var(--lh-30);
+}
+
+.batch-video {
+  margin-bottom: var(--s-6);
+  padding: var(--s-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-panel);
+}
+
+.batch-video-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--target-gap);
+}
+
+.batch-video-head .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-failure {
+  margin-top: var(--s-5);
+  padding: var(--s-5);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--r-2);
+  background: var(--surface-danger-tint);
+}
+
+.batch-subject a:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 767px) {
+  .batch-regenerate {
+    display: none;
+  }
+
+  .batch-width-note {
+    display: block;
   }
 }
 `;
@@ -3142,6 +3367,12 @@ export const workspaceCss = String.raw`/*
   }
 }
 
+.script-monitor,
+.script-width-note,
+.script-impact-summary {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .script-budget-line {
     flex-direction: column;
@@ -3154,8 +3385,19 @@ export const workspaceCss = String.raw`/*
     padding: var(--s-3) var(--s-4);
   }
 
-  .script-approve {
-    margin-left: 0;
+  .script-field > textarea:not([readonly]),
+  .script-field > input,
+  #script-approve,
+  .script-conflict-actions,
+  .script-impact > .impact-body,
+  .script-impact > .impact-actions {
+    display: none;
+  }
+
+  .script-monitor,
+  .script-width-note,
+  .script-impact-summary {
+    display: block;
   }
 
   .claims-table td {
@@ -3189,6 +3431,8 @@ export const workspaceCss = String.raw`/*
 
 .scene-grid {
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .scene-grid-head {
@@ -3342,7 +3586,8 @@ export const workspaceCss = String.raw`/*
 
 .scene-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  overflow-x: auto;
+  grid-template-columns: repeat(6, minmax(168px, 1fr));
   gap: var(--s-5);
   margin: 0 0 var(--s-5);
   padding: 0;
@@ -3479,6 +3724,134 @@ export const workspaceCss = String.raw`/*
 
 .scene-tile-pending .scene-span {
   color: var(--text-tertiary);
+}
+
+/* §7.2: alternative reading surfaces. 280/72 px are specified dimensions. */
+.scene-pager,
+.scene-list,
+.scene-grid-width-note {
+  display: none;
+}
+
+.scene-grid [hidden] {
+  display: none !important;
+}
+
+.scene-pager-track {
+  display: flex;
+  gap: var(--s-5);
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+
+.scene-pager-track > li {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+}
+
+.scene-pager .scene-tile {
+  width: 280px;
+  box-sizing: content-box;
+  margin-inline: auto;
+}
+
+.scene-pager-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+
+.scene-pager-controls .btn {
+  min-width: var(--target-review);
+  min-height: var(--target-review);
+}
+
+.scene-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scene-list .scene-tile {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  width: 100%;
+  gap: var(--s-4);
+  padding: var(--s-4);
+}
+
+.scene-list .scene-thumb {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  width: 72px;
+}
+
+.scene-list .vchip,
+.scene-list .scene-pin {
+  position: static;
+  grid-column: 2;
+  justify-self: start;
+  align-self: start;
+}
+
+.scene-list .scene-meta {
+  grid-column: 2;
+  flex-wrap: wrap;
+  height: auto;
+  border: 0;
+  padding: 0;
+}
+
+.scene-grid-width-note {
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-grid .scene-tile {
+    transition: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .scene-grid .scene-tiles,
+  .scene-grid .scene-selection {
+    display: none;
+  }
+
+  .scene-grid-width-note {
+    display: block;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .scene-pager {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .scene-list {
+    display: grid;
+  }
+
+  .scene-grid .scene-release,
+  .scene-grid .checkpoint-actions {
+    display: none;
+  }
 }
 
 /* ── selection bar (UC-07, UC-10) ────────────────────────────────────────── */
@@ -3671,6 +4044,10 @@ export const workspaceCss = String.raw`/*
 }
 
 .storyboard-scene {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
   color: var(--text-link);
   font-weight: var(--fw-bold);
   text-decoration: none;
@@ -3842,6 +4219,23 @@ export const workspaceCss = String.raw`/*
   border-radius: var(--r-3);
 }
 
+.scene-detail-back a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.scene-replace-width-note,
+.scene-replace-monitoring-note,
+.storyboard-monitoring-note {
+  display: none;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
 .scene-replace-copy {
   margin: 0 0 var(--s-5);
   color: var(--text-primary);
@@ -3852,7 +4246,7 @@ export const workspaceCss = String.raw`/*
 .scene-replace-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   align-items: flex-start;
 }
 
@@ -3895,7 +4289,20 @@ export const workspaceCss = String.raw`/*
 
 /* ── responsive bands (UI_SPEC §7.2) ─────────────────────────────────────── */
 
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .scene-tiles {
+    grid-template-columns: repeat(4, minmax(168px, 1fr));
+  }
+}
+
 @media (max-width: 1023px) {
+  .scene-replace {
+    display: none;
+  }
+
+  .scene-replace-width-note {
+    display: block;
+  }
   .scene-detail-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3906,17 +4313,21 @@ export const workspaceCss = String.raw`/*
 }
 
 @media (max-width: 767px) {
+  .storyboard-approve {
+    display: none;
+  }
+
+  .scene-replace-width-note {
+    display: none;
+  }
+
+  .scene-replace-monitoring-note,
+  .storyboard-monitoring-note {
+    display: block;
+  }
+
   .scene-grid-head {
     align-items: flex-start;
-  }
-
-  .scene-tiles {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: var(--s-4);
-  }
-
-  .scene-tile {
-    width: 100%;
   }
 
   .scene-selection {
@@ -3980,10 +4391,6 @@ export const workspaceCss = String.raw`/*
 }
 
 @media (max-width: 480px) {
-  .scene-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .scene-detail-dl,
   .scene-provenance-dl {
     grid-template-columns: minmax(0, 1fr);
@@ -4226,6 +4633,8 @@ export const narrationCss = String.raw`/*
 
 .narration-table-wrap {
   max-height: 360px;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-3);
@@ -4235,6 +4644,18 @@ export const narrationCss = String.raw`/*
 .narration-table-wrap:focus-visible {
   outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.narration-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
 }
 
 .narration-words {
@@ -4408,7 +4829,7 @@ export const narrationCss = String.raw`/*
 .narration-rerun-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
 .narration-rerun-form label {
@@ -4583,6 +5004,7 @@ export const qualityCss = String.raw`/*
 
 .quality-player,
 .quality-checks {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
@@ -4713,6 +5135,8 @@ export const qualityCss = String.raw`/*
 
 .quality-table-wrap {
   max-height: 520px;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
@@ -4721,6 +5145,18 @@ export const qualityCss = String.raw`/*
 .quality-table-wrap:focus-visible {
   outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.quality-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
 }
 
 .quality-table {
@@ -4923,7 +5359,7 @@ export const qualityCss = String.raw`/*
 .quality-approve-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   max-width: 56ch;
 }
 
@@ -4966,7 +5402,7 @@ export const qualityCss = String.raw`/*
 .quality-return-links {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-3);
+  gap: var(--s-4);
   padding: 0;
   list-style: none;
 }
@@ -5052,6 +5488,7 @@ export const operationsCss = String.raw`/*
 .health-table-wrap,
 .settings-table-wrap {
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
@@ -5153,6 +5590,34 @@ export const operationsCss = String.raw`/*
 }
 
 /* ══ S-16 — export & provenance ═══════════════════════════════════════════ */
+
+/* AX-14: persistent rather than hover-only scroll guidance. */
+.ops-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ops-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.export-table-wrap::before,
+.export-pin-table-wrap::before,
+.health-table-wrap::before,
+.settings-table-wrap::before,
+.ops-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
 
 .export {
   display: flex;
@@ -6220,7 +6685,7 @@ export const operationsCss = String.raw`/*
 }
 
 .export-file-item .export-file-download {
-  min-height: var(--target-primary);
+  min-height: var(--target-review);
 }
 
 @media (max-width: 767px) {

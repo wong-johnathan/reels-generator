@@ -1,0 +1,755 @@
+[
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 1440,
+    "javaScriptEnabled": true,
+    "replaceVisible": true,
+    "back": {
+      "x": 240,
+      "y": 270,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 1440,
+    "javaScriptEnabled": true,
+    "replaceVisible": true,
+    "back": {
+      "x": 240,
+      "y": 270,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 1440,
+    "javaScriptEnabled": true,
+    "replaceVisible": true,
+    "back": {
+      "x": 240,
+      "y": 270,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 1440,
+    "javaScriptEnabled": true,
+    "approveVisible": true,
+    "link": {
+      "x": 253,
+      "y": 389.5,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "grid",
+    "width": 1440,
+    "javaScriptEnabled": true,
+    "columns": 6
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 1024,
+    "javaScriptEnabled": true,
+    "replaceVisible": true,
+    "back": {
+      "x": 84,
+      "y": 266,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 1024,
+    "javaScriptEnabled": true,
+    "replaceVisible": true,
+    "back": {
+      "x": 84,
+      "y": 266,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 1024,
+    "javaScriptEnabled": true,
+    "replaceVisible": true,
+    "back": {
+      "x": 84,
+      "y": 266,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 1024,
+    "javaScriptEnabled": true,
+    "approveVisible": true,
+    "link": {
+      "x": 97,
+      "y": 403.5,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "grid",
+    "width": 1024,
+    "javaScriptEnabled": true,
+    "columns": 4
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 768,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 768,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 768,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 768,
+    "javaScriptEnabled": true,
+    "approveVisible": true,
+    "link": {
+      "x": 25,
+      "y": 243.5,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 767,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 767,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 767,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 767,
+    "javaScriptEnabled": true,
+    "approveVisible": false,
+    "link": {
+      "x": 718,
+      "y": -1959,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 480,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 480,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 480,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 480,
+    "javaScriptEnabled": true,
+    "approveVisible": false,
+    "link": {
+      "x": 427,
+      "y": -1963,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 390,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 390,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 390,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 390,
+    "javaScriptEnabled": true,
+    "approveVisible": false,
+    "link": {
+      "x": 337,
+      "y": -1963,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 320,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 338,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 320,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 338,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 320,
+    "javaScriptEnabled": true,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 338,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 320,
+    "javaScriptEnabled": true,
+    "approveVisible": false,
+    "link": {
+      "x": 267,
+      "y": -2303,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "resize",
+    "width": 1024,
+    "expected": "S05"
+  },
+  {
+    "surface": "resize",
+    "width": 1440,
+    "expected": "S07"
+  },
+  {
+    "surface": "resize",
+    "width": 1024,
+    "expected": "S05"
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 1440,
+    "javaScriptEnabled": false,
+    "replaceVisible": true,
+    "back": {
+      "x": 240,
+      "y": 270,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 1440,
+    "javaScriptEnabled": false,
+    "replaceVisible": true,
+    "back": {
+      "x": 240,
+      "y": 270,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 1440,
+    "javaScriptEnabled": false,
+    "replaceVisible": true,
+    "back": {
+      "x": 240,
+      "y": 270,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 1440,
+    "javaScriptEnabled": false,
+    "approveVisible": true,
+    "link": {
+      "x": 253,
+      "y": 389.5,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "grid",
+    "width": 1440,
+    "javaScriptEnabled": false,
+    "columns": 6
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 1024,
+    "javaScriptEnabled": false,
+    "replaceVisible": true,
+    "back": {
+      "x": 84,
+      "y": 266,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 1024,
+    "javaScriptEnabled": false,
+    "replaceVisible": true,
+    "back": {
+      "x": 84,
+      "y": 266,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 1024,
+    "javaScriptEnabled": false,
+    "replaceVisible": true,
+    "back": {
+      "x": 84,
+      "y": 266,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 1024,
+    "javaScriptEnabled": false,
+    "approveVisible": true,
+    "link": {
+      "x": 97,
+      "y": 403.5,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "grid",
+    "width": 1024,
+    "javaScriptEnabled": false,
+    "columns": 4
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 768,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 768,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 768,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 768,
+    "javaScriptEnabled": false,
+    "approveVisible": true,
+    "link": {
+      "x": 25,
+      "y": 243.5,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 767,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 767,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 767,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 12,
+      "y": 314,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 767,
+    "javaScriptEnabled": false,
+    "approveVisible": false,
+    "link": {
+      "x": 718,
+      "y": -1959,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 480,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 480,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 480,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 480,
+    "javaScriptEnabled": false,
+    "approveVisible": false,
+    "link": {
+      "x": 427,
+      "y": -1963,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 390,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 390,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 390,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 318,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 390,
+    "javaScriptEnabled": false,
+    "approveVisible": false,
+    "link": {
+      "x": 337,
+      "y": -1963,
+      "width": 24,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "wired",
+    "width": 320,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 338,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "unwired",
+    "width": 320,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 338,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "direct-scene",
+    "state": "blocked",
+    "width": 320,
+    "javaScriptEnabled": false,
+    "replaceVisible": false,
+    "back": {
+      "x": 16,
+      "y": 338,
+      "width": 69.375,
+      "height": 24
+    }
+  },
+  {
+    "surface": "storyboard",
+    "width": 320,
+    "javaScriptEnabled": false,
+    "approveVisible": false,
+    "link": {
+      "x": 267,
+      "y": -2303,
+      "width": 24,
+      "height": 24
+    }
+  }
+]

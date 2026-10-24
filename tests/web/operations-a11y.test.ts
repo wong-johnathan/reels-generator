@@ -6,6 +6,7 @@ import {
   HealthReportSchema,
   OverviewSchema,
   ProviderSettingsViewSchema,
+  ScriptViewSchema,
   VideoDetailSchema,
 } from '../../contract/api.js';
 import { FIXTURES } from '../../contract/mock/fixtures.js';
@@ -18,6 +19,7 @@ import {
 import { renderExportPanel } from '../../src/web/render/export.js';
 import { renderHealthPage } from '../../src/web/render/health.js';
 import { renderSettings } from '../../src/web/render/settings.js';
+import { renderScriptReview } from '../../src/web/render/scriptReview.js';
 import { degradedNotices } from '../../src/web/render/shell.js';
 import { settingsModel } from '../../src/web/settings/model.js';
 import type { ExportView } from '../../src/web/provenance/model.js';
@@ -75,6 +77,20 @@ function healthRoot(): HtmlNode {
 }
 
 describe('S-16 export accessibility', () => {
+  it('keeps claims in a labelled, keyboard-scrollable region without positive tabindex', () => {
+    const root = parseHtml(
+      renderScriptReview({ detail, script: ScriptViewSchema.parse(FIXTURES['script.get']) }),
+    );
+    const region = findAll(
+      root,
+      (node) => node.attrs['aria-label'] === 'Claims and their sources',
+    )[0]!;
+    expect(region.attrs['role']).toBe('region');
+    expect(region.attrs['tabindex']).toBe('0');
+    expect(byTag(region, 'caption')).toHaveLength(1);
+    expect(findAll(root, (node) => Number(node.attrs['tabindex']) > 0)).toHaveLength(0);
+  });
+
   it('keeps heading order under the workspace heading', () => {
     const root = exportRoot(built);
     const levels = byTag(root, 'h3')

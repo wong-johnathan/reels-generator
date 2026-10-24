@@ -91,6 +91,23 @@ describe('S-04 form (UI_SPEC §4.3, UC-19)', () => {
 });
 
 describe('responsive bands (UI_SPEC §7)', () => {
+  it('separates batch download rows by the 8 px target gap', () => {
+    expect(extractBlock(css, '.batch-videos')).toContain('border-spacing: 0 var(--target-gap)');
+  });
+
+  it('switches batch video tables to actual card lists only below 768', () => {
+    expect(extractBlock(css, '.batch-video-cards')).toContain('display: none');
+    const phone = mediaBlocks(css).find((block) => block.query === '(max-width: 767px)');
+    expect(extractBlock(phone!.body, '.batch-video-table')).toContain('display: none');
+    expect(extractBlock(phone!.body, '.batch-video-cards')).toContain('display: grid');
+    expect(
+      extractBlock(css, '.batch-download, .overview-error .btn, .series-error .btn'),
+    ).toContain('min-height: var(--target-review)');
+    expect(extractBlock(css, '.series-name, .series-open')).toContain(
+      'min-height: var(--target-min)',
+    );
+  });
+
   it('stacks the label above the control below 1024 px', () => {
     const tablet = mediaBlocks(css).find((block) => block.query === '(max-width: 1023px)');
     expect(tablet?.body).toMatch(/\.series-field[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);

@@ -185,6 +185,33 @@ describe('tiles (UC-08)', () => {
 });
 
 describe('selection bar (UC-07, UC-10)', () => {
+  it('renders read-only pager and list from the same scene facts (AX-15/22)', () => {
+    const root = render({ storyboard });
+    expect(
+      byTag(root, 'a').filter((node) => node.attrs['data-scene-no'] !== undefined),
+    ).toHaveLength(17);
+    for (const surface of ['scene-pager', 'scene-list']) {
+      const region = byTag(root, surface === 'scene-pager' ? 'section' : 'ul').find(
+        (node) => node.attrs['class'] === surface,
+      );
+      expect(region).toBeDefined();
+      const rows = byTag(region!, 'a');
+      expect(rows).toHaveLength(17);
+      expect(rows[2]?.attrs['aria-label']).toBe(
+        'Scene 3 of 17, S03, done, 4.4 second narration, pin v3',
+      );
+      expect(byTag(rows[2]!, 'img')[0]?.attrs['alt']).toBe(storyboard.scenes[2]?.image_prompt);
+      expect(textOf(rows[2]!)).toContain('DONE');
+      expect(textOf(rows[2]!)).toContain('v3');
+      expect(textOf(rows[2]!)).toContain('4.4 s');
+      expect(textOf(region!)).not.toMatch(/Replace image|Reorder|Release remaining/);
+      expect(
+        byTag(region!, 'button').every((node) => node.attrs['data-pager-step'] !== undefined),
+      ).toBe(true);
+    }
+    expect(textOf(root)).toContain('Open at 1024 px or wider to replace a scene image.');
+  });
+
   it('names the replace cost and the free reorder before anything is selected', () => {
     const text = textOf(render({ storyboard }));
     expect(text).toContain('replace 1 image call');
@@ -201,6 +228,26 @@ describe('selection bar (UC-07, UC-10)', () => {
 });
 
 describe('grid states (W-06 states row)', () => {
+  it('preserves failed/running/stale and missing images on both narrow surfaces', () => {
+    const root = render({
+      storyboard: board((scene, index) => ({
+        ...scene,
+        asset: index === 0 ? null : scene.asset,
+        state: index === 0 ? 'failed' : index === 1 ? 'running' : 'stale',
+      })),
+    });
+    for (const surface of ['pager', 'list']) {
+      const rows = byTag(root, 'a').filter(
+        (node) => node.attrs['data-scene-' + surface] !== undefined,
+      );
+      expect(rows[0]?.attrs['data-state']).toBe('failed');
+      expect(byTag(rows[0]!, 'img')).toHaveLength(0);
+      expect(textOf(rows[0]!)).toContain('FAILED');
+      expect(rows[1]?.attrs['data-state']).toBe('running');
+      expect(rows[2]?.attrs['data-state']).toBe('stale');
+    }
+  });
+
   it('renders an honest empty state before script approval', () => {
     const root = render({
       storyboard: null,

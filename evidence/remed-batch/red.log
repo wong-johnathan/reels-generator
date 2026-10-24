@@ -1,0 +1,57 @@
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/remed-batch
+
+ ❯ tests/web/batch-detail.test.ts (10 tests | 4 failed) 30ms
+   × batch detail page > reports retained facts and charge unknown without invented survival counts 18ms
+     → expected '<div class="batch-detail"><header cla…' to contain 'Attempts used: 2'
+   × batch detail page > reports retained facts and charge pending without invented survival counts 3ms
+     → expected '<div class="batch-detail"><header cla…' to contain 'Attempts used: 2'
+   × batch detail page > reports retained facts and charge null without invented survival counts 2ms
+     → expected '<div class="batch-detail"><header cla…' to contain 'Attempts used: 2'
+   × batch detail page > defines JS-independent monitoring gates and batch-only target sizes 1ms
+     → expected undefined to be defined
+   ✓ batch detail page > shows the generated topic and script the pipeline produced 1ms
+   ✓ batch detail page > links an SB video to the storyboard approval control 0ms
+   ✓ batch detail page > names the failed stage, its attempt and the provider error 0ms
+   ✓ batch detail page > offers no regenerate control when nothing has failed 0ms
+   ✓ batch detail page > confirms how many jobs were requeued 0ms
+   ✓ batch detail page > escapes the provider error rather than injecting its markup 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/web/batch-detail.test.ts > batch detail page > reports retained facts and charge unknown without invented survival counts
+ FAIL  tests/web/batch-detail.test.ts > batch detail page > reports retained facts and charge pending without invented survival counts
+ FAIL  tests/web/batch-detail.test.ts > batch detail page > reports retained facts and charge null without invented survival counts
+AssertionError: expected '<div class="batch-detail"><header cla…' to contain 'Attempts used: 2'
+
+Expected: [32m"Attempts used: 2"[39m
+Received: [31m"<div class="batch-detail"><header class="batch-detail-head"><h1>batch-0002</h1><p class="batch-subject"><a href="/series/s1">The Art of Seduction</a> · active · started 1 h ago</p></header><form class="batch-regenerate" method="post" action="/batches/b1/regenerate"><p>1 video has a failed stage. Regenerating requeues only what failed and keeps everything already generated.</p><button class="btn" type="submit">Regenerate failed videos</button></form><section class="batch-video" id="video-p1"><header class="batch-video-head"><h3>Video 1</h3><span class="chip is-muted">needs_attention</span><span class="batch-video-stage">stage <strong>T</strong></span><a class="btn btn-small" href="/videos/p1/storyboard">Open workspace</a><span class="muted">no file yet</span></header><section class="batch-failure" role="alert"><h4>Stage IM failed — attempt 2</h4><p class="mono">The stage failed without recording a message.</p></section><h4>Generated topic</h4><div class="batch-topic"><div class="field"><span class="field-label">Topic</span><p class="field-value">Retained topic</p></div></div><h4>Generated script</h4><p class="muted">No script yet — the T stage has not produced one.</p></section></div>"[39m
+
+ ❯ tests/web/batch-detail.test.ts:44:18
+     42|       failure: { stage: 'IM', attemptNo: 2, attemptStatus: 'unknown_ch…
+     43|     })]) });
+     44|     expect(html).toContain('Attempts used: 2');
+       |                  ^
+     45|     expect(html).toContain('Class: not recorded');
+     46|     expect(html).toContain('Topic retained; no script recorded; 3 scen…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/web/batch-detail.test.ts > batch detail page > defines JS-independent monitoring gates and batch-only target sizes
+AssertionError: expected undefined to be defined
+ ❯ tests/web/batch-detail.test.ts:57:17
+     55|   it('defines JS-independent monitoring gates and batch-only target si…
+     56|     const css = readFileSync('src/web/styles/series.css', 'utf8').spli…
+     57|     expect(css).toBeDefined();
+       |                 ^
+     58|     expect(css).toMatch(/\.batch-subject a\s*\{[^}]*min-height: var\(-…
+     59|     expect(css).toMatch(/\.batch-regenerate \.btn\s*\{[^}]*min-height:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 6 passed (10)
+   Start at  12:00:30
+   Duration  729ms (transform 169ms, setup 0ms, collect 148ms, tests 30ms, environment 0ms, prepare 242ms)
+

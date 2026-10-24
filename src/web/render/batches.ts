@@ -36,12 +36,15 @@ function statusCell(batch: BatchSummary): string {
   return `<span class="chip ${cls}">${escapeHtml(batch.status.toLowerCase())}</span>`;
 }
 
+function videoDownload(video: BatchVideo): string {
+  return video.videoAssetId === null
+    ? '<span class="muted">no file yet</span>'
+    : `<a class="btn batch-download" href="/videos/${escapeAttr(video.projectId)}/download">Download MP4<span class="sr-only"> for video ${video.position}</span></a>`;
+}
+
 function videoRow(video: BatchVideo): string {
   const stage = video.currentStage === null ? '—' : escapeHtml(video.currentStage);
-  const download =
-    video.videoAssetId === null
-      ? '<span class="muted">no file yet</span>'
-      : `<a class="btn btn-small" href="/videos/${escapeAttr(video.projectId)}/download">Download MP4</a>`;
+  const download = videoDownload(video);
   return (
     '<tr>' +
     `<td>${video.position}</td>` +
@@ -73,10 +76,32 @@ function batchCard(batch: BatchSummary, now: Date): string {
     `${batch.videos.length === 1 ? 'video' : 'videos'} downloadable · ` +
     `started ${escapeHtml(describeAge(now.getTime(), batch.createdAt).text)}</p>` +
     '</header>' +
-    '<table class="batch-videos"><thead><tr>' +
+    `<div class="ops-table-wrap batch-video-table" role="region" tabindex="0" aria-label="${batchLabel(batch.ordinal)} videos">` +
+    '<table class="batch-videos"><caption class="sr-only">Videos, stages and downloads</caption><thead><tr>' +
     '<th scope="col">#</th><th scope="col">Video</th>' +
     '<th scope="col">Stage</th><th scope="col">File</th>' +
-    `</tr></thead><tbody>${rows}</tbody></table>` +
+    `</tr></thead><tbody>${rows}</tbody></table></div>` +
+    '<ul class="batch-video-cards" aria-label="Batch videos">' +
+    (batch.videos.length === 0
+      ? '<li>No videos in this batch.</li>'
+      : batch.videos
+          .map(
+            (video) =>
+              '<li><h3>Video ' +
+              video.position +
+              '</h3><dl>' +
+              '<dt>Status</dt><dd>' +
+              escapeHtml(video.status.toLowerCase()) +
+              '</dd>' +
+              '<dt>Stage</dt><dd>' +
+              escapeHtml(video.currentStage ?? '—') +
+              '</dd>' +
+              '<dt>File</dt><dd>' +
+              videoDownload(video) +
+              '</dd></dl></li>',
+          )
+          .join('')) +
+    '</ul>' +
     '</section>'
   );
 }

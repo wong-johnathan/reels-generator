@@ -65,6 +65,10 @@
 }
 
 .status-cause {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   color: var(--text-secondary);
   text-decoration: none;
 }
@@ -179,6 +183,13 @@
   font-weight: var(--fw-bold);
   line-height: 20px;
   text-align: center;
+}
+
+.rail-signout-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
 }
 
 /* ── main region, breadcrumb and page title ──────────────────────────────── */
@@ -324,6 +335,10 @@
 }
 
 .degraded-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
   font-size: var(--t-30);
   line-height: var(--lh-30);
 }

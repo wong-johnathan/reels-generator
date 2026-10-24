@@ -241,6 +241,14 @@ export interface BatchScript {
 export interface BatchFailure {
   readonly stage: string;
   readonly attemptNo: number;
+  /** Stored job_attempt.status; timed_out/unknown_charge must not read as unbilled. */
+  readonly attemptStatus: string;
+  /** Latest generation_run.status; timed_out is direct timeout evidence. */
+  readonly runStatus: 'pending' | 'succeeded' | 'failed' | 'timed_out' | 'unknown' | null;
+  /** Latest provider call in this attempt, not a total across retained scene calls.
+   * Null means no provider call exists; pending is not evidence of no charge.
+   */
+  readonly chargeStatus: 'pending' | 'unknown' | 'billed' | 'unbilled' | null;
   readonly errorClass: string | null;
   readonly message: string | null;
   readonly at: string;
@@ -362,6 +370,9 @@ export async function loadBatchDetail(db: Queryable, batchId: string): Promise<B
     project_id: string;
     stage: string;
     attempt_no: number;
+    attempt_status: string;
+    charge_status: BatchFailure['chargeStatus'];
+    run_status: BatchFailure['runStatus'];
     error_class: string | null;
     error_message: string | null;
     finished_at: Date | string | null;
@@ -369,9 +380,17 @@ export async function loadBatchDetail(db: Queryable, batchId: string): Promise<B
     /* sql */ `
     SELECT DISTINCT ON (j.project_id)
            j.project_id, j.stage, a.attempt_no, a.error_class, a.error_message,
+           a.status AS attempt_status, gr.charge_status, gr.status AS run_status,
            coalesce(a.finished_at, a.started_at, a.created_at) AS finished_at
       FROM job j
       JOIN job_attempt a ON a.job_id = j.id
+      LEFT JOIN LATERAL (
+        SELECT r.charge_status, r.status
+          FROM generation_run r
+         WHERE r.job_attempt_id = a.id
+         ORDER BY r.created_at DESC, r.id DESC
+         LIMIT 1
+      ) gr ON true
      WHERE j.status = 'failed' AND j.project_id = ANY($1::uuid[])
      ORDER BY j.project_id, a.attempt_no DESC`,
     [projects.rows.map((row) => row.id)],
@@ -432,6 +451,9 @@ export async function loadBatchDetail(db: Queryable, batchId: string): Promise<B
             : {
                 stage: failure.stage,
                 attemptNo: failure.attempt_no,
+                attemptStatus: failure.attempt_status,
+                chargeStatus: failure.charge_status,
+                runStatus: failure.run_status,
                 errorClass: failure.error_class,
                 message: failure.error_message,
                 at: new Date(failure.finished_at ?? Date.now()).toISOString(),

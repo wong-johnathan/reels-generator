@@ -16,6 +16,7 @@ import { isTextField, type ActiveElementShape } from './behaviours.js';
 
 export interface GridElement {
   textContent: string;
+  readonly tagName?: string;
   disabled?: boolean;
   value?: string;
   focus?(): void;
@@ -39,6 +40,11 @@ export interface GridDocumentLike {
 
 export interface SceneGridEnvironment {
   readonly navigate?: (href: string) => void;
+  readonly columnTracks?: () => string;
+  readonly matchMedia?: (query: string) => {
+    readonly matches: boolean;
+    addEventListener(type: 'change', handler: () => void): void;
+  };
 }
 
 export interface SceneGridEnhancer {
@@ -73,15 +79,55 @@ export function initSceneGrid(
   const tiles = toArray(doc.querySelectorAll('[data-scene-tile]'));
   if (tiles.length === 0) return null;
 
-  const parsedColumns = Number(attr(grid, 'data-columns') ?? '6');
-  const columns =
-    Number.isFinite(parsedColumns) && parsedColumns > 0 ? Math.trunc(parsedColumns) : 6;
+  const tileList = doc.querySelector('[data-scene-tiles]');
+  // Resolve tracks on each arrow, so resizing never leaves a stale stride.
+  function columns(): number {
+    const runtime = globalThis as {
+      getComputedStyle?: (element: GridElement) => { gridTemplateColumns: string };
+    };
+    const tracks =
+      env.columnTracks?.() ??
+      (tileList !== null && runtime.getComputedStyle !== undefined
+        ? runtime.getComputedStyle(tileList).gridTemplateColumns
+        : 'none');
+    return Math.max(1, tracks.match(/\d+(?:\.\d+)?px/g)?.length ?? 0);
+  }
   const selectionText = doc.querySelector('[data-selection-text]');
   const announce = doc.querySelector('[data-grid-announce]');
   const replace = doc.querySelector('[data-selection-replace]');
+  const pagerItems = toArray(doc.querySelectorAll('[data-pager-item]'));
+  const pagerTiles = toArray(doc.querySelectorAll('[data-scene-pager]'));
+  const readout = doc.querySelector('[data-pager-readout]');
+  const controls = doc.querySelector('[data-pager-controls]');
+  let pagerIndex = 0;
   let index = -1;
 
-  function paintSelection(): void {
+  // Pager selection must not focus the hidden desktop grid.
+  function paintPager(next: number, speak = true): void {
+    pagerIndex = ((next % pagerItems.length) + pagerItems.length) % pagerItems.length;
+    for (const [position, item] of pagerItems.entries()) {
+      if (position === pagerIndex) item.removeAttribute?.('hidden');
+      else item.setAttribute?.('hidden', '');
+      pagerTiles[position]?.setAttribute?.(
+        'aria-current',
+        position === pagerIndex ? 'true' : 'false',
+      );
+    }
+    const tile = pagerTiles[pagerIndex];
+    const label = (attr(tile ?? null, 'data-scene-label') ?? '—') + ' of ' + pagerItems.length;
+    if (readout !== null) readout.textContent = label;
+    if (speak) {
+      index = pagerIndex < tiles.length ? pagerIndex : -1;
+      paintSelection(false);
+      if (announce !== null)
+        announce.textContent =
+          label +
+          '. ' +
+          (attr(tile ?? null, 'data-announce') ?? attr(tile ?? null, 'aria-label') ?? '');
+    }
+  }
+
+  function paintSelection(focus = true): void {
     for (const [position, tile] of tiles.entries()) {
       const selected = position === index;
       tile.setAttribute?.('tabindex', selected || (index === -1 && position === 0) ? '0' : '-1');
@@ -109,7 +155,7 @@ export function initSceneGrid(
       announce.textContent = tile === undefined ? '' : (attr(tile, 'data-announce') ?? '');
       if (tile !== undefined) announce.setAttribute?.('data-announced', 'true');
     }
-    tile?.focus?.();
+    if (focus) tile?.focus?.();
   }
 
   const enhancer: SceneGridEnhancer = {
@@ -118,6 +164,7 @@ export function initSceneGrid(
       if (tiles.length === 0) return;
       const wrapped = ((next % tiles.length) + tiles.length) % tiles.length;
       index = wrapped;
+      if (pagerItems.length > 0) paintPager(index, false);
       paintSelection();
     },
     clear(): void {
@@ -129,6 +176,15 @@ export function initSceneGrid(
   function onKeydown(event: GridEventLike): void {
     if (isTextField((doc.activeElement ?? null) as ActiveElementShape | null)) return;
     const active = event.target ?? doc.activeElement ?? null;
+    const pagerCurrent = active === null ? -1 : pagerTiles.indexOf(active);
+    if (pagerCurrent >= 0 || attr(active, 'data-pager-step') !== null) {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        event.preventDefault?.();
+        paintPager(pagerIndex + (event.key === 'ArrowRight' ? 1 : -1));
+        if (pagerCurrent >= 0) pagerTiles[pagerIndex]?.focus?.();
+      }
+      return;
+    }
     const current = active === null ? -1 : tiles.indexOf(active);
     if (current < 0) return;
 
@@ -145,11 +201,11 @@ export function initSceneGrid(
         return;
       case 'ArrowDown':
         event.preventDefault?.();
-        enhancer.select(Math.min(tiles.length - 1, current + columns));
+        enhancer.select(Math.min(tiles.length - 1, current + columns()));
         return;
       case 'ArrowUp':
         event.preventDefault?.();
-        enhancer.select(Math.max(0, current - columns));
+        enhancer.select(Math.max(0, current - columns()));
         return;
       case 'r': {
         const selected = index >= 0 ? tiles[index] : tiles[current];
@@ -171,7 +227,66 @@ export function initSceneGrid(
   }
 
   doc.addEventListener?.('keydown', onKeydown);
+  doc.addEventListener?.('click', (event) => {
+    const step = attr(event.target ?? null, 'data-pager-step');
+    if (step !== null) paintPager(pagerIndex + Number(step));
+  });
+  if (pagerItems.length > 0) {
+    paintPager(0, false);
+    controls?.removeAttribute?.('hidden');
+  }
   paintSelection();
+
+  // CSS swaps whole reading surfaces. Remember focus before display:none can
+  // blur it to BODY, but never steal focus from a control outside these surfaces.
+  const listTiles = toArray(doc.querySelectorAll('[data-scene-list]'));
+  let lastFocused: GridElement | null = null;
+  doc.addEventListener?.('focusin', (event) => {
+    lastFocused = event.target ?? null;
+  });
+  const runtime = globalThis as { matchMedia?: SceneGridEnvironment['matchMedia'] };
+  const matchMedia = env.matchMedia ?? runtime.matchMedia?.bind(globalThis);
+  if (matchMedia !== undefined) {
+    const desktop = matchMedia('(min-width: 1024px)');
+    const tablet = matchMedia('(min-width: 768px)');
+    const band = () => (desktop.matches ? 'grid' : tablet.matches ? 'pager' : 'list');
+    let previousBand = band();
+    const onBandChange = () => {
+      const nextBand = band();
+      if (nextBand === previousBand) return;
+      previousBand = nextBand;
+      const active = doc.activeElement;
+      const source = active == null || active.tagName === 'BODY' ? lastFocused : active;
+      const gridIndex = source === null ? -1 : tiles.indexOf(source);
+      const pagerTileIndex = source === null ? -1 : pagerTiles.indexOf(source);
+      const listIndex = source === null ? -1 : listTiles.indexOf(source);
+      const sceneIndex =
+        gridIndex >= 0
+          ? gridIndex
+          : listIndex >= 0
+            ? listIndex
+            : pagerTileIndex >= 0 || attr(source, 'data-pager-step') !== null
+              ? pagerIndex
+              : -1;
+      if (sceneIndex < 0) return;
+      index = Math.min(sceneIndex, tiles.length - 1);
+      if (pagerItems.length > 0) paintPager(sceneIndex, false);
+      paintSelection(false);
+      const destination =
+        nextBand === 'grid'
+          ? tiles[index]
+          : nextBand === 'pager'
+            ? pagerTiles[pagerIndex]
+            : listTiles[sceneIndex];
+      // Pending placeholders are not native links, but remain a logical scene
+      // destination without adding another stop to the ordinary Tab sequence.
+      if (attr(destination ?? null, 'href') === null) destination?.setAttribute?.('tabindex', '-1');
+      destination?.focus?.();
+      lastFocused = destination ?? null;
+    };
+    desktop.addEventListener('change', onBandChange);
+    tablet.addEventListener('change', onBandChange);
+  }
   return enhancer;
 }
 

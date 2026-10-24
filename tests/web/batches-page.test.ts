@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { batchLabel, renderBatches } from '../../src/web/render/batches.js';
 import type { BatchSummary } from '../../src/web/batches/postgres.js';
+import { byTag, findAll, parseHtml } from './helpers/html.js';
 
 const NOW = new Date('2026-10-21T20:00:00.000Z');
 
@@ -36,6 +37,18 @@ function batch(overrides: Partial<BatchSummary> = {}): BatchSummary {
 }
 
 describe('batches page', () => {
+  it('offers equivalent labelled video cards and a keyboard-scrollable desktop table', () => {
+    const root = parseHtml(renderBatches({ batches: [batch()], now: NOW }));
+    const region = findAll(root, (node) => node.attrs['role'] === 'region')[0]!;
+    expect(region.attrs['tabindex']).toBe('0');
+    expect(region.attrs['aria-label']).toBe('batch-0001 videos');
+    expect(byTag(region, 'caption')).toHaveLength(1);
+    const list = findAll(root, (node) => node.attrs['class'] === 'batch-video-cards')[0]!;
+    expect(byTag(list, 'li')).toHaveLength(2);
+    expect(byTag(list, 'a')[0]?.attrs['href']).toBe('/videos/p1/download');
+    expect(byTag(list, 'dt')).toHaveLength(6);
+  });
+
   it('labels a batch the way the object store does', () => {
     expect(batchLabel(1)).toBe('batch-0001');
     expect(batchLabel(12)).toBe('batch-0012');

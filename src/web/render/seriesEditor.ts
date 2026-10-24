@@ -260,6 +260,64 @@ function radioGroup(field: FieldSpec, model: SeriesEditorModel): string {
   );
 }
 
+/** No names, editable hooks, or unsupported readonly select/checkbox controls. */
+function renderMonitoring(model: SeriesEditorModel): string {
+  const blocks = BLOCKS.map((block) => {
+    const fields = FIELDS.filter((field) => field.block === block.id)
+      .map((field) => {
+        const value = model.values[field.path] ?? '';
+        const id = fieldId(field.path) + '-monitor';
+        const attrs = ' id="' + id + '" data-monitor-for="' + escapeAttr(field.path) + '"';
+        const summary =
+          field.kind === 'checkbox' || field.kind === 'select' || field.kind === 'radio';
+        const text =
+          field.kind === 'checkbox'
+            ? value === 'true'
+              ? 'Yes'
+              : 'No'
+            : (field.options?.find((option) => option.value === value)?.label ?? value);
+        return (
+          '<div class="series-field">' +
+          (summary
+            ? '<div class="series-label" id="' + id + '-label">'
+            : '<label class="series-label" for="' + id + '">') +
+          escapeHtml(field.label) +
+          (summary ? '</div>' : '</label>') +
+          '<div class="series-control-cell">' +
+          (summary
+            ? '<p aria-labelledby="' + id + '-label"' + attrs + '>' + escapeHtml(text) + '</p>'
+            : '<textarea class="series-control" aria-describedby="' +
+              id +
+              '-help"' +
+              attrs +
+              ' rows="' +
+              (field.rows ?? 2) +
+              '" readonly>' +
+              escapeHtml(value) +
+              '</textarea>') +
+          '<p class="series-help" id="' +
+          id +
+          '-help">' +
+          escapeHtml(field.helper) +
+          '</p></div></div>'
+        );
+      })
+      .join('');
+    return (
+      '<section class="series-block"><h2>' +
+      escapeHtml(block.title) +
+      '</h2><div class="series-fields">' +
+      fields +
+      '</div></section>'
+    );
+  }).join('');
+  return (
+    '<section class="series-monitor" aria-label="Series profile monitoring">' +
+    blocks +
+    '</section>'
+  );
+}
+
 function renderForm(model: SeriesEditorModel): string {
   // Create posts to /series/new: /series is the list page and answers GET only,
   // so posting there returns a 405 with nothing the owner can act on.
@@ -579,7 +637,9 @@ export function renderSeriesEditor(model: SeriesEditorModel): SeriesEditorParts 
     unchanged +
     saveError +
     meta +
+    '<p class="series-width-note">Editing needs a screen 1024 px or wider. This view is monitoring only.</p>' +
     renderForm(model) +
+    renderMonitoring(model) +
     '</section>';
 
   return { main, aside: renderPanel(model) + renderBatchAction(model) };

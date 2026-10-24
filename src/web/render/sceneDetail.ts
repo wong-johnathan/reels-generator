@@ -169,8 +169,12 @@ function renderProvenance(scene: SceneView): string {
 
 function renderReplace(input: SceneDetailInput): string {
   const { detail, scene, replace } = input;
+  const widthNotes =
+    '<p class="scene-replace-width-note">Open at 1024 px or wider to replace a scene image.</p>' +
+    '<p class="scene-replace-monitoring-note">Approvals need a screen 1024 px or wider. This view is monitoring only.</p>';
   if (scene.asset === null) {
     return (
+      widthNotes +
       '<section class="scene-replace" id="replace-image" data-scene-replace="empty">' +
       '<h3 class="scene-detail-heading">Replace this image</h3>' +
       '<p>Replace needs a stored image. Once the image stage has produced one, this scene can be replaced on its own.' +
@@ -191,6 +195,7 @@ function renderReplace(input: SceneDetailInput): string {
     replaceButtonLabel() +
     '</button>';
   return (
+    widthNotes +
     '<section class="scene-replace" id="replace-image" data-scene-replace="' +
     (disabled ? 'blocked' : 'ready') +
     '">' +

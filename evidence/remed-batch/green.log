@@ -1,0 +1,11 @@
+
+ RUN  v3.2.7 /opt/data/engineering-team/projects/reels-generator/.worktrees/remed-batch
+
+ ✓ tests/web/batch-detail.test.ts (10 tests) 13ms
+ ✓ tests/web/embedded.test.ts (11 tests) 17ms
+
+ Test Files  2 passed (2)
+      Tests  21 passed (21)
+   Start at  12:02:19
+   Duration  760ms (transform 334ms, setup 0ms, collect 523ms, tests 30ms, environment 1ms, prepare 323ms)
+

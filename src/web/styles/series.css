@@ -83,6 +83,31 @@
   font-size: var(--t-20);
 }
 
+.series-table-wrap {
+  /* Contain absolutely positioned sr-only labels inside the scrollport too. */
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.series-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.series-table-wrap::before {
+  content: '↔ Scroll table horizontally when needed';
+  display: block;
+  position: sticky;
+  left: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  font-size: var(--t-20);
+  line-height: var(--lh-20);
+}
+
 .series-table {
   width: 100%;
   border-collapse: collapse;
@@ -228,6 +253,11 @@
 }
 
 /* ── S-04 editor ─────────────────────────────────────────────────────────── */
+
+.series-monitor,
+.series-width-note {
+  display: none;
+}
 
 .series-editor {
   display: block;
@@ -599,6 +629,87 @@ textarea.series-control {
 
 /* ── responsive (UI_SPEC §7) ─────────────────────────────────────────────── */
 
+.series-name,
+.series-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-download,
+.overview-error .btn,
+.series-error .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-videos {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--target-gap);
+  text-align: left;
+}
+
+.batch-videos th,
+.batch-videos td {
+  padding: var(--s-2) var(--s-4);
+}
+
+.batch-videos th {
+  color: var(--text-secondary);
+  font-size: var(--t-20);
+}
+
+.batch-card-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-video-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: var(--s-4);
+}
+
+.batch-video-cards li {
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--surface-panel);
+}
+
+.batch-video-cards h3 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-40);
+}
+
+.batch-video-cards dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-4);
+  margin: 0;
+}
+
+.batch-video-cards dt {
+  color: var(--text-secondary);
+}
+
+.batch-video-cards dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1023px) {
   .series-field {
     grid-template-columns: minmax(0, 1fr);
@@ -607,6 +718,25 @@ textarea.series-control {
 }
 
 @media (max-width: 767px) {
+  .series-form,
+  .series-commit .series-save,
+  .series-batch form {
+    display: none;
+  }
+
+  .series-monitor,
+  .series-width-note {
+    display: block;
+  }
+
+  .batch-video-table {
+    display: none;
+  }
+
+  .batch-video-cards {
+    display: grid;
+  }
+
   .series-table,
   .series-table tbody,
   .series-table td {
@@ -661,5 +791,85 @@ textarea.series-control {
 
   .series-commit {
     padding: var(--s-6);
+  }
+}
+
+/* ── S-06 batch detail ──────────────────────────────────────────────────── */
+
+.batch-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-subject a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.batch-width-note {
+  display: none;
+}
+
+.batch-regenerate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--target-gap);
+  margin-bottom: var(--s-6);
+}
+
+.batch-regenerate p {
+  margin: 0;
+}
+
+.batch-regenerate .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+  white-space: normal;
+  line-height: var(--lh-30);
+}
+
+.batch-video {
+  margin-bottom: var(--s-6);
+  padding: var(--s-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--surface-panel);
+}
+
+.batch-video-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--target-gap);
+}
+
+.batch-video-head .btn {
+  min-height: var(--target-review);
+  min-width: var(--target-review);
+}
+
+.batch-failure {
+  margin-top: var(--s-5);
+  padding: var(--s-5);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--r-2);
+  background: var(--surface-danger-tint);
+}
+
+.batch-subject a:focus-visible {
+  outline: var(--focus-ring-width) var(--focus-ring-style) var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 767px) {
+  .batch-regenerate {
+    display: none;
+  }
+
+  .batch-width-note {
+    display: block;
   }
 }

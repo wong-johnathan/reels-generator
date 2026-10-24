@@ -1316,6 +1316,12 @@
   }
 }
 
+.script-monitor,
+.script-width-note,
+.script-impact-summary {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .script-budget-line {
     flex-direction: column;
@@ -1328,8 +1334,19 @@
     padding: var(--s-3) var(--s-4);
   }
 
-  .script-approve {
-    margin-left: 0;
+  .script-field > textarea:not([readonly]),
+  .script-field > input,
+  #script-approve,
+  .script-conflict-actions,
+  .script-impact > .impact-body,
+  .script-impact > .impact-actions {
+    display: none;
+  }
+
+  .script-monitor,
+  .script-width-note,
+  .script-impact-summary {
+    display: block;
   }
 
   .claims-table td {
@@ -1363,6 +1380,8 @@
 
 .scene-grid {
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .scene-grid-head {
@@ -1516,7 +1535,8 @@
 
 .scene-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  overflow-x: auto;
+  grid-template-columns: repeat(6, minmax(168px, 1fr));
   gap: var(--s-5);
   margin: 0 0 var(--s-5);
   padding: 0;
@@ -1653,6 +1673,134 @@
 
 .scene-tile-pending .scene-span {
   color: var(--text-tertiary);
+}
+
+/* §7.2: alternative reading surfaces. 280/72 px are specified dimensions. */
+.scene-pager,
+.scene-list,
+.scene-grid-width-note {
+  display: none;
+}
+
+.scene-grid [hidden] {
+  display: none !important;
+}
+
+.scene-pager-track {
+  display: flex;
+  gap: var(--s-5);
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+
+.scene-pager-track > li {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+}
+
+.scene-pager .scene-tile {
+  width: 280px;
+  box-sizing: content-box;
+  margin-inline: auto;
+}
+
+.scene-pager-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+
+.scene-pager-controls .btn {
+  min-width: var(--target-review);
+  min-height: var(--target-review);
+}
+
+.scene-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scene-list .scene-tile {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  width: 100%;
+  gap: var(--s-4);
+  padding: var(--s-4);
+}
+
+.scene-list .scene-thumb {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  width: 72px;
+}
+
+.scene-list .vchip,
+.scene-list .scene-pin {
+  position: static;
+  grid-column: 2;
+  justify-self: start;
+  align-self: start;
+}
+
+.scene-list .scene-meta {
+  grid-column: 2;
+  flex-wrap: wrap;
+  height: auto;
+  border: 0;
+  padding: 0;
+}
+
+.scene-grid-width-note {
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-grid .scene-tile {
+    transition: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .scene-grid .scene-tiles,
+  .scene-grid .scene-selection {
+    display: none;
+  }
+
+  .scene-grid-width-note {
+    display: block;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .scene-pager {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .scene-list {
+    display: grid;
+  }
+
+  .scene-grid .scene-release,
+  .scene-grid .checkpoint-actions {
+    display: none;
+  }
 }
 
 /* ── selection bar (UC-07, UC-10) ────────────────────────────────────────── */
@@ -1845,6 +1993,10 @@
 }
 
 .storyboard-scene {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
   color: var(--text-link);
   font-weight: var(--fw-bold);
   text-decoration: none;
@@ -2016,6 +2168,23 @@
   border-radius: var(--r-3);
 }
 
+.scene-detail-back a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.scene-replace-width-note,
+.scene-replace-monitoring-note,
+.storyboard-monitoring-note {
+  display: none;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--t-30);
+  line-height: var(--lh-30);
+}
+
 .scene-replace-copy {
   margin: 0 0 var(--s-5);
   color: var(--text-primary);
@@ -2026,7 +2195,7 @@
 .scene-replace-form {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   align-items: flex-start;
 }
 
@@ -2069,7 +2238,20 @@
 
 /* ── responsive bands (UI_SPEC §7.2) ─────────────────────────────────────── */
 
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .scene-tiles {
+    grid-template-columns: repeat(4, minmax(168px, 1fr));
+  }
+}
+
 @media (max-width: 1023px) {
+  .scene-replace {
+    display: none;
+  }
+
+  .scene-replace-width-note {
+    display: block;
+  }
   .scene-detail-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2080,17 +2262,21 @@
 }
 
 @media (max-width: 767px) {
+  .storyboard-approve {
+    display: none;
+  }
+
+  .scene-replace-width-note {
+    display: none;
+  }
+
+  .scene-replace-monitoring-note,
+  .storyboard-monitoring-note {
+    display: block;
+  }
+
   .scene-grid-head {
     align-items: flex-start;
-  }
-
-  .scene-tiles {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: var(--s-4);
-  }
-
-  .scene-tile {
-    width: 100%;
   }
 
   .scene-selection {
@@ -2154,10 +2340,6 @@
 }
 
 @media (max-width: 480px) {
-  .scene-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .scene-detail-dl,
   .scene-provenance-dl {
     grid-template-columns: minmax(0, 1fr);

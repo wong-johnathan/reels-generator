@@ -93,3 +93,57 @@ pass when `TEST_DATABASE_URL` is supplied (see final run above).
 ## Not done (per rules)
 
 - No merge to `main`, no push, no deploy. Integration lives on `int/t_58f603ef`.
+
+# INT-D6R Integration — Conflict Log
+
+Integration branch: `int/remed-qa-rework`
+Base: `993203809309893b77643b71b42004f043a20841` (int/remed-qa tip, D1..D7 remediation head)
+Scope: D6-R rework lanes — timeout-disclosure fix, scene focus, shell quality, combined browser gate.
+
+## Lanes integrated (cherry-picked `-x`, in order)
+
+- AX25/DB (t_5163bfb4): NO commit. Contract decision (a) — retained-record facts plus explicit
+  image/narration disclaimer; verified unchanged at base 9932038. Nothing to integrate.
+- T1/D6-R (t_45a38bd6): `85a8746a29ff0e48cfe585150909cfaf902d6d70` -> `04f8aef` (batchDetail.ts,
+  batch-detail.test.ts, batch-detail.browser.mjs)
+- T2 (t_4e3eca9c): `81e5102f3583db84fef8fac4a59f79e805de02d1` -> `0d8e452` (sceneGrid.ts,
+  workspace.css, embedded.ts, scene-grid-client.test.ts, scene-remediation.browser.mjs)
+- T3 (t_84a48f62): `6ac523558f2b9a8d9860dcba103de5c6b6850c03` -> `f02f9e6` (shell-quality.browser.mjs)
+- T4 (t_3e0e71e9): `e97dc53700815966a28247f6a738b498773ec0c3` -> `2026f1e` (package.json `test:browser`,
+  scripts/run-browser-gate.mjs, docs/BROWSER_GATE.md)
+
+## Resolutions
+
+Zero manual conflicts. All four lane commits are children of base 9932038 and touch disjoint files
+(T1: batch detail renderer/tests/harness; T2: scene grid + workspace CSS + embedded mirror;
+T3: shell-quality harness; T4: package.json + runner + docs). No authored-source auto-merge.
+
+embedded.ts: after all lanes landed, regenerated once from the combined 9 authored stylesheets via
+`tsx scripts/generate-embedded-css.ts` — ZERO drift (`git status` clean), so T2's mirror already
+equals the true combined bundle and no single branch's mirror was adopted.
+
+UI_AUDIT.md: versioned the QA-authored scoped audit (t_e2605f0d) at docs/UI_AUDIT.md. Content is the
+QA's independent artifact, prettier-formatted only; the exact audited SHA 9932038, the FAIL /
+NOT-RELEASE-READY verdict and the D6-R limitation are preserved. No global-compliance reassertion,
+no silent overwrite of the QA's limitations.
+
+## Suite results (real output)
+
+- `env -u TEST_DATABASE_URL npm run verify` — GREEN (lint + format:check + typecheck + test + build):
+  1753 passed / 238 DB skipped; 140 files passed / 31 skipped.
+- `npm run test:browser` (build + combined gate, explicit PLAYWRIGHT_MODULE + CHROMIUM_PATH) — GREEN:
+  4 harnesses — scene-remediation 124, batch-detail 70, shell-quality 98, surface-followup 48;
+  Chromium 153.0.8010.12.
+
+## Runtime / DB status
+
+- Host Node v26.5.1 (engines want >=20.11 <21). The Node20.20.2 official tarball is not available
+  in this environment (previously pruned), so the gate ran on the host runtime — a named limitation,
+  not a supported-runtime claim.
+- TEST_DATABASE_URL unset: 238 DB-dependent tests skipped (canonical env matching all lanes).
+  AX25 contract is a named limitation (retained-record facts + explicit image/narration disclaimer);
+  no DB qualification is claimed here.
+
+## Not done (per rules)
+
+- No merge to main, no push, no deploy. Integration lives on `int/remed-qa-rework`.

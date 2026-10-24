@@ -15,10 +15,10 @@ import { extractBlock, mediaBlocks } from './helpers/css.js';
 const css = readFileSync(new URL('../../src/web/styles/workspace.css', import.meta.url), 'utf8');
 
 describe('scene grid geometry (UI_SPEC §4.4, §5 UC-07)', () => {
-  it('is an auto-fill grid of 168 px minimum tiles with a 12 px gap', () => {
+  it('uses six explicit columns with a 12 px gap', () => {
     const grid = extractBlock(css, '.scene-tiles');
     expect(grid).toMatch(/display:\s*grid/);
-    expect(grid).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(168px,\s*1fr\)\)/);
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(168px,\s*1fr\)\)/);
     expect(grid).toMatch(/gap:\s*var\(--s-5\)/);
   });
 
@@ -100,6 +100,29 @@ describe('scene detail (UC-09)', () => {
 });
 
 describe('responsive bands (UI_SPEC §7.2)', () => {
+  it('hides replacement below 1024 and approvals below 768, including without JS', () => {
+    const band = (query: string) =>
+      mediaBlocks(css)
+        .filter((m) => m.query === query)
+        .map((m) => m.body)
+        .join('\n');
+    expect(extractBlock(band('(max-width: 1023px)'), '.scene-replace')).toMatch(/display:\s*none/);
+    expect(extractBlock(band('(max-width: 767px)'), '.storyboard-approve')).toMatch(
+      /display:\s*none/,
+    );
+    expect(
+      extractBlock(band('(min-width: 1024px) and (max-width: 1439px)'), '.scene-tiles'),
+    ).toMatch(/repeat\(4,/);
+  });
+
+  it('gives scene navigation links 24px targets, not review-sized targets', () => {
+    for (const selector of ['.scene-detail-back a', '.storyboard-scene']) {
+      const block = extractBlock(css, selector);
+      expect(block).toMatch(/display:\s*inline-flex/);
+      expect(block).toMatch(/min-height:\s*24px/);
+      expect(block).toMatch(/min-width:\s*24px/);
+    }
+  });
   it('stacks the detail into one column below 1024', () => {
     const bodies = mediaBlocks(css)
       .filter((media) => media.query.includes('max-width: 1023px'))
@@ -108,16 +131,46 @@ describe('responsive bands (UI_SPEC §7.2)', () => {
     expect(bodies).toContain('.scene-detail-body');
   });
 
-  it('moves the selection bar into the flow below 768 rather than hiding it', () => {
+  it('replaces the grid and mutation controls with monitoring rows below 768', () => {
     const bodies = mediaBlocks(css)
       .filter((media) => media.query.includes('max-width: 767px'))
       .map((media) => media.body)
       .join('\n');
-    expect(bodies).toMatch(/\.scene-selection\s*\{[^}]*position:\s*static/);
-    expect(bodies).toMatch(/\.scene-tiles\s*\{[^}]*grid-template-columns/);
+    expect(bodies).toMatch(/\.scene-list\s*\{[^}]*display:\s*grid/);
+
+    expect(css).toMatch(
+      /\.scene-grid \.scene-tiles,\s*\.scene-grid \.scene-selection[^}]*display:\s*none/,
+    );
+  });
+
+  it('uses a review-lite pager only between 768 and 1023', () => {
+    const body =
+      mediaBlocks(css).find(
+        (media) =>
+          media.query.includes('min-width: 768px') && media.query.includes('max-width: 1023px'),
+      )?.body ?? '';
+    expect(extractBlock(body, '.scene-pager')).toMatch(/display:\s*block/);
+    expect(extractBlock(css, '.scene-pager-track')).toMatch(/overflow-x:\s*auto/);
+    expect(extractBlock(css, '.scene-pager .scene-tile')).toMatch(/width:\s*280px/);
+    expect(extractBlock(css, '.scene-list .scene-thumb')).toMatch(/width:\s*72px/);
   });
 
   it('never lets the grid force a horizontal page scroll', () => {
     expect(extractBlock(css, '.scene-grid')).toMatch(/min-width:\s*0/);
+    expect(extractBlock(css, '.scene-grid')).toMatch(/overflow-wrap:\s*anywhere/);
+    for (const region of ['.scene-tiles', '.scene-list', '.scene-pager-track']) {
+      expect(extractBlock(css, region)).toMatch(/overflow-x:\s*auto/);
+    }
+    const mobile = mediaBlocks(css)
+      .filter((media) => media.query === '(max-width: 767px)')
+      .map((media) => media.body)
+      .join('\n');
+    expect(
+      extractBlock(mobile, '.scene-grid .scene-release, .scene-grid .checkpoint-actions'),
+    ).toMatch(/display:\s*none/);
+    const reduced =
+      mediaBlocks(css).find((media) => media.query.includes('prefers-reduced-motion: reduce'))
+        ?.body ?? '';
+    expect(extractBlock(reduced, '.scene-grid .scene-tile')).toMatch(/transition:\s*none/);
   });
 });

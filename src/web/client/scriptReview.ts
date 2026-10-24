@@ -17,6 +17,7 @@
  * `script/model.ts` — the same modules the server renderer uses.
  */
 import { isoSeconds } from '../format.js';
+import { initMonitoring } from './behaviours.js';
 import { readyImpact, computingImpact, failedImpact, idleImpact } from '../script/impact.js';
 import type { ImpactView, InvalidationPreview } from '../script/impact.js';
 import type { ScriptView } from '../script/model.js';
@@ -233,6 +234,7 @@ export function initScriptReview(
   if (root === null) return null;
   const form = doc.querySelector(ELEMENT_IDS.form);
   if (form === null) return null;
+  initMonitoring(doc, form, 'script');
 
   const videoId =
     root.getAttribute?.('data-video-id') ?? form.getAttribute?.('data-video-id') ?? '';

@@ -35,6 +35,13 @@ const page = (board: typeof storyboard | null, videoDetail: VideoDetail = detail
   parseHtml(renderStoryboard({ detail: videoDetail, storyboard: board }));
 
 describe('storyboard ready (US-018)', () => {
+  it('server renders the monitoring note beside an unapproved gate', () => {
+    const html = renderStoryboard({ detail, storyboard: { ...storyboard, approved: false } });
+    expect(html).toContain(
+      'Approvals need a screen 1024 px or wider. This view is monitoring only.',
+    );
+    expect(html).toContain('data-approve-storyboard');
+  });
   it('states the scene count against the target', () => {
     const html = renderStoryboard({ detail, storyboard });
     expect(html).toContain('data-state="ready"');

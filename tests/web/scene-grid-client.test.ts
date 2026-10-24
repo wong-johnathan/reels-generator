@@ -5,7 +5,7 @@ import { FIXTURES } from '../../contract/mock/fixtures.js';
 import { initSceneGrid } from '../../src/web/client/sceneGrid.js';
 import { renderSceneGrid } from '../../src/web/render/sceneGrid.js';
 import type { StoryboardView } from '../../src/web/scenes/model.js';
-import { FakeDocument } from './helpers/fake-dom.js';
+import { FakeDocument, type FakeElement } from './helpers/fake-dom.js';
 
 /**
  * S-12 keyboard behaviour (UI_SPEC §5 UC-07, §8.4 AX-02, UI_SPEC §6.7).
@@ -46,12 +46,60 @@ function setup(board: StoryboardView = firstThree, columns = 6) {
       '</body></html>',
   );
   const navigations: string[] = [];
-  const enhancer = initSceneGrid(doc, { navigate: (href) => navigations.push(href) });
+  let tracks = Array.from({ length: columns }, () => '168px').join(' ');
+  let width = 1440;
+  const changes: Array<() => void> = [];
+  const enhancer = initSceneGrid(doc, {
+    navigate: (href) => navigations.push(href),
+    columnTracks: () => tracks,
+    matchMedia: (query) => ({
+      get matches() {
+        return width >= (query.includes('1024') ? 1024 : 768);
+      },
+      addEventListener: (_type, handler) => changes.push(handler),
+    }),
+  });
   const tiles = doc.querySelectorAll('[data-scene-tile]');
-  return { doc, enhancer, tiles, navigations };
+  return {
+    doc,
+    enhancer,
+    tiles,
+    navigations,
+    resize: (value: number) => {
+      width = value;
+      for (const change of changes) change();
+    },
+    setTracks: (value: string) => {
+      tracks = value;
+    },
+  };
 }
 
 describe('selection (UC-07, AX-02)', () => {
+  it('pages forward/back with one visible scene, exact readout, and focus retained', () => {
+    const { doc } = setup();
+    let click: ((event: { key: string; target?: FakeElement | null }) => void) | undefined;
+    const listen = doc.addEventListener.bind(doc);
+    doc.addEventListener = (type, handler) => {
+      if (type === 'click') click = handler;
+      else listen(type, handler);
+    };
+    initSceneGrid(doc);
+    const next = doc.querySelector('[data-pager-step="1"]');
+    const prev = doc.querySelector('[data-pager-step="-1"]');
+    next?.focus();
+    click?.({ key: '', target: next });
+    click?.({ key: '', target: next });
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S03 of 17');
+    expect(doc.querySelector('[data-grid-announce]')?.textContent).toContain('S03 of 17');
+    const items = doc.querySelectorAll('[data-pager-item]');
+    expect(items.filter((item) => item.getAttribute('hidden') === null)).toHaveLength(1);
+    expect(items[2]?.getAttribute('hidden')).toBeNull();
+    expect(doc.activeElement).toBe(next);
+    click?.({ key: '', target: prev });
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S02 of 17');
+  });
+
   it('starts with no selection and one tab stop', () => {
     const { enhancer, tiles, doc } = setup();
     expect(enhancer).not.toBeNull();
@@ -97,6 +145,67 @@ describe('selection (UC-07, AX-02)', () => {
 });
 
 describe('keyboard (j/k, arrows, r, Esc)', () => {
+  it('hands the current scene focus between grid, pager and list bands', () => {
+    const { doc, tiles, enhancer, resize } = setup();
+    enhancer?.select(1);
+    resize(768);
+    expect(doc.activeElement).toBe(doc.querySelectorAll('[data-scene-pager]')[1]);
+    resize(390);
+    expect(doc.activeElement).toBe(doc.querySelectorAll('[data-scene-list]')[1]);
+    resize(1440);
+    expect(doc.activeElement).toBe(tiles[1]);
+    expect(enhancer?.selectedIndex()).toBe(1);
+    resize(1024);
+    expect(doc.activeElement).toBe(tiles[1]);
+  });
+
+  it('maps pager controls to their current scene, without stealing outside focus', () => {
+    const { doc, tiles, resize } = setup();
+    resize(768);
+    const next = doc.querySelector('[data-pager-step="1"]');
+    next?.focus();
+    doc.press('ArrowRight', next);
+    resize(1024);
+    expect(doc.activeElement).toBe(tiles[1]);
+    const outside = doc.querySelector('[data-reorder="up"]');
+    // The fake DOM allows focusing disabled controls; use a real outside link.
+    const link = doc.addRoot('<a href="/outside">Outside</a>').querySelector('a');
+    link?.focus();
+    resize(390);
+    expect(doc.activeElement).toBe(link);
+    expect(doc.activeElement).not.toBe(outside);
+  });
+
+  it('ignores static data-columns and remeasures live tracks after resize', () => {
+    const { doc, tiles, enhancer, setTracks } = setup();
+    setTracks('168px 168px 168px 168px');
+    doc.press('ArrowDown', tiles[0] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(4);
+    doc.press('ArrowUp', tiles[4] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(0);
+    setTracks('168px 168px 168px 168px 168px 168px');
+    doc.press('ArrowDown', tiles[0] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(6);
+    setTracks('none');
+    doc.press('ArrowDown', tiles[0] ?? null);
+    expect(enhancer?.selectedIndex()).toBe(1);
+  });
+  it('pages through pending scenes, wraps, and never replaces from reading surfaces', () => {
+    const { doc, navigations } = setup({ ...firstThree, scenes: firstThree.scenes.slice(0, 3) });
+    const pager = doc.querySelectorAll('[data-scene-pager]');
+    const next = doc.querySelector('[data-pager-step="1"]');
+    expect(pager).toHaveLength(17);
+    next?.focus();
+    for (let step = 0; step < 16; step += 1) doc.press('ArrowRight', next);
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S17 of 17');
+    expect(doc.activeElement).toBe(next);
+    doc.press('ArrowRight', next);
+    expect(doc.querySelector('[data-pager-readout]')?.textContent).toBe('S01 of 17');
+    doc.press('r', pager[0] ?? null);
+    doc.press('r', doc.querySelector('[data-scene-list]'));
+    expect(navigations).toEqual([]);
+  });
+
   it('moves with j and k, selection following focus', () => {
     const { doc, tiles, enhancer } = setup();
     tiles[0]?.focus();
