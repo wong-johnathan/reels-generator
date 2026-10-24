@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { resolve } from 'node:path';
 import { pathToFileURL, URL } from 'node:url';
 import { setTimeout } from 'node:timers/promises';
 
@@ -18,7 +19,7 @@ import { changedFields, profileToValues } from '../../dist/src/web/series/fields
 import { APP_CSS } from '../../dist/src/web/styles/embedded.js';
 
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const output = new URL('../../evidence/surface-followup/', import.meta.url);
+const output = resolve(process.env.BROWSER_OUTPUT_DIR || 'evidence/.browser-run', 'surface');
 mkdirSync(output, { recursive: true });
 const css = APP_CSS;
 const series = { ...FIXTURES['series.get'], status: 'active' };
@@ -196,7 +197,7 @@ try {
         results.push({ javaScriptEnabled, surface, width, ...metrics });
         if (!javaScriptEnabled && [1440, 768, 390, 320].includes(width))
           await page.screenshot({
-            path: new URL(`${surface}-${width}.png`, output).pathname,
+            path: resolve(output, `${surface}-${width}.png`),
             fullPage: true,
           });
       }
@@ -220,7 +221,7 @@ try {
     await context.close();
   }
   writeFileSync(
-    new URL('browser-results.json', output),
+    resolve(output, 'browser-results.json'),
     JSON.stringify(
       { browser: browser.version(), results, resizeSync: 'script and series passed' },
       null,
@@ -228,7 +229,7 @@ try {
     ) + '\n',
   );
   console.log(
-    `PASS: ${results.length} surface/viewport/JS combinations; keyboard region scrolling; resize sync; screenshots in ${output.pathname}`,
+    `PASS: ${results.length} surface/viewport/JS combinations; keyboard region scrolling; resize sync; screenshots in ${output}`,
   );
 } finally {
   await browser.close();

@@ -15,6 +15,7 @@ node_modules/
 dist/
 coverage/
 .vitest/
+evidence/.browser-run/
 *.tsbuildinfo
 npm-debug.log*
 

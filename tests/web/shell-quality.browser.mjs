@@ -2,8 +2,8 @@
 /** Local full-shell fixture regression, not an authenticated application server.
  * npm run build && PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs \
  * CHROMIUM_PATH=/path/to/chromium node tests/web/shell-quality.browser.mjs
- * Results default to evidence/shell-quality/browser-results.json; override with
- * BROWSER_OUTPUT_DIR (absolute path). No production requests or approval POSTs.
+ * Results default to evidence/.browser-run/shell/browser-results.json; override the
+ * shared root with BROWSER_OUTPUT_DIR. No production requests or approval POSTs.
  */
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ import { APP_CSS } from '../../dist/src/web/styles/embedded.js';
 
 assert.ok(process.env.PLAYWRIGHT_MODULE, 'Set PLAYWRIGHT_MODULE to playwright/index.mjs');
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const output = resolve(process.env.BROWSER_OUTPUT_DIR ?? 'evidence/shell-quality');
+const output = resolve(process.env.BROWSER_OUTPUT_DIR || 'evidence/.browser-run', 'shell');
 mkdirSync(output, { recursive: true });
 const widths = [1440, 1024, 768, 767, 480, 390, 320];
 const monitoring = 'Approvals need a screen 1024 px or wider. This view is monitoring only.';
