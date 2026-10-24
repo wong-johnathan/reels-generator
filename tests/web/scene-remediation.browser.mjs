@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { resolve, join } from 'node:path';
 import { pathToFileURL, URL } from 'node:url';
 
 import { FIXTURES } from '../../dist/contract/mock/fixtures.js';
@@ -15,7 +16,7 @@ import { buildShellModel, renderShell } from '../../dist/src/web/render/shell.js
 import { APP_CSS } from '../../dist/src/web/styles/embedded.js';
 
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
-const output = new URL('../../evidence/remed-scene/', import.meta.url);
+const output = join(resolve(process.env.BROWSER_OUTPUT_DIR || 'evidence/.browser-run'), 'scene');
 mkdirSync(output, { recursive: true });
 const detail = FIXTURES['video.get'];
 const storyboard = { ...FIXTURES['storyboard.get'], approved: false, approved_at: null };
@@ -180,23 +181,85 @@ async function exposed(page, selector, visible) {
     );
   }
 }
-async function axAndTab(page, hiddenSelector, hidden, axName) {
+async function axAndTab(page, hiddenSelector, hidden, axName, expectedDisabled = false) {
   const cdp = await page.context().newCDPSession(page);
   const tree = await cdp.send('Accessibility.getFullAXTree');
   const found = tree.nodes.some((node) => !node.ignored && node.name?.value?.includes(axName));
   assert.equal(found, !hidden, `AX ${axName}`);
+  const root = await cdp.send('DOM.getDocument');
+  const { nodeIds } = await cdp.send('DOM.querySelectorAll', {
+    nodeId: root.root.nodeId,
+    selector: hiddenSelector,
+  });
+  const controls = await page.locator(hiddenSelector).evaluateAll((elements) =>
+    elements.map((el, index) => ({
+      index,
+      tag: el.tagName.toLowerCase(),
+      id: el.id,
+      name: el.getAttribute('name'),
+      text: el.textContent?.trim(),
+      disabled: el.matches(':disabled'),
+      hidden: el.getClientRects().length === 0 || getComputedStyle(el).visibility === 'hidden',
+      tabIndex: el.tabIndex,
+    })),
+  );
+  for (const control of controls) {
+    const { node } = await cdp.send('DOM.describeNode', { nodeId: nodeIds[control.index] });
+    const ax = tree.nodes.find((item) => item.backendDOMNodeId === node.backendNodeId);
+    control.axExposed = !!ax && !ax.ignored;
+    control.axDisabled =
+      ax?.properties?.find((property) => property.name === 'disabled')?.value?.value ?? false;
+    assert.equal(control.hidden, hidden, `visibility ${hiddenSelector}[${control.index}]`);
+    assert.equal(
+      control.disabled,
+      expectedDisabled,
+      `native disabled ${hiddenSelector}[${control.index}]`,
+    );
+    assert.equal(control.axExposed, !hidden, `individual AX ${hiddenSelector}[${control.index}]`);
+    if (!hidden)
+      assert.equal(
+        control.axDisabled,
+        expectedDisabled,
+        `AX disabled ${hiddenSelector}[${control.index}]`,
+      );
+  }
   await cdp.detach();
   // Traverse the real tab sequence twice, rather than assuming tabindex implies visibility.
   const count = await page.locator('a, button, textarea, input, [tabindex]').count();
   let reached = false;
+  const reachedIndices = new Set();
   for (let i = 0; i < count * 2; i++) {
     await page.keyboard.press('Tab');
     reached ||= await page.evaluate(
       (selector) => !!document.activeElement?.matches(selector),
       hiddenSelector,
     );
+    for (const index of await page
+      .locator(hiddenSelector)
+      .evaluateAll((elements) =>
+        elements.flatMap((el, index) => (el === document.activeElement ? [index] : [])),
+      ))
+      reachedIndices.add(index);
   }
   if (hidden) assert.equal(reached, false, `tab exposed ${hiddenSelector}`);
+  for (const control of controls) {
+    control.tabReached = reachedIndices.has(control.index);
+    control.expectedTabReach = !control.hidden && !control.disabled;
+    assert.equal(
+      control.tabReached,
+      control.expectedTabReach,
+      `individual real Tab ${hiddenSelector}[${control.index}] ${control.tag}`,
+    );
+  }
+  return {
+    selector: hiddenSelector,
+    present: controls.length > 0,
+    expectedHidden: hidden,
+    expectedDisabled,
+    axNameExposed: found,
+    reached,
+    controls,
+  };
 }
 try {
   for (const javaScriptEnabled of [true, false]) {
@@ -218,12 +281,14 @@ try {
             width < 768 ? monitoring : 'Open at 1024 px or wider to replace a scene image.',
           );
         }
-        await axAndTab(
+        const keyboard = await axAndTab(
           page,
           '.scene-replace textarea, .scene-replace button',
           width < 1024,
           'Image prompt for this scene',
+          state !== 'wired',
         );
+        assert.equal(keyboard.controls.length, 2, 'textarea and replace button audited separately');
         const back = await targets(page, '.scene-detail-back a');
         assert.equal(await page.locator('[data-replace]').count(), 1);
         assert.equal(await page.locator('[data-replace]').isDisabled(), state !== 'wired');
@@ -231,7 +296,7 @@ try {
         assert.equal(primary.length, width >= 1024 ? 1 : 0);
         if (state === 'wired' && [1440, 768, 390, 320].includes(width)) {
           await page.screenshot({
-            path: new URL(`scene-${width}-js${javaScriptEnabled}.png`, output).pathname,
+            path: join(output, `scene-${width}-js${javaScriptEnabled}.png`),
             fullPage: true,
           });
         }
@@ -241,6 +306,7 @@ try {
           width,
           javaScriptEnabled,
           replaceVisible: width >= 1024,
+          keyboard,
           back,
           primary,
         });
@@ -253,12 +319,13 @@ try {
           await exposed(page, '.storyboard-approve', width >= 768);
           await exposed(page, '.storyboard-monitoring-note', width < 768);
         }
-        await axAndTab(
+        const keyboard = await axAndTab(
           page,
           '[data-approve-storyboard]',
           !pending || width < 768,
           'Approve storyboard',
         );
+        assert.equal(keyboard.controls.length, pending ? 1 : 0, 'approval audit cardinality');
         const links = await targets(page, '.storyboard-scene');
         assert.equal(links.length, pending || state === 'approved' ? storyboard.scenes.length : 0);
         if (state === 'approved')
@@ -276,12 +343,13 @@ try {
           width,
           javaScriptEnabled,
           approveVisible: pending && width >= 768,
+          keyboard,
           links,
           primary,
         });
         if (pending && (width === 1440 || width === 390))
           await page.screenshot({
-            path: new URL(`storyboard-${width}-js${javaScriptEnabled}.png`, output).pathname,
+            path: join(output, `storyboard-${width}-js${javaScriptEnabled}.png`),
             fullPage: true,
           });
       }
@@ -399,11 +467,46 @@ try {
         results.push({ surface: 'resize', width, expected });
       }
     }
+    // Seed remembered scene focus, then move outside before repeated band changes.
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(origin + '/grid');
+    if (javaScriptEnabled) {
+      await page.waitForFunction(
+        () => document.querySelector('[data-scene-tile]')?.getAttribute('tabindex') === '0',
+      );
+    }
+    await page.locator('[data-scene-tile]').nth(1).focus();
+    const outside = await page.locator('.skip-link').elementHandle();
+    await outside.focus();
+    for (const width of [768, 390, 1440, 1024, 767, 320, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      // Allow resize/media-query delivery and delayed effects to settle. JS-off
+      // verifies native safety only, not execution of enhancement callbacks.
+      await page.waitForTimeout(150);
+      const sameIdentity = await outside.evaluate(
+        (el) => el.isConnected && el === document.activeElement,
+      );
+      assert.equal(sameIdentity, true, `outside focus at ${width}, JS ${javaScriptEnabled}`);
+      assert.equal(await outside.isVisible(), true);
+      assert.equal(
+        await page.locator('[data-pager-controls]').isVisible(),
+        javaScriptEnabled && width >= 768 && width < 1024,
+      );
+      results.push({
+        surface: 'outside-resize-focus',
+        width,
+        javaScriptEnabled,
+        selector: '.skip-link',
+        sameIdentity,
+        enhancement: javaScriptEnabled,
+      });
+    }
+    await outside.dispose();
     await context.close();
   }
-  writeFileSync(new URL('browser-results.json', output), JSON.stringify(results, null, 2) + '\n');
+  writeFileSync(join(output, 'browser-results.json'), JSON.stringify(results, null, 2) + '\n');
   writeFileSync(
-    new URL('primary-failures.json', output),
+    join(output, 'primary-failures.json'),
     JSON.stringify(primaryFailures, null, 2) + '\n',
   );
   assert.deepEqual(primaryFailures, [], 'primary target/neighbor audit');
