@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createServer } from 'node:http';
 import { pathToFileURL, URL, URLSearchParams } from 'node:url';
 import { setTimeout } from 'node:timers/promises';
@@ -24,7 +25,10 @@ const canonicalNote = 'Approvals need a screen 1024 px or wider. This view is mo
 const computing = 'computing impact';
 const failed =
   'The impact of this change could not be computed, so regeneration is blocked. Editing and regeneration are both disabled until it can be computed — this prevents a change whose cost you could not see.';
-const output = new URL('../../evidence/surface-followup/', import.meta.url);
+const output = process.env.BROWSER_OUTPUT_DIR
+  ? pathToFileURL(resolve(process.env.BROWSER_OUTPUT_DIR) + '/')
+  : new URL('../../evidence/.browser-run/', import.meta.url);
+const widths = [1440, 1024, 768, 767, 480, 390, 320];
 mkdirSync(output, { recursive: true });
 const css = APP_CSS;
 const series = { ...FIXTURES['series.get'], status: 'active' };
@@ -133,7 +137,7 @@ const results = [];
 const dispatch = [];
 const asyncSummary = [];
 
-async function phoneGates(page) {
+async function summaryGates(page, width) {
   const gates = await page.locator('#script-apply, #script-regenerate').evaluateAll((elements) =>
     elements.map((element) => {
       let hiddenByDisplayNone = false;
@@ -144,11 +148,11 @@ async function phoneGates(page) {
   );
   assert.equal(gates.length, 2);
   assert(
-    gates.every((gate) => gate.hiddenByDisplayNone),
+    gates.every((gate) => width >= 768 || gate.hiddenByDisplayNone),
     JSON.stringify(gates),
   );
-  assert(await page.locator('.script-impact-summary').isVisible());
-  assert(await page.locator('[data-monitor-for="script-title"]').isVisible());
+  assert.equal(await page.locator('.script-impact-summary').isVisible(), width < 768);
+  assert.equal(await page.locator('[data-monitor-for="script-title"]').isVisible(), width < 768);
   assert.notEqual(
     await page.locator('[data-monitor-for="script-title"]').getAttribute('readonly'),
     null,
@@ -187,7 +191,7 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
-    for (const width of [1440, 1024, 768, 767, 480, 390, 320]) {
+    for (const width of widths) {
       await page.setViewportSize({ width, height: 900 });
       for (const surface of Object.keys(surfaces)) {
         await page.goto(base + '/' + surface);
@@ -287,6 +291,37 @@ try {
             await setTimeout(50);
           assert((await page.locator('.series-table-wrap').evaluate((el) => el.scrollLeft)) > 0);
         }
+        if (width < 768 && (surface === 'script' || surface === 'editor')) {
+          const prohibited = page.locator(
+            surface === 'script'
+              ? '#script-approve, #script-apply, #script-regenerate'
+              : '.series-save',
+          );
+          assert.equal(await prohibited.count(), surface === 'script' ? 3 : 1);
+          metrics.tabSequence = [];
+          for (let tab = 0; tab < 70; tab++) {
+            await page.keyboard.press('Tab');
+            assert(
+              !(await prohibited.evaluateAll((elements) =>
+                elements.some((element) => element === document.activeElement),
+              )),
+              `${surface} ${width} JS=${javaScriptEnabled}: mutation control reached by Tab`,
+            );
+            metrics.tabSequence.push(await page.evaluate(() => document.activeElement.id));
+          }
+          const ax = await page.locator('body').ariaSnapshot();
+          assert(
+            !/button "(?:Apply edit|Apply and regenerate|Approve script|Save changes)/.test(ax),
+          );
+          if (surface === 'script') {
+            metrics.summaryText = await page
+              .locator('[data-monitor-text-for="script-impact-message"]')
+              .textContent();
+            assert.equal(metrics.summaryText, 'No unsaved changes');
+            assert(ax.includes(metrics.summaryText));
+          }
+          writeFileSync(new URL(`ax-${surface}-${width}-${javaScriptEnabled}.txt`, output), ax);
+        }
         results.push({ javaScriptEnabled, surface, width, ...metrics });
         if (!javaScriptEnabled && [1440, 768, 390, 320].includes(width))
           await page.screenshot({
@@ -296,7 +331,7 @@ try {
       }
     }
     if (javaScriptEnabled) {
-      for (const width of [480, 390, 767]) {
+      for (const width of widths) {
         for (const outcome of ['ready', 'failed']) {
           await page.setViewportSize({ width: 1440, height: 900 });
           let release;
@@ -325,21 +360,33 @@ try {
           await requested;
           await page.setViewportSize({ width, height: 900 });
           await waitSummary(page, computing);
-          await phoneGates(page);
+          await summaryGates(page, width);
           await page.screenshot({
             path: new URL(`async-${width}-${outcome}-computing.png`, output).pathname,
             fullPage: true,
           });
           release();
           await waitSummary(page, outcome === 'ready' ? ready : failed);
-          const gates = await phoneGates(page);
+          const gates = await summaryGates(page, width);
           assert(
             gates.every((gate) => gate.disabled === (outcome === 'failed')),
             'ready controls enabled but CSS-hidden',
           );
+          const ax = await page.locator('body').ariaSnapshot();
+          assert(
+            !ax.includes(computing),
+            'resolved accessibility tree must not retain computing impact',
+          );
+          if (width < 768)
+            assert(
+              ax.includes(outcome === 'ready' ? ready : failed),
+              'resolved summary in a11y tree',
+            );
+          writeFileSync(new URL(`async-ax-${width}-${outcome}.txt`, output), ax);
           asyncSummary.push({
             width,
             outcome,
+            summaryVisible: await page.locator('.script-impact-summary').isVisible(),
             before: computing,
             after: await page
               .locator('[data-monitor-text-for="script-impact-message"]')
@@ -430,7 +477,7 @@ try {
     ),
   );
   console.log(
-    `PASS: ${results.length} surface/viewport/JS combinations; ${dispatch.length} desktop dispatches; ${asyncSummary.length} delayed previews; Tab + ArrowRight; resize sync; screenshots in ${output.pathname}`,
+    `PASS: ${results.length} surface/viewport/JS combinations; ${dispatch.length} desktop dispatches; ${asyncSummary.length} delayed previews; phone Tab exclusion + a11y tree + no-JS default; Tab + ArrowRight; resize sync; screenshots in ${output.pathname}`,
   );
 } finally {
   await browser.close();
